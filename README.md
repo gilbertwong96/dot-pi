@@ -86,6 +86,7 @@ To enable an experimental extension:
 | `github-issues` | Work with GitHub Issues via `gh` CLI — view, triage, fix, close |
 | `keyboard-layout-decoder` | Decode text typed with wrong keyboard layout (Russian ↔ English) |
 | `skill-discovery` | Discover agent skills on GitHub |
+| `vibe-merge` | Reimplement useful PR or branch ideas safely with contributor credit |
 
 ## Rules
 
