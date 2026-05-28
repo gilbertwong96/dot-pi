@@ -98,6 +98,7 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 
 | Rule | Description |
 |---|---|
+| `backward-compatibility.md` | Avoid unnecessary compatibility shims |
 | `bun.md` | Use Bun instead of Node.js/npm |
 | `comments.md` | Avoid redundant comments |
 | `commit-messages.md` | Follow existing repo commit style |
