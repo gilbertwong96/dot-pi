@@ -77,3 +77,21 @@ pi -e extensions/coach.ts
 Then run `/coach shortcuts`.
 
 Expected: explains setup/shortcuts using `docs/handbook.md`, `prompts`, `rules`, and `skills`; does not edit/commit/push.
+
+### Optional Pi workflow tutor
+
+Automated smoke check:
+
+```bash
+bun run smoke:tutor
+```
+
+Manual check:
+
+```bash
+pi --no-extensions -e extensions/tutor.ts
+```
+
+Then run `/tutor quote`.
+
+Expected: sends a Dannote-style Pi workflow tutoring prompt, mentions `/quote`, stays advisory/read-only, and does not edit/commit/push.

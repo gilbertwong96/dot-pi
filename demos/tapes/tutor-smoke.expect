@@ -1,0 +1,31 @@
+#!/usr/bin/expect -f
+set timeout 30
+set env(PI_SKIP_VERSION_CHECK) 1
+set env(PI_OFFLINE) 1
+set env(PI_TUTOR_SMOKE) 1
+
+cd [file normalize [file join [file dirname [info script]] ../..]]
+
+spawn pi --offline --no-session --no-tools --no-skills --no-prompt-templates --no-context-files --no-extensions -e extensions/tutor.ts
+
+expect {
+    -re {tutor\.ts} {}
+    timeout {
+        puts "Timed out waiting for tutor extension to load"
+        exit 1
+    }
+}
+
+send "/tutor quote\r"
+
+expect {
+    -re {Tutor smoke OK: quote} {}
+    timeout {
+        puts "Timed out waiting for tutor smoke notification"
+        send "\003\003"
+        exit 1
+    }
+}
+
+send "\003\003"
+expect eof

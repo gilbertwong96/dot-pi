@@ -191,7 +191,7 @@ Enable them by replacing the package entry in `~/.pi/agent/settings.json` with a
 
 ### Optional extensions
 
-`coach.ts` is the optional extension I recommend to newcomers: it explains the setup, habits, and first workflows. Try it from a local checkout with:
+`coach.ts` is the optional extension I recommend to newcomers: it explains the setup, habits, and first workflows. `tutor.ts` teaches one Dannote-style Pi workflow habit at a time with lightweight learning records. Try one from a local checkout with:
 
 ```bash
 pi -e /path/to/dot-pi/extensions/coach.ts
@@ -202,6 +202,7 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `bash-completion/`     | Advanced terminal completion; can be noisy while editing prompts                  |
 | `coach.ts`             | Recommended for newcomers copying this setup; explains habits and first workflows |
 | `critic/`              | Experimental shadow-review loop                                                   |
+| `tutor.ts`             | Stateful micro-lessons for learning Dannote-style Pi workflow habits              |
 | `decision-guidance.ts` | Experimental trajectory guidance                                                  |
 | `permission-gate.ts`   | Opinionated command blocking                                                      |
 | `plan-mode/`           | Experimental read-only planning mode                                              |

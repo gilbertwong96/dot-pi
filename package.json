@@ -16,7 +16,8 @@
     "format": "oxfmt .",
     "lint": "oxlint .",
     "format:check": "bash -lc 'oxfmt --check package.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",
-    "test": "bun test"
+    "test": "bun test",
+    "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.32",
