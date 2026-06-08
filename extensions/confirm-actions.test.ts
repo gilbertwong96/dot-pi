@@ -79,6 +79,44 @@ describe('matchCommandRule', () => {
     )
   })
 
+  test('default rules confirm Gmail and X/Twitter mutations', () => {
+    expect(
+      matchCommandRule(
+        'gws gmail +send --to alice@example.com --subject Hi --body Hello',
+        DEFAULT_COMMAND_RULES
+      )?.label
+    ).toBe('Mutate Gmail')
+    expect(
+      matchCommandRule('gws gmail +reply abc --body Thanks', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Mutate Gmail')
+    expect(
+      matchCommandRule('gws gmail users messages send --json payload.json', DEFAULT_COMMAND_RULES)
+        ?.label
+    ).toBe('Mutate Gmail')
+    expect(
+      matchCommandRule('gws gmail users messages delete --id msg-1', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Mutate Gmail')
+    expect(
+      matchCommandRule('gws gmail +send --to alice@example.com --dry-run', DEFAULT_COMMAND_RULES)
+    ).toBeUndefined()
+    expect(matchCommandRule('gws gmail +triage', DEFAULT_COMMAND_RULES)).toBeUndefined()
+
+    expect(matchCommandRule('bird tweet "hello"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Mutate X/Twitter'
+    )
+    expect(matchCommandRule('bird reply 123 "thanks"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Mutate X/Twitter'
+    )
+    expect(matchCommandRule('bird delete 123', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Mutate X/Twitter'
+    )
+    expect(
+      matchCommandRule('bunx @dannote/bird-premium follow someone', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Mutate X/Twitter')
+    expect(matchCommandRule('bird read 123', DEFAULT_COMMAND_RULES)).toBeUndefined()
+    expect(matchCommandRule('bird search "pi"', DEFAULT_COMMAND_RULES)).toBeUndefined()
+  })
+
   test('default rules confirm release publish and deploy commands', () => {
     expect(matchCommandRule('npm publish', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Publish npm package'

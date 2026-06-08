@@ -35,6 +35,13 @@ export const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
   { argv: ['gh', 'release', 'create'], label: 'Publish GitHub release' },
   { argv: ['gh', 'api'], label: 'Mutate via GitHub API', matches: isMutatingGhApi },
+  { argv: ['gws', 'gmail'], label: 'Mutate Gmail', matches: isMutatingGmail },
+  { argv: ['bird'], label: 'Mutate X/Twitter', matches: isMutatingBird },
+  {
+    argv: ['bunx', '@dannote/bird-premium'],
+    label: 'Mutate X/Twitter',
+    matches: isMutatingBird
+  },
   { argv: ['glab', 'mr', 'create'], label: 'Publish GitLab MR' },
   { argv: ['glab', 'mr', 'update'], label: 'Edit GitLab MR' },
   { argv: ['glab', 'mr', 'note'], label: 'Publish GitLab MR comment' },
@@ -236,6 +243,49 @@ function isMutatingGhApi(argv: string[]): boolean {
   if (method === 'GET') return false
 
   return argv.some((arg) => ['--field', '-f', '--raw-field', '-F'].includes(arg))
+}
+
+function isMutatingGmail(argv: string[]): boolean {
+  if (hasAnyFlag(argv, ['--dry-run'])) return false
+
+  return argv.some((arg) =>
+    [
+      '+send',
+      '+reply',
+      '+reply-all',
+      '+forward',
+      'send',
+      'import',
+      'insert',
+      'trash',
+      'untrash',
+      'delete',
+      'batchDelete',
+      'modify',
+      'batchModify',
+      'create',
+      'update',
+      'patch'
+    ].includes(arg)
+  )
+}
+
+function isMutatingBird(argv: string[]): boolean {
+  return argv.some((arg) =>
+    [
+      'tweet',
+      'reply',
+      'delete',
+      'like',
+      'unlike',
+      'retweet',
+      'unretweet',
+      'bookmark',
+      'unbookmark',
+      'follow',
+      'unfollow'
+    ].includes(arg)
+  )
 }
 
 function isGitForcePush(argv: string[]): boolean {

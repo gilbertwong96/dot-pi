@@ -52,6 +52,8 @@ Trigger only harmless/dummy commands and cancel them.
 
 - `gh pr comment 1 --body test` should ask to publish a PR comment.
 - `gh issue create --title test --body test` should ask to publish an issue.
+- `gws gmail +send --to alice@example.com --subject test --body test` should ask before sending email.
+- `bird tweet "test"` should ask before posting to X/Twitter.
 - `git push --force-with-lease` should ask before force push.
 - `git reset --hard HEAD` should ask before hard reset.
 - Cancel each dialog.
