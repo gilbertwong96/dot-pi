@@ -7,190 +7,190 @@
  * The .json file stores metadata (cwd, command) for display purposes.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder, truncateTail } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
-import { spawn, spawnSync } from "child_process";
-import * as crypto from "crypto";
-import * as fs from "fs";
-import * as path from "path";
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
+import { DynamicBorder, truncateTail } from '@earendil-works/pi-coding-agent'
+import { Container, Text } from '@earendil-works/pi-tui'
+import { Type } from 'typebox'
+import { spawn, spawnSync } from 'child_process'
+import * as crypto from 'crypto'
+import * as fs from 'fs'
+import * as path from 'path'
 
-const BASE_DIR = "/tmp/pi-bg";
+const BASE_DIR = '/tmp/pi-bg'
 
 interface ProcessMeta {
-  projectDir: string;
-  cwd?: string;
-  command: string;
+  projectDir: string
+  cwd?: string
+  command: string
 }
 
 interface ProcessInfo {
-  name: string;
-  pid: number;
-  running: boolean;
-  logFile: string;
-  cwd?: string;
-  error?: boolean;
+  name: string
+  pid: number
+  running: boolean
+  logFile: string
+  cwd?: string
+  error?: boolean
 }
 
 interface StopDetails {
-  name: string;
-  error?: boolean;
+  name: string
+  error?: boolean
 }
 
 interface LogsDetails {
-  name: string;
-  logs: string;
-  error?: boolean;
+  name: string
+  logs: string
+  error?: boolean
 }
 
 function getProjectDir(projectDir: string): string {
-  const hash = crypto.createHash("sha256").update(projectDir).digest("hex").slice(0, 12);
-  const name = path.basename(projectDir);
-  return path.join(BASE_DIR, `${name}-${hash}`);
+  const hash = crypto.createHash('sha256').update(projectDir).digest('hex').slice(0, 12)
+  const name = path.basename(projectDir)
+  return path.join(BASE_DIR, `${name}-${hash}`)
 }
 
 function ensureProjectDir(projectDir: string): string {
-  const dir = getProjectDir(projectDir);
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  const dir = getProjectDir(projectDir)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
 }
 
 function getRelativeCwd(projectDir: string, cwd: string): string | undefined {
-  if (cwd === projectDir) return undefined;
-  if (cwd.startsWith(projectDir + "/")) {
-    return path.relative(projectDir, cwd);
+  if (cwd === projectDir) return undefined
+  if (cwd.startsWith(projectDir + '/')) {
+    return path.relative(projectDir, cwd)
   }
-  return cwd;
+  return cwd
 }
 
 function listProcesses(projectDir: string): ProcessInfo[] {
-  let projectDirs: string[];
+  let projectDirs: string[]
   try {
-    projectDirs = fs.readdirSync(BASE_DIR).map((d) => path.join(BASE_DIR, d));
+    projectDirs = fs.readdirSync(BASE_DIR).map((d) => path.join(BASE_DIR, d))
   } catch {
-    return [];
+    return []
   }
 
-  const results: ProcessInfo[] = [];
+  const results: ProcessInfo[] = []
 
   for (const dir of projectDirs) {
-    let files: string[];
+    let files: string[]
     try {
-      files = fs.readdirSync(dir).filter((f) => f.endsWith(".pid"));
+      files = fs.readdirSync(dir).filter((f) => f.endsWith('.pid'))
     } catch {
-      continue;
+      continue
     }
 
     for (const file of files) {
-      const name = file.slice(0, -4);
-      const pidFile = path.join(dir, file);
-      const logFile = path.join(dir, `${name}.log`);
-      const metaFile = path.join(dir, `${name}.json`);
+      const name = file.slice(0, -4)
+      const pidFile = path.join(dir, file)
+      const logFile = path.join(dir, `${name}.log`)
+      const metaFile = path.join(dir, `${name}.json`)
 
-      let meta: ProcessMeta;
+      let meta: ProcessMeta
       try {
-        meta = JSON.parse(fs.readFileSync(metaFile, "utf8"));
+        meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'))
       } catch {
-        continue;
+        continue
       }
 
       // Filter: only show processes from this project or its subdirectories
-      if (!meta.projectDir.startsWith(projectDir)) continue;
+      if (!meta.projectDir.startsWith(projectDir)) continue
 
-      let pid = 0;
-      let running = false;
+      let pid = 0
+      let running = false
 
       try {
-        pid = parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
-        process.kill(pid, 0);
-        running = true;
+        pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10)
+        process.kill(pid, 0)
+        running = true
       } catch {
-        running = false;
+        running = false
       }
 
       // Calculate display cwd relative to current projectDir
-      let cwd: string | undefined;
+      let cwd: string | undefined
       if (meta.projectDir !== projectDir) {
-        const relProject = path.relative(projectDir, meta.projectDir);
-        cwd = meta.cwd ? path.join(relProject, meta.cwd) : relProject;
+        const relProject = path.relative(projectDir, meta.projectDir)
+        cwd = meta.cwd ? path.join(relProject, meta.cwd) : relProject
       } else {
-        cwd = meta.cwd;
+        cwd = meta.cwd
       }
 
-      results.push({ name, pid, running, logFile, cwd });
+      results.push({ name, pid, running, logFile, cwd })
     }
   }
 
-  return results;
+  return results
 }
 
 function startProcess(
   projectDir: string,
   name: string,
   command: string,
-  cwd?: string,
+  cwd?: string
 ): ProcessInfo {
-  const dir = ensureProjectDir(projectDir);
-  const pidFile = path.join(dir, `${name}.pid`);
-  const logFile = path.join(dir, `${name}.log`);
-  const metaFile = path.join(dir, `${name}.json`);
+  const dir = ensureProjectDir(projectDir)
+  const pidFile = path.join(dir, `${name}.pid`)
+  const logFile = path.join(dir, `${name}.log`)
+  const metaFile = path.join(dir, `${name}.json`)
 
-  const existing = listProcesses(projectDir).find((p) => p.name === name && p.running);
+  const existing = listProcesses(projectDir).find((p) => p.name === name && p.running)
   if (existing) {
-    throw new Error(`Process "${name}" already running (PID ${existing.pid})`);
+    throw new Error(`Process "${name}" already running (PID ${existing.pid})`)
   }
 
-  const actualCwd = cwd || projectDir;
-  const relativeCwd = getRelativeCwd(projectDir, actualCwd);
-  const logFd = fs.openSync(logFile, "w");
+  const actualCwd = cwd || projectDir
+  const relativeCwd = getRelativeCwd(projectDir, actualCwd)
+  const logFd = fs.openSync(logFile, 'w')
 
-  const child = spawn("bash", ["-c", command], {
+  const child = spawn('bash', ['-c', command], {
     cwd: actualCwd,
     detached: true,
-    stdio: ["ignore", logFd, logFd],
-  });
+    stdio: ['ignore', logFd, logFd]
+  })
 
-  const pid = child.pid;
+  const pid = child.pid
   if (!pid) {
-    fs.closeSync(logFd);
-    throw new Error("Failed to start process");
+    fs.closeSync(logFd)
+    throw new Error('Failed to start process')
   }
 
-  child.unref();
-  fs.writeFileSync(pidFile, pid.toString());
+  child.unref()
+  fs.writeFileSync(pidFile, pid.toString())
 
-  const meta: ProcessMeta = { projectDir, command, cwd: relativeCwd };
-  fs.writeFileSync(metaFile, JSON.stringify(meta));
+  const meta: ProcessMeta = { projectDir, command, cwd: relativeCwd }
+  fs.writeFileSync(metaFile, JSON.stringify(meta))
 
-  return { name, pid, running: true, logFile, cwd: relativeCwd };
+  return { name, pid, running: true, logFile, cwd: relativeCwd }
 }
 
 function findProcessDir(projectDir: string, name: string): string | null {
-  const processes = listProcesses(projectDir);
-  const proc = processes.find((p) => p.name === name);
-  if (!proc) return null;
-  return path.dirname(proc.logFile);
+  const processes = listProcesses(projectDir)
+  const proc = processes.find((p) => p.name === name)
+  if (!proc) return null
+  return path.dirname(proc.logFile)
 }
 
 function stopProcess(projectDir: string, name: string): void {
-  const dir = findProcessDir(projectDir, name);
+  const dir = findProcessDir(projectDir, name)
   if (!dir) {
-    throw new Error(`Process "${name}" not found`);
+    throw new Error(`Process "${name}" not found`)
   }
 
-  const pidFile = path.join(dir, `${name}.pid`);
-  const pid = parseInt(fs.readFileSync(pidFile, "utf8").trim(), 10);
+  const pidFile = path.join(dir, `${name}.pid`)
+  const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim(), 10)
 
   try {
-    process.kill(pid, "SIGTERM");
+    process.kill(pid, 'SIGTERM')
   } catch {
     // Process already dead
   }
 
-  fs.unlinkSync(pidFile);
+  fs.unlinkSync(pidFile)
   try {
-    fs.unlinkSync(path.join(dir, `${name}.json`));
+    fs.unlinkSync(path.join(dir, `${name}.json`))
   } catch {
     /* ignore */
   }
@@ -198,472 +198,472 @@ function stopProcess(projectDir: string, name: string): void {
 
 function stripProgressNoise(text: string): string {
   // eslint-disable-next-line no-control-regex
-  let clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+  let clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 
   clean = clean
-    .split("\n")
+    .split('\n')
     .map((line) => {
-      if (!line.includes("\r")) return line;
-      const parts = line.split("\r");
-      return parts[parts.length - 1];
+      if (!line.includes('\r')) return line
+      const parts = line.split('\r')
+      return parts[parts.length - 1]
     })
-    .join("\n");
+    .join('\n')
 
-  return clean;
+  return clean
 }
 
 function readLogs(projectDir: string, name: string, lines: number): string {
-  const dir = findProcessDir(projectDir, name);
+  const dir = findProcessDir(projectDir, name)
   if (!dir) {
-    throw new Error(`Log file for "${name}" not found`);
+    throw new Error(`Log file for "${name}" not found`)
   }
-  const logFile = path.join(dir, `${name}.log`);
+  const logFile = path.join(dir, `${name}.log`)
 
   if (!fs.existsSync(logFile)) {
-    throw new Error(`Log file for "${name}" not found`);
+    throw new Error(`Log file for "${name}" not found`)
   }
 
-  const result = spawnSync("tail", ["-n", lines.toString(), logFile], {
-    encoding: "utf8",
-  });
+  const result = spawnSync('tail', ['-n', lines.toString(), logFile], {
+    encoding: 'utf8'
+  })
 
-  const raw = stripProgressNoise(result.stdout || result.stderr || "");
-  const truncation = truncateTail(raw, { maxLines: lines });
+  const raw = stripProgressNoise(result.stdout || result.stderr || '')
+  const truncation = truncateTail(raw, { maxLines: lines })
 
   if (truncation.truncated) {
-    return `[truncated: showing last ${truncation.outputLines} lines / ${truncation.outputBytes} bytes]\n${truncation.content}`;
+    return `[truncated: showing last ${truncation.outputLines} lines / ${truncation.outputBytes} bytes]\n${truncation.content}`
   }
 
-  return truncation.content;
+  return truncation.content
 }
 
 function readFullLogs(projectDir: string, name: string): string {
-  const dir = findProcessDir(projectDir, name);
+  const dir = findProcessDir(projectDir, name)
   if (!dir) {
-    throw new Error(`Log file for "${name}" not found`);
+    throw new Error(`Log file for "${name}" not found`)
   }
-  const logFile = path.join(dir, `${name}.log`);
+  const logFile = path.join(dir, `${name}.log`)
 
   if (!fs.existsSync(logFile)) {
-    throw new Error(`Log file for "${name}" not found`);
+    throw new Error(`Log file for "${name}" not found`)
   }
 
-  return fs.readFileSync(logFile, "utf8");
+  return fs.readFileSync(logFile, 'utf8')
 }
 
 function getChildPids(pid: number): number[] {
   try {
-    const result = spawnSync("pgrep", ["-P", pid.toString()], {
-      encoding: "utf8",
-      timeout: 500,
-    });
-    if (!result.stdout) return [];
+    const result = spawnSync('pgrep', ['-P', pid.toString()], {
+      encoding: 'utf8',
+      timeout: 500
+    })
+    if (!result.stdout) return []
     return result.stdout
       .trim()
-      .split("\n")
+      .split('\n')
       .map((s) => parseInt(s, 10))
-      .filter((n) => n > 0);
+      .filter((n) => n > 0)
   } catch {
-    return [];
+    return []
   }
 }
 
 function getListeningPorts(pid: number): number[] {
-  const pids = [pid, ...getChildPids(pid)];
-  const ports = new Set<number>();
+  const pids = [pid, ...getChildPids(pid)]
+  const ports = new Set<number>()
 
   for (const p of pids) {
     try {
       const result = spawnSync(
-        "lsof",
-        ["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-a", "-p", p.toString()],
+        'lsof',
+        ['-iTCP', '-sTCP:LISTEN', '-P', '-n', '-a', '-p', p.toString()],
         {
-          encoding: "utf8",
-          timeout: 500,
-        },
-      );
-      if (!result.stdout) continue;
-      for (const line of result.stdout.split("\n").slice(1)) {
-        const match = line.match(/:(\d+)\s+\(LISTEN\)/);
-        if (match) ports.add(parseInt(match[1], 10));
+          encoding: 'utf8',
+          timeout: 500
+        }
+      )
+      if (!result.stdout) continue
+      for (const line of result.stdout.split('\n').slice(1)) {
+        const match = line.match(/:(\d+)\s+\(LISTEN\)/)
+        if (match) ports.add(parseInt(match[1], 10))
       }
     } catch {
-      continue;
+      continue
     }
   }
-  return [...ports];
+  return [...ports]
 }
 
 function getDisplayName(proc: ProcessInfo): string {
   if (proc.cwd) {
-    return proc.cwd + "/" + proc.name;
+    return proc.cwd + '/' + proc.name
   }
-  return proc.name;
+  return proc.name
 }
 
 function updateStatus(ctx: ExtensionContext) {
-  const running = listProcesses(ctx.cwd).filter((p) => p.running);
+  const running = listProcesses(ctx.cwd).filter((p) => p.running)
   if (running.length === 0) {
-    ctx.ui.setStatus("background", undefined);
-    ctx.ui.setWidget("background-logs", undefined);
+    ctx.ui.setStatus('background', undefined)
+    ctx.ui.setWidget('background-logs', undefined)
   } else {
-    const theme = ctx.ui.theme;
+    const theme = ctx.ui.theme
     const items = running
       .map((p) => {
-        const display = getDisplayName(p);
-        const ports = getListeningPorts(p.pid);
+        const display = getDisplayName(p)
+        const ports = getListeningPorts(p.pid)
         if (ports.length > 0) {
-          return display + ":" + theme.fg("accent", ports.join(","));
+          return display + ':' + theme.fg('accent', ports.join(','))
         }
-        return display;
+        return display
       })
-      .join(" ");
-    ctx.ui.setStatus("background", theme.fg("success", "●") + " " + items);
+      .join(' ')
+    ctx.ui.setStatus('background', theme.fg('success', '●') + ' ' + items)
 
     ctx.ui.setWidget(
-      "background-logs",
+      'background-logs',
       (_tui, theme) => {
-        const container = new Container();
-        container.addChild(new DynamicBorder((s) => theme.fg("border", s)));
+        const container = new Container()
+        container.addChild(new DynamicBorder((s) => theme.fg('border', s)))
         for (const proc of running) {
-          const displayName = getDisplayName(proc);
+          const displayName = getDisplayName(proc)
           try {
-            const logs = readLogs(ctx.cwd, proc.name, 2);
-            container.addChild(new Text(theme.fg("muted", ` ${displayName} `), 0, 0));
+            const logs = readLogs(ctx.cwd, proc.name, 2)
+            container.addChild(new Text(theme.fg('muted', ` ${displayName} `), 0, 0))
             if (logs.trim()) {
-              for (const line of logs.trim().split("\n")) {
-                container.addChild(new Text(theme.fg("dim", ` ${line}`), 0, 0));
+              for (const line of logs.trim().split('\n')) {
+                container.addChild(new Text(theme.fg('dim', ` ${line}`), 0, 0))
               }
             }
           } catch {
-            container.addChild(new Text(theme.fg("muted", ` ${displayName} `), 0, 0));
-            container.addChild(new Text(theme.fg("dim", " (no logs)"), 0, 0));
+            container.addChild(new Text(theme.fg('muted', ` ${displayName} `), 0, 0))
+            container.addChild(new Text(theme.fg('dim', ' (no logs)'), 0, 0))
           }
         }
-        container.addChild(new DynamicBorder((s) => theme.fg("border", s)));
-        return container;
+        container.addChild(new DynamicBorder((s) => theme.fg('border', s)))
+        return container
       },
-      { placement: "belowEditor" },
-    );
+      { placement: 'belowEditor' }
+    )
   }
 }
 
 export default function (pi: ExtensionAPI) {
-  pi.on("session_start", (_event, ctx) => updateStatus(ctx));
-  pi.on("turn_start", (_event, ctx) => updateStatus(ctx));
-  pi.on("turn_end", (_event, ctx) => updateStatus(ctx));
+  pi.on('session_start', (_event, ctx) => updateStatus(ctx))
+  pi.on('turn_start', (_event, ctx) => updateStatus(ctx))
+  pi.on('turn_end', (_event, ctx) => updateStatus(ctx))
 
-  pi.registerCommand("kill", {
-    description: "Stop a background process",
+  pi.registerCommand('kill', {
+    description: 'Stop a background process',
     getArgumentCompletions(prefix) {
-      const running = listProcesses(process.cwd()).filter((p) => p.running);
-      if (running.length === 0) return null;
+      const running = listProcesses(process.cwd()).filter((p) => p.running)
+      if (running.length === 0) return null
       const filtered = prefix
         ? running.filter((p) => p.name.toLowerCase().startsWith(prefix.toLowerCase()))
-        : running;
+        : running
       return filtered.map((p) => ({
         value: p.name,
         label: p.name,
-        description: `PID ${p.pid}`,
-      }));
+        description: `PID ${p.pid}`
+      }))
     },
     async handler(args, ctx) {
-      const name = args.trim();
+      const name = args.trim()
       if (!name) {
-        ctx.ui.notify("Usage: /kill <process-name>", "info");
-        return;
+        ctx.ui.notify('Usage: /kill <process-name>', 'info')
+        return
       }
       try {
-        stopProcess(ctx.cwd, name);
-        updateStatus(ctx);
-        ctx.ui.notify(`Stopped "${name}"`, "info");
+        stopProcess(ctx.cwd, name)
+        updateStatus(ctx)
+        ctx.ui.notify(`Stopped "${name}"`, 'info')
       } catch (err) {
-        ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+        ctx.ui.notify(err instanceof Error ? err.message : String(err), 'error')
       }
-    },
-  });
+    }
+  })
 
-  pi.registerCommand("logs", {
-    description: "View full logs from a background process",
+  pi.registerCommand('logs', {
+    description: 'View full logs from a background process',
     getArgumentCompletions(prefix) {
-      const processes = listProcesses(process.cwd());
-      if (processes.length === 0) return null;
+      const processes = listProcesses(process.cwd())
+      if (processes.length === 0) return null
       const filtered = prefix
         ? processes.filter((p) => p.name.toLowerCase().startsWith(prefix.toLowerCase()))
-        : processes;
+        : processes
       return filtered.map((p) => ({
         value: p.name,
         label: p.name,
-        description: p.running ? `PID ${p.pid}` : "stopped",
-      }));
+        description: p.running ? `PID ${p.pid}` : 'stopped'
+      }))
     },
     async handler(args, ctx) {
-      const name = args.trim();
-      const processes = listProcesses(ctx.cwd);
+      const name = args.trim()
+      const processes = listProcesses(ctx.cwd)
 
       if (!name) {
-        const running = processes.filter((p) => p.running);
+        const running = processes.filter((p) => p.running)
         if (running.length === 0) {
-          ctx.ui.notify("No background processes running", "info");
-          return;
+          ctx.ui.notify('No background processes running', 'info')
+          return
         }
         if (running.length === 1) {
-          const logs = readFullLogs(ctx.cwd, running[0].name);
-          await ctx.ui.editor(`Logs: ${running[0].name}`, logs);
-          return;
+          const logs = readFullLogs(ctx.cwd, running[0].name)
+          await ctx.ui.editor(`Logs: ${running[0].name}`, logs)
+          return
         }
-        ctx.ui.notify("Usage: /logs <process-name>", "info");
-        return;
+        ctx.ui.notify('Usage: /logs <process-name>', 'info')
+        return
       }
 
-      const proc = processes.find((p) => p.name === name);
+      const proc = processes.find((p) => p.name === name)
       if (!proc) {
-        ctx.ui.notify(`Process "${name}" not found`, "error");
-        return;
+        ctx.ui.notify(`Process "${name}" not found`, 'error')
+        return
       }
 
       try {
-        const logs = readFullLogs(ctx.cwd, name);
-        await ctx.ui.editor(`Logs: ${name}`, logs);
+        const logs = readFullLogs(ctx.cwd, name)
+        await ctx.ui.editor(`Logs: ${name}`, logs)
       } catch (err) {
-        ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+        ctx.ui.notify(err instanceof Error ? err.message : String(err), 'error')
       }
-    },
-  });
+    }
+  })
 
   pi.registerTool({
-    name: "background-start",
-    label: "Start Background",
+    name: 'background-start',
+    label: 'Start Background',
     description:
       "Start a long-running process in background (dev server, watcher, etc.). Use ONLY when you need to run something that doesn't exit immediately. DO NOT use for regular commands - use bash instead.",
     parameters: Type.Object({
       name: Type.String({
         description:
-          "Unique name for this process (e.g., 'beebro-server', 'vite-dev'). Use kebab-case.",
+          "Unique name for this process (e.g., 'beebro-server', 'vite-dev'). Use kebab-case."
       }),
       command: Type.String({
-        description: 'Shell command to run (e.g., "bun run dev", "npm start")',
+        description: 'Shell command to run (e.g., "bun run dev", "npm start")'
       }),
       cwd: Type.Optional(
         Type.String({
-          description: "Working directory (defaults to current directory)",
-        }),
-      ),
+          description: 'Working directory (defaults to current directory)'
+        })
+      )
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {
-        const info = startProcess(ctx.cwd, params.name, params.command, params.cwd);
-        updateStatus(ctx);
+        const info = startProcess(ctx.cwd, params.name, params.command, params.cwd)
+        updateStatus(ctx)
         return {
           content: [
             {
-              type: "text" as const,
-              text: `Started "${info.name}" (PID ${info.pid})\nLogs: ${info.logFile}`,
-            },
+              type: 'text' as const,
+              text: `Started "${info.name}" (PID ${info.pid})\nLogs: ${info.logFile}`
+            }
           ],
-          details: info,
-        };
+          details: info
+        }
       } catch (err) {
         return {
           content: [
             {
-              type: "text" as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-            },
+              type: 'text' as const,
+              text: `Error: ${err instanceof Error ? err.message : String(err)}`
+            }
           ],
           details: {
             name: params.name,
             pid: 0,
             running: false,
-            logFile: "",
-            error: true,
-          } satisfies ProcessInfo,
-        };
+            logFile: '',
+            error: true
+          } satisfies ProcessInfo
+        }
       }
     },
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg("toolTitle", theme.bold("background-start ")) +
-          theme.fg("accent", args.name) +
-          theme.fg("dim", ` → ${args.command}`),
+        theme.fg('toolTitle', theme.bold('background-start ')) +
+          theme.fg('accent', args.name) +
+          theme.fg('dim', ` → ${args.command}`),
         0,
-        0,
-      );
+        0
+      )
     },
 
     renderResult(result, _options, theme) {
-      const details = result.details as ProcessInfo;
+      const details = result.details as ProcessInfo
       if (details.error) {
-        const text = result.content[0];
-        return new Text(theme.fg("error", text?.type === "text" ? text.text : "Error"), 0, 0);
+        const text = result.content[0]
+        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
       }
       return new Text(
-        theme.fg("success", "✓ ") +
-          theme.fg("accent", details.name) +
-          theme.fg("dim", ` PID ${details.pid}`),
+        theme.fg('success', '✓ ') +
+          theme.fg('accent', details.name) +
+          theme.fg('dim', ` PID ${details.pid}`),
         0,
-        0,
-      );
-    },
-  });
+        0
+      )
+    }
+  })
 
   pi.registerTool({
-    name: "background-stop",
-    label: "Stop Background",
+    name: 'background-stop',
+    label: 'Stop Background',
     description:
-      "Stop a running background process. Use when you need to stop a dev server or watcher that was started with background-start.",
+      'Stop a running background process. Use when you need to stop a dev server or watcher that was started with background-start.',
     parameters: Type.Object({
       name: Type.String({
-        description: "Name of the process to stop (as given to background-start)",
-      }),
+        description: 'Name of the process to stop (as given to background-start)'
+      })
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {
-        stopProcess(ctx.cwd, params.name);
-        updateStatus(ctx);
+        stopProcess(ctx.cwd, params.name)
+        updateStatus(ctx)
         return {
-          content: [{ type: "text" as const, text: `Stopped "${params.name}"` }],
-          details: { name: params.name } as StopDetails,
-        };
+          content: [{ type: 'text' as const, text: `Stopped "${params.name}"` }],
+          details: { name: params.name } as StopDetails
+        }
       } catch (err) {
         return {
           content: [
             {
-              type: "text" as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-            },
+              type: 'text' as const,
+              text: `Error: ${err instanceof Error ? err.message : String(err)}`
+            }
           ],
-          details: { name: params.name, error: true } as StopDetails,
-        };
+          details: { name: params.name, error: true } as StopDetails
+        }
       }
     },
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg("toolTitle", theme.bold("background-stop ")) + theme.fg("accent", args.name),
+        theme.fg('toolTitle', theme.bold('background-stop ')) + theme.fg('accent', args.name),
         0,
-        0,
-      );
+        0
+      )
     },
 
     renderResult(result, _options, theme) {
-      const details = result.details as StopDetails;
+      const details = result.details as StopDetails
       if (details.error) {
-        const text = result.content[0];
-        return new Text(theme.fg("error", text?.type === "text" ? text.text : "Error"), 0, 0);
+        const text = result.content[0]
+        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
       }
-      return new Text(theme.fg("success", "✓ Stopped"), 0, 0);
-    },
-  });
+      return new Text(theme.fg('success', '✓ Stopped'), 0, 0)
+    }
+  })
 
   pi.registerTool({
-    name: "background-list",
-    label: "List Background",
+    name: 'background-list',
+    label: 'List Background',
     description:
       "List all background processes and their status. Use to see what's currently running.",
     parameters: Type.Object({}),
 
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const processes = listProcesses(ctx.cwd);
+      const processes = listProcesses(ctx.cwd)
 
       if (processes.length === 0) {
         return {
-          content: [{ type: "text" as const, text: "No background processes" }],
-          details: { processes: [] as ProcessInfo[] },
-        };
+          content: [{ type: 'text' as const, text: 'No background processes' }],
+          details: { processes: [] as ProcessInfo[] }
+        }
       }
 
       const lines = processes.map((p) => {
-        const displayName = getDisplayName(p);
-        const status = p.running ? `✓ Running (PID ${p.pid})` : "✗ Stopped";
-        return `${displayName}: ${status}`;
-      });
+        const displayName = getDisplayName(p)
+        const status = p.running ? `✓ Running (PID ${p.pid})` : '✗ Stopped'
+        return `${displayName}: ${status}`
+      })
 
       return {
-        content: [{ type: "text" as const, text: lines.join("\n") }],
-        details: { processes },
-      };
+        content: [{ type: 'text' as const, text: lines.join('\n') }],
+        details: { processes }
+      }
     },
 
     renderCall(_args, theme) {
-      return new Text(theme.fg("toolTitle", theme.bold("background-list")), 0, 0);
+      return new Text(theme.fg('toolTitle', theme.bold('background-list')), 0, 0)
     },
 
     renderResult(result, _options, theme) {
-      const details = result.details as { processes: ProcessInfo[] };
+      const details = result.details as { processes: ProcessInfo[] }
       if (details.processes.length === 0) {
-        return new Text(theme.fg("dim", "No processes"), 0, 0);
+        return new Text(theme.fg('dim', 'No processes'), 0, 0)
       }
 
       const lines = details.processes.map((p) => {
-        const icon = p.running ? theme.fg("success", "✓") : theme.fg("error", "✗");
-        const status = p.running ? theme.fg("dim", `PID ${p.pid}`) : theme.fg("dim", "stopped");
-        const displayName = getDisplayName(p);
-        return `${icon} ${theme.fg("text", displayName)} ${status}`;
-      });
+        const icon = p.running ? theme.fg('success', '✓') : theme.fg('error', '✗')
+        const status = p.running ? theme.fg('dim', `PID ${p.pid}`) : theme.fg('dim', 'stopped')
+        const displayName = getDisplayName(p)
+        return `${icon} ${theme.fg('text', displayName)} ${status}`
+      })
 
-      return new Text(lines.join("\n"), 0, 0);
-    },
-  });
+      return new Text(lines.join('\n'), 0, 0)
+    }
+  })
 
   pi.registerTool({
-    name: "background-logs",
-    label: "Background Logs",
+    name: 'background-logs',
+    label: 'Background Logs',
     description:
-      "Read logs from a background process. Use to check output from a running dev server or watcher.",
+      'Read logs from a background process. Use to check output from a running dev server or watcher.',
     parameters: Type.Object({
       name: Type.String({
-        description: "Name of the process",
+        description: 'Name of the process'
       }),
       lines: Type.Optional(
         Type.Number({
-          description: "Number of lines to read (default: 50)",
-          default: 50,
-        }),
-      ),
+          description: 'Number of lines to read (default: 50)',
+          default: 50
+        })
+      )
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {
-        const logs = readLogs(ctx.cwd, params.name, params.lines ?? 50);
+        const logs = readLogs(ctx.cwd, params.name, params.lines ?? 50)
         return {
-          content: [{ type: "text" as const, text: logs }],
-          details: { name: params.name, logs } as LogsDetails,
-        };
+          content: [{ type: 'text' as const, text: logs }],
+          details: { name: params.name, logs } as LogsDetails
+        }
       } catch (err) {
         return {
           content: [
             {
-              type: "text" as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-            },
+              type: 'text' as const,
+              text: `Error: ${err instanceof Error ? err.message : String(err)}`
+            }
           ],
-          details: { name: params.name, logs: "", error: true } as LogsDetails,
-        };
+          details: { name: params.name, logs: '', error: true } as LogsDetails
+        }
       }
     },
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg("toolTitle", theme.bold("background-logs ")) +
-          theme.fg("accent", args.name) +
-          theme.fg("dim", ` (${args.lines ?? 50} lines)`),
+        theme.fg('toolTitle', theme.bold('background-logs ')) +
+          theme.fg('accent', args.name) +
+          theme.fg('dim', ` (${args.lines ?? 50} lines)`),
         0,
-        0,
-      );
+        0
+      )
     },
 
     renderResult(result, _options, theme) {
-      const details = result.details as LogsDetails;
+      const details = result.details as LogsDetails
       if (details.error) {
-        const text = result.content[0];
-        return new Text(theme.fg("error", text?.type === "text" ? text.text : "Error"), 0, 0);
+        const text = result.content[0]
+        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
       }
-      const preview = details.logs.split("\n").slice(-3).join("\n");
-      return new Text(theme.fg("dim", preview || "(empty)"), 0, 0);
-    },
-  });
+      const preview = details.logs.split('\n').slice(-3).join('\n')
+      return new Text(theme.fg('dim', preview || '(empty)'), 0, 0)
+    }
+  })
 }

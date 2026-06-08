@@ -69,7 +69,7 @@ The default install focuses on broadly useful, low-surprise tools.
 | `context7/`              | Fetch current library docs from Context7                                  | None                                                                                                   |
 | `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                   | Install language servers as needed                                                                     |
 | `notify.ts`              | Desktop notification when work completes                                  | macOS notifications enabled                                                                            |
-| `quote.ts`               | `/quote` or `alt+q`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
+| `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
 | `question.ts`            | Let the agent ask selectable questions                                    | None                                                                                                   |
 | `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling       | None                                                                                                   |
 | `webfetch/`              | Fetch URL content as markdown/text/html/json                              | None                                                                                                   |
@@ -107,7 +107,7 @@ My usual coding flow:
 
 1. Ask `/next` when context gets fuzzy. Pi should restate state, list the next concrete steps, and pick the best immediate move.
 2. Use `/ga` for a simple approval of the current path. This is the direct replacement for my very frequent “go ahead”.
-3. Select assistant text, press `alt+q`, then comment below the inserted email-style quote.
+3. Select assistant text, press `ctrl+/`, then comment below the inserted email-style quote.
 4. Use `/lgtm` when I want more autonomy than `/ga`: proceed, implement the next slice, verify, and summarize.
 5. Use `/recap` when `/next` is too local and I need the original plan vs current drift.
 6. Use `/all` after reviews/plans when I do not want piecemeal fixes.
@@ -121,7 +121,7 @@ My usual coding flow:
 | `/ga`            | `go ahead`                                  | Minimal approval; continue current path.                                                                                      |
 | `/gaa`           | `go ahead with all`                         | Alias for `/all`; complete all pending review/plan items, not one-by-one.                                                     |
 | `/lgtm`          | `yes`, `do it`, `okay`                      | Proceed; do not ask unless blocked; verify and summarize.                                                                     |
-| `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `alt+q`; `/quote` without args may use clipboard as a final fallback. |
+| `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
 | `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                   |
 | `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                     |
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                         |

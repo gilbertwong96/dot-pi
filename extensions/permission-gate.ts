@@ -5,7 +5,7 @@
  * Patterns checked: rm -rf, sudo, chmod/chown 777, git push, gh/glab repo management
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 export default function (pi: ExtensionAPI) {
   const dangerousPatterns = [
@@ -38,31 +38,31 @@ export default function (pi: ExtensionAPI) {
     /\bglab\s+issue\s+close\b/i,
     /\bglab\s+issue\s+delete\b/i,
     /\bglab\s+release\s+(create|delete)\b/i,
-    /\bglab\s+variable\s+(set|delete|update)\b/i,
-  ];
+    /\bglab\s+variable\s+(set|delete|update)\b/i
+  ]
 
-  pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "bash") return undefined;
+  pi.on('tool_call', async (event, ctx) => {
+    if (event.toolName !== 'bash') return undefined
 
-    const command = event.input.command as string;
-    const isDangerous = dangerousPatterns.some((p) => p.test(command));
+    const command = event.input.command as string
+    const isDangerous = dangerousPatterns.some((p) => p.test(command))
 
     if (isDangerous) {
       if (!ctx.hasUI) {
         // In non-interactive mode, block by default
-        return { block: true, reason: "Dangerous command blocked (no UI for confirmation)" };
+        return { block: true, reason: 'Dangerous command blocked (no UI for confirmation)' }
       }
 
       const choice = await ctx.ui.select(`⚠️ Dangerous command:\n\n  ${command}\n\nAllow?`, [
-        "Yes",
-        "No",
-      ]);
+        'Yes',
+        'No'
+      ])
 
-      if (choice !== "Yes") {
-        return { block: true, reason: "Blocked by user" };
+      if (choice !== 'Yes') {
+        return { block: true, reason: 'Blocked by user' }
       }
     }
 
-    return undefined;
-  });
+    return undefined
+  })
 }

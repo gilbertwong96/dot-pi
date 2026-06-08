@@ -99,4 +99,4 @@ comp_cmd=\${completion#complete }
 comp_cmd=\${comp_cmd% $cmd}
 comp_cmd=\${comp_cmd% --}
 eval "compgen \${comp_cmd} -- \\"$cur\\""
-`;
+`

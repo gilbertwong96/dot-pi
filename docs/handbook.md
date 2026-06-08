@@ -6,7 +6,7 @@ Minimal operating notes for this Pi setup.
 
 - `/next` — extension command for quick state summary and next steps. Optional count defaults cleanly to 7.
 - `/recap` — extension command to re-orient both user and agent: original goal, current state, decisions, open threads, drift, best action.
-- `/quote` / `alt+q` — quote assistant text into the editor with `>` prefixes, then write the comment below it. Select text and press `alt+q`; it uses native selection APIs first and avoids stale clipboard text for the shortcut.
+- `/quote` / `ctrl+/` — quote assistant text into the editor with `>` prefixes, then write the comment below it. Select text and press `ctrl+/`; it uses native selection APIs first and avoids stale clipboard text for the shortcut.
 - `/ga` — minimal approval to continue the current path.
 - `/gaa` / `/all` — go ahead with all pending review/plan items, not one-by-one.
 - `/lgtm` — review/verification before trusting changes.
@@ -18,7 +18,7 @@ Minimal operating notes for this Pi setup.
 - Prefer concrete evidence over vibes: commands run, changed files, diffs, checks.
 - Keep UX minimal; avoid wizard-style onboarding unless explicitly useful.
 - Preserve muscle-memory shortcuts instead of replacing them with extension commands.
-- Prefer email-style `>` quoting when commenting on a specific assistant excerpt; select text and press `alt+q`.
+- Prefer email-style `>` quoting when commenting on a specific assistant excerpt; select text and press `ctrl+/`.
 - Extract shared extension helpers only after a pattern repeats.
 - Favor small, composable extensions over a framework.
 

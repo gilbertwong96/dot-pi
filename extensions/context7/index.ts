@@ -7,80 +7,80 @@
  * Requires CONTEXT7_API_KEY environment variable.
  */
 
-import { type ExtensionAPI, rawKeyHint } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { type ExtensionAPI, rawKeyHint } from '@earendil-works/pi-coding-agent'
+import { Container, Text } from '@earendil-works/pi-tui'
+import { Type } from 'typebox'
 
-const DEFAULT_API_BASE = "https://context7.com/api";
+const DEFAULT_API_BASE = 'https://context7.com/api'
 
 function getApiKey(): string | undefined {
-  return process.env.CONTEXT7_API_KEY;
+  return process.env.CONTEXT7_API_KEY
 }
 
 function getApiBase(): string {
-  return process.env.CONTEXT7_ENDPOINT_URL || DEFAULT_API_BASE;
+  return process.env.CONTEXT7_ENDPOINT_URL || DEFAULT_API_BASE
 }
 
 interface Library {
-  id: string;
-  title: string;
-  description?: string;
-  totalSnippets?: number;
-  trustScore?: number;
-  benchmarkScore?: number;
-  stars?: number;
+  id: string
+  title: string
+  description?: string
+  totalSnippets?: number
+  trustScore?: number
+  benchmarkScore?: number
+  stars?: number
 }
 
 interface SearchResult {
-  libraries: Library[];
-  error?: string;
+  libraries: Library[]
+  error?: string
 }
 
 interface DocsResult {
-  docs: string;
-  error?: string;
+  docs: string
+  error?: string
 }
 
 interface DocsDetails {
-  libraryId: string;
-  error?: boolean;
-  empty?: boolean;
+  libraryId: string
+  error?: boolean
+  empty?: boolean
 }
 
 async function searchLibrary(
   apiKey: string,
   query: string,
-  libraryName: string,
+  libraryName: string
 ): Promise<SearchResult> {
-  const params = new URLSearchParams({ query, libraryName });
+  const params = new URLSearchParams({ query, libraryName })
   const response = await fetch(`${getApiBase()}/v2/libs/search?${params}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
+    headers: { Authorization: `Bearer ${apiKey}` }
+  })
 
   if (!response.ok) {
-    return { libraries: [], error: `API error: ${response.status}` };
+    return { libraries: [], error: `API error: ${response.status}` }
   }
 
-  const data = await response.json();
+  const data = await response.json()
   // API returns { results: [...] }
-  const results = (data as { results?: Library[] }).results || [];
-  return { libraries: results };
+  const results = (data as { results?: Library[] }).results || []
+  return { libraries: results }
 }
 
 async function getContext(apiKey: string, query: string, libraryId: string): Promise<DocsResult> {
   // Remove leading slash if present (API expects "org/repo" not "/org/repo")
-  const cleanId = libraryId.startsWith("/") ? libraryId.slice(1) : libraryId;
-  const params = new URLSearchParams({ query, libraryId: cleanId, type: "txt" });
+  const cleanId = libraryId.startsWith('/') ? libraryId.slice(1) : libraryId
+  const params = new URLSearchParams({ query, libraryId: cleanId, type: 'txt' })
   const response = await fetch(`${getApiBase()}/v2/context?${params}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
+    headers: { Authorization: `Bearer ${apiKey}` }
+  })
 
   if (!response.ok) {
-    return { docs: "", error: `API error: ${response.status}` };
+    return { docs: '', error: `API error: ${response.status}` }
   }
 
-  const text = await response.text();
-  return { docs: text };
+  const text = await response.text()
+  return { docs: text }
 }
 
 const RESOLVE_DESCRIPTION = `Find the Context7 library ID for a package/framework.
@@ -95,7 +95,7 @@ Examples:
 Returns matching libraries ranked by relevance. Pick the best match based on:
 - Official sources (higher reputation)
 - Code snippet coverage
-- Benchmark score`;
+- Benchmark score`
 
 const DOCS_DESCRIPTION = `Get up-to-date documentation for a library from Context7.
 
@@ -106,193 +106,193 @@ Examples:
 - libraryId: "/vueuse/vueuse", query: "useDark dark mode"
 - libraryId: "/tanstack/query", query: "useQuery cache"
 
-Returns relevant documentation snippets with code examples.`;
+Returns relevant documentation snippets with code examples.`
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
-    name: "context7-resolve",
-    label: "Context7 Resolve",
+    name: 'context7-resolve',
+    label: 'Context7 Resolve',
     description: RESOLVE_DESCRIPTION,
     parameters: Type.Object({
       libraryName: Type.String({
-        description: "Library/framework name (e.g., 'react', 'next.js', 'vue')",
+        description: "Library/framework name (e.g., 'react', 'next.js', 'vue')"
       }),
-      query: Type.String({ description: "What you're trying to do (helps rank results)" }),
+      query: Type.String({ description: "What you're trying to do (helps rank results)" })
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const apiKey = getApiKey();
+      const apiKey = getApiKey()
       if (!apiKey) {
         return {
-          content: [{ type: "text" as const, text: "Error: CONTEXT7_API_KEY not set" }],
-          details: { error: true },
-        };
+          content: [{ type: 'text' as const, text: 'Error: CONTEXT7_API_KEY not set' }],
+          details: { error: true }
+        }
       }
 
-      const result = await searchLibrary(apiKey, params.query, params.libraryName);
+      const result = await searchLibrary(apiKey, params.query, params.libraryName)
 
       if (result.error) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${result.error}` }],
-          details: { error: true },
-        };
+          content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
+          details: { error: true }
+        }
       }
 
       if (result.libraries.length === 0) {
         return {
           content: [
-            { type: "text" as const, text: `No libraries found for "${params.libraryName}"` },
+            { type: 'text' as const, text: `No libraries found for "${params.libraryName}"` }
           ],
-          details: { libraries: [] },
-        };
+          details: { libraries: [] }
+        }
       }
 
       const lines = result.libraries.slice(0, 5).map((lib) => {
-        const parts = [`${lib.id} — ${lib.title}`];
-        if (lib.description) parts.push(`  ${lib.description}`);
-        const meta: string[] = [];
-        if (lib.trustScore) meta.push(`trust: ${lib.trustScore}`);
-        if (lib.benchmarkScore) meta.push(`benchmark: ${lib.benchmarkScore}`);
-        if (lib.totalSnippets) meta.push(`snippets: ${lib.totalSnippets}`);
-        if (lib.stars && lib.stars > 0) meta.push(`★${lib.stars}`);
-        if (meta.length) parts.push(`  ${meta.join(" | ")}`);
-        return parts.join("\n");
-      });
+        const parts = [`${lib.id} — ${lib.title}`]
+        if (lib.description) parts.push(`  ${lib.description}`)
+        const meta: string[] = []
+        if (lib.trustScore) meta.push(`trust: ${lib.trustScore}`)
+        if (lib.benchmarkScore) meta.push(`benchmark: ${lib.benchmarkScore}`)
+        if (lib.totalSnippets) meta.push(`snippets: ${lib.totalSnippets}`)
+        if (lib.stars && lib.stars > 0) meta.push(`★${lib.stars}`)
+        if (meta.length) parts.push(`  ${meta.join(' | ')}`)
+        return parts.join('\n')
+      })
 
       return {
-        content: [{ type: "text" as const, text: lines.join("\n\n") }],
-        details: { libraries: result.libraries.slice(0, 5) },
-      };
+        content: [{ type: 'text' as const, text: lines.join('\n\n') }],
+        details: { libraries: result.libraries.slice(0, 5) }
+      }
     },
 
     renderCall(params, theme) {
-      const { libraryName, query } = params as { libraryName: string; query: string };
+      const { libraryName, query } = params as { libraryName: string; query: string }
       return new Text(
-        theme.fg("toolTitle", theme.bold("context7-resolve ")) +
-          theme.fg("accent", libraryName) +
-          theme.fg("dim", ` "${query}"`),
+        theme.fg('toolTitle', theme.bold('context7-resolve ')) +
+          theme.fg('accent', libraryName) +
+          theme.fg('dim', ` "${query}"`),
         0,
-        0,
-      );
+        0
+      )
     },
 
     renderResult(result, { expanded }, theme) {
-      const details = result.details as { libraries?: Library[]; error?: boolean };
+      const details = result.details as { libraries?: Library[]; error?: boolean }
       if (details.error) {
-        const text = result.content[0];
-        return new Text(theme.fg("error", text?.type === "text" ? text.text : "Error"), 0, 0);
+        const text = result.content[0]
+        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
       }
-      const libraries = details.libraries ?? [];
+      const libraries = details.libraries ?? []
       if (libraries.length === 0) {
-        return new Text(theme.fg("warning", "No libraries found"), 0, 0);
+        return new Text(theme.fg('warning', 'No libraries found'), 0, 0)
       }
 
-      const container = new Container();
+      const container = new Container()
       container.addChild(
         new Text(
-          theme.fg("success", "✓ ") + theme.fg("muted", `${libraries.length} libraries`),
+          theme.fg('success', '✓ ') + theme.fg('muted', `${libraries.length} libraries`),
           0,
-          0,
-        ),
-      );
+          0
+        )
+      )
 
-      const maxItems = expanded ? libraries.length : 1;
+      const maxItems = expanded ? libraries.length : 1
       for (let i = 0; i < maxItems; i++) {
-        const lib = libraries[i];
+        const lib = libraries[i]
         container.addChild(
-          new Text("\n" + theme.fg("accent", lib.id) + theme.fg("dim", ` — ${lib.title}`), 0, 0),
-        );
+          new Text('\n' + theme.fg('accent', lib.id) + theme.fg('dim', ` — ${lib.title}`), 0, 0)
+        )
         if (expanded && lib.description) {
-          container.addChild(new Text(theme.fg("muted", `  ${lib.description}`), 0, 0));
+          container.addChild(new Text(theme.fg('muted', `  ${lib.description}`), 0, 0))
         }
       }
 
       if (!expanded && libraries.length > 1) {
         container.addChild(
           new Text(
-            theme.fg("dim", `\n... +${libraries.length - 1} more, `) +
-              rawKeyHint("ctrl+o", "to expand"),
+            theme.fg('dim', `\n... +${libraries.length - 1} more, `) +
+              rawKeyHint('ctrl+o', 'to expand'),
             0,
-            0,
-          ),
-        );
+            0
+          )
+        )
       }
 
-      return container;
-    },
-  });
+      return container
+    }
+  })
 
   pi.registerTool({
-    name: "context7-docs",
-    label: "Context7 Docs",
+    name: 'context7-docs',
+    label: 'Context7 Docs',
     description: DOCS_DESCRIPTION,
     parameters: Type.Object({
       libraryId: Type.String({ description: "Context7 library ID (e.g., '/vercel/next.js')" }),
-      query: Type.String({ description: "What you want to learn about" }),
+      query: Type.String({ description: 'What you want to learn about' })
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate) {
-      const apiKey = getApiKey();
+      const apiKey = getApiKey()
       if (!apiKey) {
         return {
-          content: [{ type: "text" as const, text: "Error: CONTEXT7_API_KEY not set" }],
-          details: { libraryId: params.libraryId, error: true } as DocsDetails,
-        };
+          content: [{ type: 'text' as const, text: 'Error: CONTEXT7_API_KEY not set' }],
+          details: { libraryId: params.libraryId, error: true } as DocsDetails
+        }
       }
 
-      const result = await getContext(apiKey, params.query, params.libraryId);
+      const result = await getContext(apiKey, params.query, params.libraryId)
 
       if (result.error) {
         return {
-          content: [{ type: "text" as const, text: `Error: ${result.error}` }],
-          details: { libraryId: params.libraryId, error: true } as DocsDetails,
-        };
+          content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
+          details: { libraryId: params.libraryId, error: true } as DocsDetails
+        }
       }
 
       if (!result.docs.trim()) {
         return {
           content: [
-            { type: "text" as const, text: `No documentation found for "${params.libraryId}"` },
+            { type: 'text' as const, text: `No documentation found for "${params.libraryId}"` }
           ],
-          details: { libraryId: params.libraryId, empty: true } as DocsDetails,
-        };
+          details: { libraryId: params.libraryId, empty: true } as DocsDetails
+        }
       }
 
       return {
-        content: [{ type: "text" as const, text: result.docs }],
-        details: { libraryId: params.libraryId } as DocsDetails,
-      };
+        content: [{ type: 'text' as const, text: result.docs }],
+        details: { libraryId: params.libraryId } as DocsDetails
+      }
     },
 
     renderCall(params, theme) {
-      const { libraryId, query } = params as { libraryId: string; query: string };
+      const { libraryId, query } = params as { libraryId: string; query: string }
       return new Text(
-        theme.fg("toolTitle", theme.bold("context7-docs ")) +
-          theme.fg("accent", libraryId) +
-          theme.fg("dim", ` "${query}"`),
+        theme.fg('toolTitle', theme.bold('context7-docs ')) +
+          theme.fg('accent', libraryId) +
+          theme.fg('dim', ` "${query}"`),
         0,
-        0,
-      );
+        0
+      )
     },
 
     renderResult(result, _options, theme) {
-      const details = result.details as { libraryId?: string; error?: boolean; empty?: boolean };
+      const details = result.details as { libraryId?: string; error?: boolean; empty?: boolean }
       if (details.error) {
-        const text = result.content[0];
-        return new Text(theme.fg("error", text?.type === "text" ? text.text : "Error"), 0, 0);
+        const text = result.content[0]
+        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
       }
       if (details.empty) {
-        return new Text(theme.fg("warning", "No docs found"), 0, 0);
+        return new Text(theme.fg('warning', 'No docs found'), 0, 0)
       }
-      const text = result.content[0];
-      const lines = text?.type === "text" ? text.text.split("\n").length : 0;
+      const text = result.content[0]
+      const lines = text?.type === 'text' ? text.text.split('\n').length : 0
       return new Text(
-        theme.fg("success", "✓ ") +
-          theme.fg("dim", `${lines} lines from `) +
-          theme.fg("accent", details.libraryId || ""),
+        theme.fg('success', '✓ ') +
+          theme.fg('dim', `${lines} lines from `) +
+          theme.fg('accent', details.libraryId || ''),
         0,
-        0,
-      );
-    },
-  });
+        0
+      )
+    }
+  })
 }
