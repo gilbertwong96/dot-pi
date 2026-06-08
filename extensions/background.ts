@@ -17,6 +17,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 const BASE_DIR = '/tmp/pi-bg'
+const BACKGROUND_SYSTEM_HINT =
+  'Use background-start, not bash, for long-running dev servers/watchers.'
 
 interface ProcessMeta {
   projectDir: string
@@ -44,13 +46,24 @@ interface LogsDetails {
   error?: boolean
 }
 
-function getProjectDir(projectDir: string): string {
-  const hash = crypto.createHash('sha256').update(projectDir).digest('hex').slice(0, 12)
-  const name = path.basename(projectDir)
+export function normalizeProjectDir(projectDir?: string): string {
+  return projectDir || process.cwd()
+}
+
+function getProjectDir(projectDir?: string): string {
+  const dir = normalizeProjectDir(projectDir)
+  const hash = crypto.createHash('sha256').update(dir).digest('hex').slice(0, 12)
+  const name = path.basename(dir)
   return path.join(BASE_DIR, `${name}-${hash}`)
 }
 
-function ensureProjectDir(projectDir: string): string {
+export function buildBackgroundSystemPrompt(systemPrompt: string): string {
+  return systemPrompt.includes(BACKGROUND_SYSTEM_HINT)
+    ? systemPrompt
+    : `${systemPrompt}\n\n${BACKGROUND_SYSTEM_HINT}`
+}
+
+function ensureProjectDir(projectDir?: string): string {
   const dir = getProjectDir(projectDir)
   fs.mkdirSync(dir, { recursive: true })
   return dir
@@ -126,11 +139,12 @@ function listProcesses(projectDir: string): ProcessInfo[] {
 }
 
 function startProcess(
-  projectDir: string,
+  projectDir: string | undefined,
   name: string,
   command: string,
   cwd?: string
 ): ProcessInfo {
+  projectDir = normalizeProjectDir(projectDir)
   const dir = ensureProjectDir(projectDir)
   const pidFile = path.join(dir, `${name}.pid`)
   const logFile = path.join(dir, `${name}.log`)
@@ -352,6 +366,9 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_start', (_event, ctx) => updateStatus(ctx))
   pi.on('turn_start', (_event, ctx) => updateStatus(ctx))
   pi.on('turn_end', (_event, ctx) => updateStatus(ctx))
+  pi.on('before_agent_start', (event) => ({
+    systemPrompt: buildBackgroundSystemPrompt(event.systemPrompt)
+  }))
 
   pi.registerCommand('kill', {
     description: 'Stop a background process',
@@ -435,7 +452,7 @@ export default function (pi: ExtensionAPI) {
     name: 'background-start',
     label: 'Start Background',
     description:
-      "Start a long-running process in background (dev server, watcher, etc.). Use ONLY when you need to run something that doesn't exit immediately. DO NOT use for regular commands - use bash instead.",
+      'Start a long-running process in background (dev server, watcher, etc.). Use for commands that keep running, such as dev servers, watchers, serve, run dev, start, or launch. Do not use for regular commands; use bash instead.',
     parameters: Type.Object({
       name: Type.String({
         description:
