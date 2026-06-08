@@ -53,17 +53,22 @@ pi install npm:pi-context                                   # context history ta
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
 
-Recommended external skill/tool bundle for Google Workspace:
+Recommended external Gmail skill/tool setup:
 
 ```bash
-# Google Workspace CLI with Gmail/Drive/Calendar/etc. agent skills
+# Google Workspace CLI with generated agent skills
 # Repo: https://github.com/googleworkspace/cli
 # Note: the repo says it is not an officially supported Google product.
 npm install -g @googleworkspace/cli
-cd ~/.pi/agent && gws generate-skills
+
+tmp=$(mktemp -d)
+cd "$tmp"
+gws generate-skills
+mkdir -p ~/.pi/agent/skills
+cp -R skills/gws-shared skills/gws-gmail* ~/.pi/agent/skills/
 ```
 
-The generated `gws-*` skills are useful for Gmail and broader Workspace workflows. Keep them personal/local unless you want every install to get Workspace access assumptions. This package's confirmation rules ask before Gmail write actions such as send, reply, forward, modify, trash, or delete.
+`gws generate-skills` creates many Workspace skills, not just Gmail. Copy only `gws-shared` and `gws-gmail*` if you want email without Drive/Calendar/Admin/etc. noise. This package's confirmation rules ask before Gmail write actions such as send, reply, forward, modify, trash, or delete.
 
 ## What is enabled by default
 
@@ -202,7 +207,7 @@ Regular optional skills live under `skills/`. Extra/meta skills live under `skil
 | --------------- | ----------------------------------------------- |
 | `ai-news`       | Personal AI news workflow using X/Twitter       |
 | `applescript`   | macOS-only automation                           |
-| `bird`          | X/Twitter workflow; requires bird CLI/auth      |
+| `bird`          | X/Twitter workflow for my `@dannote/bird-premium` CLI; forked from/credits `steipete/bird` |
 | `chat-to-skill` | Meta workflow for creating new skills           |
 | `vibe-merge`    | Specialized PR/branch reimplementation workflow |
 

@@ -5,7 +5,11 @@ description: X/Twitter CLI for posting tweets, reading threads, searching, and f
 
 # bird — X/Twitter CLI
 
-X CLI using official API v2 with OAuth 1.0a and Bearer Token auth.
+This skill targets my `@dannote/bird-premium` package, which installs a `bird` binary. It is a fork of/derived from Peter Steinberger's original `steipete/bird` CLI, but uses the documented paid X API v2 instead of undocumented web GraphQL/cookie endpoints.
+
+- Package: `@dannote/bird-premium`
+- Original project credited: `steipete/bird`
+- Transport: official X API v2 with OAuth 1.0a and Bearer Token auth
 
 ## Install
 
@@ -14,7 +18,9 @@ X CLI using official API v2 with OAuth 1.0a and Bearer Token auth.
 bunx @dannote/bird-premium whoami
 
 # or install globally
-bun add -g @dannote/bird-premium
+npm install -g @dannote/bird-premium
+# or: pnpm add -g @dannote/bird-premium
+# or: bun add -g @dannote/bird-premium
 ```
 
 ## Authentication
