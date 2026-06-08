@@ -6,7 +6,7 @@ export function buildNextPrompt(args: string): string {
     ? `List exactly ${count} next steps.`
     : 'List exactly 7 next steps.'
 
-  return `State briefly. ${countInstruction} End with best action.`
+  return `State briefly. ${countInstruction} End with best action. If you need me to choose between options before continuing, call choose_from_options instead of asking me to type a number.`
 }
 
 export function buildRecapPrompt(args: string): string {
@@ -23,7 +23,7 @@ Cover:
 5. Drift or plan changes
 6. Best next action
 
-Keep it concise.${focus ? ` Focus on: ${focus}` : ''}`
+Keep it concise. If you need me to choose between options before continuing, call choose_from_options instead of asking me to type a number.${focus ? ` Focus on: ${focus}` : ''}`
 }
 
 export default function workflowShortcuts(pi: ExtensionAPI) {

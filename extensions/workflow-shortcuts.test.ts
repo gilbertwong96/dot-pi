@@ -4,13 +4,13 @@ import { buildNextPrompt, buildRecapPrompt } from './workflow-shortcuts'
 describe('buildNextPrompt', () => {
   test('defaults to 7 steps when count is blank', () => {
     expect(buildNextPrompt('')).toBe(
-      'State briefly. List exactly 7 next steps. End with best action.'
+      'State briefly. List exactly 7 next steps. End with best action. If you need me to choose between options before continuing, call choose_from_options instead of asking me to type a number.'
     )
   })
 
   test('uses the provided count', () => {
     expect(buildNextPrompt('3')).toBe(
-      'State briefly. List exactly 3 next steps. End with best action.'
+      'State briefly. List exactly 3 next steps. End with best action. If you need me to choose between options before continuing, call choose_from_options instead of asking me to type a number.'
     )
   })
 })
@@ -18,6 +18,7 @@ describe('buildNextPrompt', () => {
 describe('buildRecapPrompt', () => {
   test('omits focus when blank', () => {
     expect(buildRecapPrompt('')).not.toContain('Focus on:')
+    expect(buildRecapPrompt('')).toContain('call choose_from_options')
   })
 
   test('includes focus when provided', () => {
