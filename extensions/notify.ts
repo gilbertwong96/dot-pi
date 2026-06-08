@@ -1,41 +1,26 @@
 /**
  * Desktop Notification Extension
  *
- * Sends a native desktop notification when the agent finishes.
- * Supports multiple terminal notification protocols:
- *
- * - OSC 777 (urxvt): Ghostty, iTerm2, WezTerm, foot, rxvt-unicode
- * - OSC 9 (iTerm2): iTerm2, WezTerm, mintty, ConEmu
- *
- * Note: Some terminals (like foot) suppress notifications when focused.
- * This is intentional to prevent notification spam.
+ * Sends native desktop notifications when the agent needs attention or finishes.
  */
 
+import { basename } from 'node:path'
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { notifyDesktop } from './shared/desktop-notify'
 
-/**
- * Send a desktop notification using OSC escape sequences.
- * Sends both OSC 777 and OSC 9 for maximum compatibility.
- */
-function notify(title: string, body: string): void {
-  // Sanitize inputs: remove semicolons and control characters
-  const safeTitle = title.replace(/[;\x00-\x1f]/g, '')
-  const safeBody = body.replace(/[;\x00-\x1f]/g, '')
-
-  // OSC 777 (urxvt-style): ESC ] 777 ; notify ; title ; body ST
-  // Supported by: Ghostty, iTerm2, WezTerm, foot, urxvt
-  process.stdout.write(`\x1b]777;notify;${safeTitle};${safeBody}\x1b\\`)
-
-  // OSC 9 (iTerm2-style): ESC ] 9 ; message ST
-  // Supported by: iTerm2, WezTerm, mintty, ConEmu
-  // Only has body, no title - combine them
-  const message = safeTitle ? `${safeTitle}: ${safeBody}` : safeBody
-  process.stdout.write(`\x1b]9;${message}\x1b\\`)
+type StopInfo = {
+  stopReason?: string
+  errorMessage?: string
 }
 
 export default function (pi: ExtensionAPI) {
-  // Track tools called during the current agent run
   let toolsCalled = new Set<string>()
+  let currentPrompt = ''
+
+  pi.on('before_agent_start', (event) => {
+    currentPrompt = summarize(event.prompt)
+  })
 
   pi.on('agent_start', () => {
     toolsCalled = new Set()
@@ -45,39 +30,53 @@ export default function (pi: ExtensionAPI) {
     toolsCalled.add(event.toolName)
   })
 
-  pi.on('agent_end', async (event) => {
-    // Check if the last message indicates an error or abort
+  pi.on('agent_end', async (event, ctx) => {
     const lastMessage = event.messages[event.messages.length - 1]
-    const stopReason =
-      lastMessage && 'stopReason' in lastMessage
-        ? (lastMessage as { stopReason?: string }).stopReason
-        : undefined
+    const { stopReason, errorMessage } = getStopInfo(lastMessage)
+    const repo = basename(ctx.cwd)
 
     if (stopReason === 'error') {
-      const errorMessage =
-        lastMessage && 'errorMessage' in lastMessage
-          ? (lastMessage as { errorMessage?: string }).errorMessage
-          : undefined
-      notify('Pi Error', errorMessage || 'Unknown error')
+      notifyDesktop(`Pi error in ${repo}`, errorMessage || 'Unknown error')
       return
     }
 
-    if (stopReason === 'aborted') {
-      // Don't notify on user abort - intentional cancellation
-      return
-    }
+    if (stopReason === 'aborted') return
 
-    // Build informative message based on what happened
-    const body = getNotificationBody(toolsCalled)
-    notify('Pi', body)
+    const body = getNotificationBody(toolsCalled, currentPrompt, repo)
+    notifyDesktop('Pi', body)
   })
 }
 
-function getNotificationBody(tools: Set<string>): string {
-  // Question tool requires user input
+function getStopInfo(message: AgentMessage | undefined): StopInfo {
+  if (!message || typeof message !== 'object') return {}
+
+  const maybeStop = message as StopInfo
+  return {
+    stopReason: maybeStop.stopReason,
+    errorMessage: maybeStop.errorMessage
+  }
+}
+
+function getNotificationBody(tools: Set<string>, prompt: string, repo: string): string {
+  const action = getActionSummary(tools)
+  const suffix = prompt ? `: ${prompt}` : ''
+
   if (tools.has('question')) {
-    return 'Waiting for your choice'
+    return `Waiting for your choice in ${repo}${suffix}`
   }
 
+  return `${action} in ${repo}${suffix}`
+}
+
+function getActionSummary(tools: Set<string>): string {
+  if (tools.has('edit') || tools.has('write')) return 'Finished editing'
+  if (tools.has('bash')) return 'Finished running commands'
+  if (tools.has('read') || tools.has('grep') || tools.has('find') || tools.has('ls')) {
+    return 'Finished inspecting'
+  }
   return 'Task completed'
+}
+
+function summarize(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 120)
 }

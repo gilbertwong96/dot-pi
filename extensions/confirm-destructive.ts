@@ -13,6 +13,7 @@ import type {
   SessionMessageEntry
 } from '@earendil-works/pi-coding-agent'
 import { isToolCallEventType } from '@earendil-works/pi-coding-agent'
+import { notifyDesktop } from './shared/desktop-notify'
 
 const DESTRUCTIVE_BASH_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /\bgh\s+pr\s+create\b/, label: 'Create GitHub PR' },
@@ -35,6 +36,8 @@ export default function (pi: ExtensionAPI) {
     const match = DESTRUCTIVE_BASH_PATTERNS.find((p) => p.pattern.test(command))
     if (!match) return
 
+    notifyDesktop('Pi needs approval', `${match.label}: ${summarize(command)}`)
+
     const confirmed = await ctx.ui.confirm(
       `${match.label}?`,
       'Review the command before submitting.'
@@ -50,6 +53,8 @@ export default function (pi: ExtensionAPI) {
     if (!ctx.hasUI) return
 
     if (event.reason === 'new') {
+      notifyDesktop('Pi needs approval', 'Clear current session?')
+
       const confirmed = await ctx.ui.confirm(
         'Clear session?',
         'This will delete all messages in the current session.'
@@ -69,6 +74,8 @@ export default function (pi: ExtensionAPI) {
     )
 
     if (hasUnsavedWork) {
+      notifyDesktop('Pi needs approval', 'Switch session with unsaved messages?')
+
       const confirmed = await ctx.ui.confirm(
         'Switch session?',
         'You have messages in the current session. Switch anyway?'
@@ -84,6 +91,8 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_before_fork', async (event, ctx) => {
     if (!ctx.hasUI) return
 
+    notifyDesktop('Pi needs approval', `Fork from entry ${event.entryId.slice(0, 8)}?`)
+
     const choice = await ctx.ui.select(`Fork from entry ${event.entryId.slice(0, 8)}?`, [
       'Yes, create fork',
       'No, stay in current session'
@@ -94,4 +103,8 @@ export default function (pi: ExtensionAPI) {
       return { cancel: true }
     }
   })
+}
+
+function summarize(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 120)
 }
