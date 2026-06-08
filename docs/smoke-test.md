@@ -14,8 +14,11 @@ Start a fresh TUI session from this repo.
 
 ### Workflow commands
 
-- `/next` — returns 7 steps and a best action.
-- `/next 3` — returns exactly 3 steps.
+- `/next` — returns 7 tactical steps and a best action.
+- `/next 3` — returns exactly 3 tactical steps.
+- `/next big` — returns 7 coarse-grained work chunks, not micro-actions.
+- `/next b 3` — returns exactly 3 coarse-grained work chunks.
+- `/discuss whether to keep polishing` — discusses tradeoffs without editing files, running commands, committing, or pushing.
 - `/recap` — covers goal, state, decisions, open threads, drift, best action.
 - `/nobc` — expands to the sharp no-backcompat instruction.
 - `/gaa` — proceeds with all pending items, asks only if blocked.
