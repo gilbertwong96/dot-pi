@@ -1,6 +1,6 @@
 ---
 name: vibe-merge
-description: Use when the user wants to "vibe-merge"/"vibe-marge" a PR or branch: independently reimplement the good ideas one by one, avoid blindly merging/cherry-picking, preserve project quality, and credit the original contributor as a co-author so they appear as a contributor.
+description: 'Use when the user wants to "vibe-merge"/"vibe-marge" a PR or branch: independently reimplement good ideas, avoid blind merging/cherry-picking, preserve quality, and credit the contributor as co-author.'
 ---
 
 # Vibe Merge

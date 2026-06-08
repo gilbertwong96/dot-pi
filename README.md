@@ -75,16 +75,30 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Prompt shortcuts
 
-| Prompt | Expands to |
-|---|---|
-| `/all` | Do all pending items without piecemeal confirmation |
-| `/ar` | Resume an autoresearch loop from persisted state |
-| `/lgtm` | Approve the current direction and proceed autonomously |
-| `/next [count]` | Summarize state and list next steps |
-| `/push` | Commit and push when appropriate |
-| `/release` | Prepare release artifacts and final checks |
-| `/retry` | Retry the last failed or incomplete operation |
-| `/verify` | Run relevant checks and fix failures |
+These mirror my actual repeated Pi prompts from recent coding sessions, so I can type less without losing intent.
+
+My usual coding flow:
+
+1. Ask `/next` when context gets fuzzy. Pi should restate state, list the next concrete steps, and pick the best immediate move.
+2. Use `/ga` for a simple approval of the current path. This is the direct replacement for my very frequent “go ahead”.
+3. Use `/lgtm` when I want more autonomy than `/ga`: proceed, implement the next slice, verify, and summarize.
+4. Use `/all` after reviews/plans when I do not want piecemeal fixes.
+5. Use `/verify` when I suspect the agent skipped tests, browser checks, CI, or manual validation.
+6. Use `/retry` after a failed/flaky attempt, usually with a tighter diagnosis.
+7. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
+8. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
+
+| Prompt | Use when I would normally type... | Meaning |
+|---|---|---|
+| `/ga` | `go ahead` | Minimal approval; continue current path. |
+| `/lgtm` | `yes`, `do it`, `okay` | Proceed; do not ask unless blocked; verify and summarize. |
+| `/next [count]` | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action. |
+| `/ar` | `autoresearch loop ended... resume` | Resume experiment loop from saved state; run and log next experiment. |
+| `/verify` | `did you test?`, `use browser`, `run ci` | Run relevant checks, fix failures, rerun focused checks. |
+| `/all` | `go ahead with all`, `fix all`, `do all` | Complete all pending review/plan items, not one-by-one. |
+| `/push` | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push. |
+| `/release` | `publish`, `changelog`, `prepare release` | Prepare release artifacts/checks; do not publish without confirmation. |
+| `/retry` | `retry`, `try again`, `rerun` | Diagnose previous failure, retry tighter, verify. |
 
 ### Skills
 
