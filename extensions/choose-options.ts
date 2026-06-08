@@ -82,6 +82,8 @@ export default function chooseOptions(pi: ExtensionAPI) {
       const result = await ctx.ui.custom<ChooseResult>((tui, theme, _kb, done) => {
         let optionIndex = 0
         let actionIndex = defaultActionIndex
+        let numberMode = false
+        let numberBuffer = ''
         const selected = new Set<number>([0])
         let cachedLines: string[] | undefined
 
@@ -111,7 +113,38 @@ export default function chooseOptions(pi: ExtensionAPI) {
           })
         }
 
+        function toggleNumberBuffer() {
+          const index = Number(numberBuffer) - 1
+          if (Number.isInteger(index) && index >= 0 && index < options.length) {
+            optionIndex = index
+            toggle(index)
+          }
+          numberMode = false
+          numberBuffer = ''
+          refresh()
+        }
+
         function handleInput(data: string) {
+          if (numberMode) {
+            if (matchesKey(data, Key.escape)) {
+              numberMode = false
+              numberBuffer = ''
+              refresh()
+              return
+            }
+            if (matchesKey(data, Key.enter)) return toggleNumberBuffer()
+            if (matchesKey(data, Key.backspace) || data === '\x7f') {
+              numberBuffer = numberBuffer.slice(0, -1)
+              refresh()
+              return
+            }
+            if (/^[0-9]$/.test(data)) {
+              numberBuffer += data
+              refresh()
+            }
+            return
+          }
+
           if (matchesKey(data, Key.escape)) return finish(true)
           if (matchesKey(data, Key.enter)) return finish(false)
 
@@ -151,6 +184,12 @@ export default function chooseOptions(pi: ExtensionAPI) {
             refresh()
             return
           }
+          if (data === 'g') {
+            numberMode = true
+            numberBuffer = ''
+            refresh()
+            return
+          }
           if (/^[1-9]$/.test(data)) {
             const index = Number(data) - 1
             if (index < options.length) {
@@ -184,12 +223,17 @@ export default function chooseOptions(pi: ExtensionAPI) {
           }
 
           lines.push('')
-          add(
-            theme.fg(
-              'dim',
-              ' ↑↓ move • Space/1-9 toggle • Tab action • a all • n none • Enter OK • Esc cancel'
+          if (numberMode) {
+            add(theme.fg('muted', ` Go/toggle item #: ${numberBuffer || '_'}`))
+            add(theme.fg('dim', ' Enter toggle • Backspace edit • Esc cancel'))
+          } else {
+            add(
+              theme.fg(
+                'dim',
+                ' ↑↓ move • Space/1-9 toggle • g number • Tab action • a all • n none • Enter OK • Esc cancel'
+              )
             )
-          )
+          }
           add(border)
 
           cachedLines = lines
