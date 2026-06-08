@@ -25,64 +25,88 @@ export type CommandRule = {
   matches?: (argv: string[]) => boolean
 }
 
-export const DEFAULT_COMMAND_RULES: CommandRule[] = [
-  { argv: ['gh', 'pr', 'create'], label: 'Publish GitHub PR' },
-  { argv: ['gh', 'pr', 'edit'], label: 'Edit GitHub PR' },
-  { argv: ['gh', 'pr', 'comment'], label: 'Publish GitHub PR comment' },
-  { argv: ['gh', 'pr', 'review'], label: 'Publish GitHub PR review' },
-  { argv: ['gh', 'issue', 'create'], label: 'Publish GitHub issue' },
-  { argv: ['gh', 'issue', 'edit'], label: 'Edit GitHub issue' },
-  { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
-  { argv: ['gh', 'repo', 'create'], label: 'Create GitHub repo' },
-  { argv: ['gh', 'repo', 'delete'], label: 'Delete GitHub repo' },
-  { argv: ['gh', 'repo', 'archive'], label: 'Archive GitHub repo' },
-  { argv: ['gh', 'repo', 'edit'], label: 'Edit GitHub repo' },
-  { argv: ['gh', 'repo', 'rename'], label: 'Rename GitHub repo' },
-  { argv: ['gh', 'repo', 'transfer'], label: 'Transfer GitHub repo' },
-  {
-    argv: ['gh', 'repo', 'deploy-key'],
-    label: 'Mutate GitHub repo deploy keys',
-    matches: isMutatingGhSubcommand
-  },
-  { argv: ['gh', 'repo', 'set-default'], label: 'Change default GitHub repo' },
-  { argv: ['gh', 'release', 'create'], label: 'Publish GitHub release' },
-  { argv: ['gh', 'release', 'delete'], label: 'Delete GitHub release' },
-  { argv: ['gh', 'release', 'edit'], label: 'Edit GitHub release' },
-  { argv: ['gh', 'api'], label: 'Mutate via GitHub API', matches: isMutatingGhApi },
-  { argv: ['gws', 'gmail'], label: 'Mutate Gmail', matches: isMutatingGmail },
-  { argv: ['bird'], label: 'Mutate X/Twitter', matches: isMutatingBird },
-  {
-    argv: ['bunx', '@dannote/bird-premium'],
-    label: 'Mutate X/Twitter',
-    matches: isMutatingBird
-  },
-  { argv: ['glab', 'mr', 'create'], label: 'Publish GitLab MR' },
-  { argv: ['glab', 'mr', 'update'], label: 'Edit GitLab MR' },
-  { argv: ['glab', 'mr', 'note'], label: 'Publish GitLab MR comment' },
-  { argv: ['glab', 'issue', 'create'], label: 'Publish GitLab issue' },
-  { argv: ['glab', 'issue', 'update'], label: 'Edit GitLab issue' },
-  { argv: ['glab', 'issue', 'note'], label: 'Publish GitLab issue comment' },
-  { argv: ['glab', 'release', 'create'], label: 'Publish GitLab release' },
-  { argv: ['git'], label: 'Force push', matches: isGitForcePush },
-  { argv: ['git'], label: 'Delete remote branch', matches: isGitRemoteBranchDelete },
-  { argv: ['git'], label: 'Push git commits', matches: isGitPush },
-  { argv: ['git'], label: 'Hard reset', matches: isGitHardReset },
-  { argv: ['git'], label: 'Clean working tree', matches: isGitForcedClean },
-  { argv: ['git'], label: 'Delete local branch', matches: isGitBranchDelete },
-  { argv: ['npm'], label: 'Publish npm package', matches: hasSubcommand('publish') },
-  { argv: ['pnpm'], label: 'Publish npm package', matches: hasSubcommand('publish') },
-  { argv: ['bun'], label: 'Publish package', matches: hasSubcommand('publish') },
-  { argv: ['yarn'], label: 'Publish npm package', matches: hasSubcommand('npm', 'publish') },
-  { argv: ['vercel'], label: 'Deploy with Vercel' },
-  { argv: ['netlify'], label: 'Deploy with Netlify', matches: hasSubcommand('deploy') },
-  { argv: ['firebase'], label: 'Deploy with Firebase', matches: hasSubcommand('deploy') },
-  { argv: ['fly'], label: 'Deploy with Fly.io', matches: hasSubcommand('deploy') },
-  {
-    argv: ['wrangler'],
-    label: 'Deploy with Wrangler',
-    matches: hasAnySubcommand(['deploy', 'publish'])
-  }
+const GITHUB_RULES: CommandRule[] = [
+  exact(['gh', 'pr', 'create'], 'Publish GitHub PR'),
+  exact(['gh', 'pr', 'edit'], 'Edit GitHub PR'),
+  exact(['gh', 'pr', 'comment'], 'Publish GitHub PR comment'),
+  exact(['gh', 'pr', 'review'], 'Publish GitHub PR review'),
+  exact(['gh', 'issue', 'create'], 'Publish GitHub issue'),
+  exact(['gh', 'issue', 'edit'], 'Edit GitHub issue'),
+  exact(['gh', 'issue', 'comment'], 'Publish GitHub issue comment'),
+  exact(['gh', 'repo', 'create'], 'Create GitHub repo'),
+  exact(['gh', 'repo', 'delete'], 'Delete GitHub repo'),
+  exact(['gh', 'repo', 'archive'], 'Archive GitHub repo'),
+  exact(['gh', 'repo', 'edit'], 'Edit GitHub repo'),
+  exact(['gh', 'repo', 'rename'], 'Rename GitHub repo'),
+  exact(['gh', 'repo', 'transfer'], 'Transfer GitHub repo'),
+  matched(['gh', 'repo', 'deploy-key'], 'Mutate GitHub repo deploy keys', isMutatingGhSubcommand),
+  exact(['gh', 'repo', 'set-default'], 'Change default GitHub repo'),
+  exact(['gh', 'release', 'create'], 'Publish GitHub release'),
+  exact(['gh', 'release', 'delete'], 'Delete GitHub release'),
+  exact(['gh', 'release', 'edit'], 'Edit GitHub release'),
+  matched(['gh', 'api'], 'Mutate via GitHub API', isMutatingGhApi)
 ]
+
+const GITLAB_RULES: CommandRule[] = [
+  exact(['glab', 'mr', 'create'], 'Publish GitLab MR'),
+  exact(['glab', 'mr', 'update'], 'Edit GitLab MR'),
+  exact(['glab', 'mr', 'note'], 'Publish GitLab MR comment'),
+  exact(['glab', 'issue', 'create'], 'Publish GitLab issue'),
+  exact(['glab', 'issue', 'update'], 'Edit GitLab issue'),
+  exact(['glab', 'issue', 'note'], 'Publish GitLab issue comment'),
+  exact(['glab', 'release', 'create'], 'Publish GitLab release')
+]
+
+const PERSONAL_CLI_RULES: CommandRule[] = [
+  matched(['gws', 'gmail'], 'Mutate Gmail', isMutatingGmail),
+  matched(['bird'], 'Mutate X/Twitter', isMutatingBird),
+  matched(['bunx', '@dannote/bird-premium'], 'Mutate X/Twitter', isMutatingBird)
+]
+
+const GIT_RULES: CommandRule[] = [
+  matched(['git'], 'Force push', isGitForcePush),
+  matched(['git'], 'Delete remote branch', isGitRemoteBranchDelete),
+  matched(['git'], 'Push git commits', isGitPush),
+  matched(['git'], 'Hard reset', isGitHardReset),
+  matched(['git'], 'Clean working tree', isGitForcedClean),
+  matched(['git'], 'Delete local branch', isGitBranchDelete)
+]
+
+const PACKAGE_PUBLISH_RULES: CommandRule[] = [
+  matched(['npm'], 'Publish npm package', hasSubcommand('publish')),
+  matched(['pnpm'], 'Publish npm package', hasSubcommand('publish')),
+  matched(['bun'], 'Publish package', hasSubcommand('publish')),
+  matched(['yarn'], 'Publish npm package', hasSubcommand('npm', 'publish'))
+]
+
+const DEPLOY_RULES: CommandRule[] = [
+  exact(['vercel'], 'Deploy with Vercel'),
+  matched(['netlify'], 'Deploy with Netlify', hasSubcommand('deploy')),
+  matched(['firebase'], 'Deploy with Firebase', hasSubcommand('deploy')),
+  matched(['fly'], 'Deploy with Fly.io', hasSubcommand('deploy')),
+  matched(['wrangler'], 'Deploy with Wrangler', hasAnySubcommand(['deploy', 'publish']))
+]
+
+export const DEFAULT_COMMAND_RULES: CommandRule[] = [
+  ...GITHUB_RULES,
+  ...GITLAB_RULES,
+  ...PERSONAL_CLI_RULES,
+  ...GIT_RULES,
+  ...PACKAGE_PUBLISH_RULES,
+  ...DEPLOY_RULES
+]
+
+function exact(argv: string[], label: string): CommandRule {
+  return { argv, label }
+}
+
+function matched(
+  argv: string[],
+  label: string,
+  matches: NonNullable<CommandRule['matches']>
+): CommandRule {
+  return { argv, label, matches }
+}
 
 const CONTROL_OPERATORS = new Set(['&&', '||', ';', '|', '|&', '&'])
 const PREFIX_WRAPPERS = new Set(['sudo', 'command', 'env', 'noglob'])
