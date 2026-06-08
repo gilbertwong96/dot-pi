@@ -59,22 +59,22 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Extensions
 
-| Extension                | Description                                                                | Extra setup                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ast-grep.ts`            | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
-| `background.ts`          | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
-| `codesearch.ts`          | Search public GitHub code via grep.app                                     | None                                                                                                   |
-| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
-| `confirm-destructive.ts` | Ask before high-risk local actions                                         | None                                                                                                   |
-| `context7/`              | Fetch current library docs from Context7                                   | None                                                                                                   |
-| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
-| `notify.ts`              | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
-| `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
-| `question.ts`            | Let the agent ask selectable questions                                     | None                                                                                                   |
-| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
-| `webfetch/`              | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
-| `websearch/`             | Web search via Exa                                                         | `EXA_API_KEY`                                                                                          |
-| `worktrees/`             | Git worktree helpers for isolated work                                     | None                                                                                                   |
+| Extension               | Description                                                                | Extra setup                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ast-grep.ts`           | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
+| `background.ts`         | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
+| `codesearch.ts`         | Search public GitHub code via grep.app                                     | None                                                                                                   |
+| `command-priority.ts`   | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
+| `confirm-actions.ts`    | Ask before publish/mutate commands and high-risk local actions             | None                                                                                                   |
+| `context7/`             | Fetch current library docs from Context7                                   | None                                                                                                   |
+| `lsp/`                  | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
+| `notify.ts`             | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
+| `quote.ts`              | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
+| `question.ts`           | Let the agent ask selectable questions                                     | None                                                                                                   |
+| `workflow-shortcuts.ts` | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
+| `webfetch/`             | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
+| `websearch/`            | Web search via Exa                                                         | `EXA_API_KEY`                                                                                          |
+| `worktrees/`            | Git worktree helpers for isolated work                                     | None                                                                                                   |
 
 Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
@@ -99,16 +99,18 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
-Destructive command confirmations use shell-style argv parsing, not regex matching. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing GitHub/GitLab issues, PRs/MRs, comments, and reviews. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
-  "confirmDestructiveCommands": [
-    { "argv": ["gh", "release", "create"], "label": "Create GitHub release" },
+  "confirmCommands": [
+    { "argv": ["gh", "release", "create"], "label": "Publish GitHub release" },
     { "command": "npm publish", "label": "Publish npm package" }
   ]
 }
 ```
+
+Legacy `confirmDestructiveCommands` still works, but new configs should use `confirmCommands`.
 
 ### Workflow slash commands
 

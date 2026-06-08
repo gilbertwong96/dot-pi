@@ -61,7 +61,7 @@
       "extensions/background.ts",
       "extensions/command-priority.ts",
       "extensions/codesearch.ts",
-      "extensions/confirm-destructive.ts",
+      "extensions/confirm-actions.ts",
       "extensions/context7",
       "extensions/lsp",
       "extensions/notify.ts",

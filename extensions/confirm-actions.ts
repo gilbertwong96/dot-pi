@@ -1,8 +1,8 @@
 /**
- * Confirm Destructive Actions Extension
+ * Confirm Actions Extension
  *
- * Prompts for confirmation before configured high-impact shell commands and
- * destructive session actions.
+ * Prompts for confirmation before configured publish/mutate shell commands and
+ * session actions that need explicit user approval.
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -24,15 +24,19 @@ export type CommandRule = {
 }
 
 const DEFAULT_COMMAND_RULES: CommandRule[] = [
-  { argv: ['gh', 'pr', 'create'], label: 'Create GitHub PR' },
-  { argv: ['gh', 'issue', 'create'], label: 'Create GitHub issue' },
-  { argv: ['gh', 'pr', 'comment'], label: 'Comment on GitHub PR' },
-  { argv: ['gh', 'issue', 'comment'], label: 'Comment on GitHub issue' },
-  { argv: ['gh', 'pr', 'review'], label: 'Submit GitHub PR review' },
-  { argv: ['glab', 'mr', 'create'], label: 'Create GitLab MR' },
-  { argv: ['glab', 'issue', 'create'], label: 'Create GitLab issue' },
-  { argv: ['glab', 'mr', 'note'], label: 'Comment on GitLab MR' },
-  { argv: ['glab', 'issue', 'note'], label: 'Comment on GitLab issue' }
+  { argv: ['gh', 'pr', 'create'], label: 'Publish GitHub PR' },
+  { argv: ['gh', 'pr', 'edit'], label: 'Edit GitHub PR' },
+  { argv: ['gh', 'pr', 'comment'], label: 'Publish GitHub PR comment' },
+  { argv: ['gh', 'pr', 'review'], label: 'Publish GitHub PR review' },
+  { argv: ['gh', 'issue', 'create'], label: 'Publish GitHub issue' },
+  { argv: ['gh', 'issue', 'edit'], label: 'Edit GitHub issue' },
+  { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
+  { argv: ['glab', 'mr', 'create'], label: 'Publish GitLab MR' },
+  { argv: ['glab', 'mr', 'update'], label: 'Edit GitLab MR' },
+  { argv: ['glab', 'mr', 'note'], label: 'Publish GitLab MR comment' },
+  { argv: ['glab', 'issue', 'create'], label: 'Publish GitLab issue' },
+  { argv: ['glab', 'issue', 'update'], label: 'Edit GitLab issue' },
+  { argv: ['glab', 'issue', 'note'], label: 'Publish GitLab issue comment' }
 ]
 
 const CONTROL_OPERATORS = new Set(['&&', '||', ';', '|', '|&', '&'])
@@ -222,7 +226,11 @@ function readCommandRules(path: string): CommandRule[] {
 
   try {
     const settings = parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
-    const value = settings.confirmDestructiveCommands ?? settings.destructiveCommandRules
+    const value =
+      settings.confirmCommands ??
+      settings.commandApprovalRules ??
+      settings.confirmDestructiveCommands ??
+      settings.destructiveCommandRules
     if (!Array.isArray(value)) return []
 
     return value.flatMap((item) => parseRule(item))
