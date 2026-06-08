@@ -28,16 +28,16 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage, Message, TextContent } from "@mariozechner/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AssistantMessage, Message, TextContent } from "@earendil-works/pi-ai";
 import {
 	DynamicBorder,
 	type ExtensionAPI,
 	type ExtensionContext,
 	type TurnEndEvent,
 	getMarkdownTheme,
-} from "@mariozechner/pi-coding-agent";
-import { Container, Input, Key, Markdown, matchesKey, type SelectItem, SelectList, Spacer, Text } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { Container, Input, Key, Markdown, matchesKey, type SelectItem, SelectList, Spacer, Text } from "@earendil-works/pi-tui";
 
 /**
  * Get the command to spawn pi subprocess.

@@ -5,9 +5,9 @@
  * Patterns match syntax structure, not text.
  */
 
-import { type ExtensionAPI, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateTail } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { type ExtensionAPI, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateTail } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
 

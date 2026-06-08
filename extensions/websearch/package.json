@@ -6,8 +6,8 @@
     "exa-js": "^1.4.12"
   },
   "devDependencies": {
-    "@mariozechner/pi-coding-agent": "latest",
-    "@mariozechner/pi-tui": "latest",
-    "@sinclair/typebox": "^0.34.33"
+    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-tui": "latest",
+    "typebox": "^1.1.38"
   }
 }

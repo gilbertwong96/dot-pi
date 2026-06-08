@@ -8,14 +8,15 @@
  * Usage: Symlink or copy to ~/.pi/agent/extensions/
  */
 
-import { CustomEditor, type ExtensionAPI, getShellConfig, type KeybindingsManager } from "@mariozechner/pi-coding-agent";
+import { CustomEditor, type ExtensionAPI, getShellConfig, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import {
 	type AutocompleteItem,
 	type AutocompleteProvider,
+	type AutocompleteSuggestions,
 	CombinedAutocompleteProvider,
 	type EditorTheme,
 	type TUI,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { spawnSync } from "child_process";
 import { type Dirent, readdirSync, statSync } from "fs";
 import { delimiter, extname, join } from "path";
@@ -35,14 +36,14 @@ class BashCompletionAutocompleteProvider implements AutocompleteProvider {
 		this.shellPath = shellPath;
 	}
 
-	getSuggestions(
+	async getSuggestions(
 		lines: string[],
 		cursorLine: number,
 		cursorCol: number,
-	): { items: AutocompleteItem[]; prefix: string } | null {
+		options: { signal: AbortSignal; force?: boolean },
+	): Promise<AutocompleteSuggestions | null> {
 		const currentLine = lines[cursorLine] || "";
 
-		// Check if we're in shell mode (! or !!)
 		const shellContext = this.getShellCompletionContext(currentLine, cursorCol);
 		if (shellContext) {
 			const suggestions = this.getShellSuggestions(shellContext);
@@ -51,8 +52,7 @@ class BashCompletionAutocompleteProvider implements AutocompleteProvider {
 			}
 		}
 
-		// Fall back to base provider for non-shell completions
-		return this.baseProvider.getSuggestions(lines, cursorLine, cursorCol);
+		return this.baseProvider.getSuggestions(lines, cursorLine, cursorCol, options);
 	}
 
 	applyCompletion(

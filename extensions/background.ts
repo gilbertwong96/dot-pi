@@ -7,10 +7,10 @@
  * The .json file stores metadata (cwd, command) for display purposes.
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder, truncateTail } from "@mariozechner/pi-coding-agent";
-import { Container, Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, truncateTail } from "@earendil-works/pi-coding-agent";
+import { Container, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { spawn, spawnSync } from "child_process";
 import * as crypto from "crypto";
 import * as fs from "fs";

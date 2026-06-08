@@ -1,8 +1,8 @@
 /**
  * Plan Mode Extension utilities.
  *
- * Derived from pi-mono example:
- * https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/examples/extensions/plan-mode/utils.ts
+ * Derived from Pi example:
+ * https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/utils.ts
  */
 
 // Destructive commands blocked in plan mode

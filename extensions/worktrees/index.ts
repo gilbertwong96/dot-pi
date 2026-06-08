@@ -24,10 +24,10 @@
 
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { getSelectListTheme } from "@mariozechner/pi-coding-agent";
-import { type Component, Key, matchesKey, type SelectItem, SelectList, truncateToWidth } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
+import { type Component, Key, matchesKey, type SelectItem, SelectList, truncateToWidth } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 interface WorktreeInfo {
 	path: string;
@@ -769,34 +769,4 @@ ${activeWorktrees}
 		updateStatusWidget(ctx);
 	});
 
-	pi.on("session_switch", async (_event, ctx) => {
-		// Re-discover worktrees on session switch
-		worktrees.clear();
-
-		const result = await pi.exec("git", ["worktree", "list", "--porcelain"], { cwd: ctx.cwd });
-		if (result.code === 0) {
-			const lines = result.stdout.split("\n");
-			let currentPath = "";
-
-			for (const line of lines) {
-				if (line.startsWith("worktree ")) {
-					currentPath = line.slice(9);
-				} else if (line.startsWith("branch ") && currentPath.includes(WORKTREES_DIR)) {
-					const branch = line.slice(7).replace("refs/heads/", "");
-					const name = currentPath.split("/").pop() || branch;
-
-					worktrees.set(name, {
-						path: currentPath,
-						branch,
-						created: Date.now(),
-						setupCompleted: true,
-					});
-				} else if (line === "") {
-					currentPath = "";
-				}
-			}
-		}
-
-		updateStatusWidget(ctx);
-	});
 }

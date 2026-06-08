@@ -6,9 +6,9 @@
  * custom headers, and redirect tracking.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import * as cheerio from "cheerio";
 import TurndownService from "turndown";
 import { extractText as extractPdfText } from "unpdf";

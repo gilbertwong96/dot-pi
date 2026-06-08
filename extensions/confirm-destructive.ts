@@ -11,8 +11,8 @@ import type {
   ExtensionAPI,
   SessionBeforeSwitchEvent,
   SessionMessageEntry,
-} from "@mariozechner/pi-coding-agent";
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 const DESTRUCTIVE_BASH_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /\bgh\s+pr\s+create\b/, label: "Create GitHub PR" },

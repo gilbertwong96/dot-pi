@@ -7,9 +7,9 @@
  * Requires CONTEXT7_API_KEY environment variable.
  */
 
-import { type ExtensionAPI, rawKeyHint } from "@mariozechner/pi-coding-agent";
-import { Container, Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { type ExtensionAPI, rawKeyHint } from "@earendil-works/pi-coding-agent";
+import { Container, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 const DEFAULT_API_BASE = "https://context7.com/api";
 

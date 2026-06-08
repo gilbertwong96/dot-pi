@@ -1,98 +1,149 @@
 # dot-pi
 
-Extensions, skills, and rules for [Pi](https://github.com/badlogic/pi-mono) coding agent.
+A curated Pi package with extensions, skills, prompt shortcuts, and rules.
 
-## Demos
+## Install
 
-| Code Search | LSP |
-|---|---|
-| <a href="https://asciinema.org/a/HsHEscCk5Fq7s6Ym"><img src="https://asciinema.org/a/HsHEscCk5Fq7s6Ym.svg" width="400"></a> | <a href="https://asciinema.org/a/0cG65zf3s94wFSdt"><img src="https://asciinema.org/a/0cG65zf3s94wFSdt.svg" width="400"></a> |
-| **Question** | **Web Fetch** |
-| <a href="https://asciinema.org/a/E48GyE7AE3FRuk6U"><img src="https://asciinema.org/a/E48GyE7AE3FRuk6U.svg" width="400"></a> | <a href="https://asciinema.org/a/9oRM5g9BHrv00GnD"><img src="https://asciinema.org/a/9oRM5g9BHrv00GnD.svg" width="400"></a> |
-| **Web Search** | **Voice Input** |
-| <a href="https://asciinema.org/a/EPAESVHwuQOqyfB3"><img src="https://asciinema.org/a/EPAESVHwuQOqyfB3.svg" width="400"></a> | <a href="https://asciinema.org/a/holUXauSMlm8tnP6"><img src="https://asciinema.org/a/holUXauSMlm8tnP6.svg" width="400"></a> |
+Install Pi first:
 
-## Installation
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+```
+
+Then install this package:
 
 ```bash
 pi install git:github.com/dannote/dot-pi
-pi install npm:pi-subagents   # optional: subagent delegation (scout, planner, worker, etc.)
-pi install npm:pi-context      # optional: agentic context window management
 ```
 
-Use `pi config` to enable/disable individual extensions and skills.
+Project-local install for a repo/team:
 
-Some extensions require external tools or API keys:
+```bash
+pi install -l git:github.com/dannote/dot-pi
+```
 
-| Dependency | Required by |
+If Pi is already installed, you can also let Pi do the setup for you. Start `pi` and paste:
+
+```text
+Read https://github.com/dannote/dot-pi and set up dot-pi for me. Install the package, install agent-browser if missing, and offer the optional companion packages pi-computer-use, pi-subagents, and pi-context before installing them.
+```
+
+Start Pi and use `pi config` to review or change what is enabled:
+
+```bash
+pi config
+```
+
+Update Pi and installed packages later with:
+
+```bash
+pi update
+```
+
+Useful companion packages, installed separately when you want them:
+
+```bash
+pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
+pi install npm:pi-subagents                                 # subagent delegation
+pi install npm:pi-context                                   # context history tags/checkouts
+```
+
+`pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
+
+## What is enabled by default
+
+The default install focuses on broadly useful, low-surprise tools.
+
+### Extensions
+
+| Extension | Description | Extra setup |
+|---|---|---|
+| `ast-grep.ts` | AST-based code search and rewrite | `brew install ast-grep` |
+| `background.ts` | Start/stop long-running dev servers and watchers | None |
+| `codesearch.ts` | Search public GitHub code via grep.app | None |
+| `confirm-destructive.ts` | Ask before high-risk local actions | None |
+| `context7/` | Fetch current library docs from Context7 | None |
+| `lsp/` | LSP tools: definitions, references, diagnostics, rename | Install language servers as needed |
+| `notify.ts` | Desktop notification when work completes | macOS notifications enabled |
+| `question.ts` | Let the agent ask selectable questions | None |
+| `webfetch/` | Fetch URL content as markdown/text/html/json | None |
+| `websearch/` | Web search via Exa | `EXA_API_KEY` |
+| `worktrees/` | Git worktree helpers for isolated work | None |
+
+### Prompt shortcuts
+
+| Prompt | Expands to |
 |---|---|
-| [ast-grep](https://ast-grep.github.io) (`brew install ast-grep`) | `ast-grep.ts` |
-| [Exa AI](https://exa.ai) API key (`EXA_API_KEY`) | `websearch/` |
-| [ElevenLabs](https://elevenlabs.io) API key (`ELEVENLABS_API_KEY`) | `voice-input/` |
+| `/all` | Do all pending items without piecemeal confirmation |
+| `/ar` | Resume an autoresearch loop from persisted state |
+| `/lgtm` | Approve the current direction and proceed autonomously |
+| `/next [count]` | Summarize state and list next steps |
+| `/push` | Commit and push when appropriate |
+| `/release` | Prepare release artifacts and final checks |
+| `/retry` | Retry the last failed or incomplete operation |
+| `/verify` | Run relevant checks and fix failures |
 
-## Extensions
+### Skills
 
-| Extension | Description |
+| Skill | Description | Extra setup |
+|---|---|---|
+| `agent-browser` | Browser automation via agent-browser CLI. This wrapper loads current docs from `agent-browser skills get core` instead of vendoring them. | `npm install -g agent-browser && agent-browser install` |
+| `github-issues` | Work with GitHub Issues via `gh` | `gh auth login` |
+| `keyboard-layout-decoder` | Decode Russian/English wrong-keyboard-layout text | None |
+| `skill-discovery` | Discover agent skills on GitHub | None |
+
+## Optional resources
+
+These are included in the repo but not enabled by default because they are experimental, personal, platform-specific, or require extra credentials.
+
+Enable them by replacing the package entry in `~/.pi/agent/settings.json` with an object-form package filter. Use `+path` to opt into resources outside the default manifest.
+
+### Optional extensions
+
+| Extension | Why optional |
 |---|---|
-| `ast-grep.ts` | AST-based code search and rewrite |
-| `background.ts` | Run long-running processes in background |
-| `bash-completion/` | Intelligent bash completions for shell commands |
-| `codesearch.ts` | Search public GitHub code via [grep.app](https://grep.app) |
-| `context7/` | Search library documentation via [Context7](https://context7.com) |
-| `confirm-destructive.ts` | Confirm before destructive actions (clear session, create PRs/issues) |
-| `critic/` | Shadow reviewer that evaluates agent output |
-| `env-json/` | Load environment variables from `~/.pi/agent/env.jsonc` |
-| `lsp/` | Language Server Protocol (definition, references, hover, rename) |
-| `notify.ts` | Desktop notifications on task completion |
-| `permission-gate.ts` | Block dangerous bash commands |
-| `question.ts` | Let the LLM ask user questions with selectable options |
-| `rules.ts` | Load rule files from `~/.pi/agent/rules/` |
-| `voice-input/` | Voice recording with ElevenLabs STT (Ctrl+R) |
-| `webfetch/` | Fetch URL content and convert to markdown/text/html |
-| `websearch/` | Web search via [Exa AI](https://exa.ai) |
-| `worktrees/` | Git worktree management for parallel work |
+| `bash-completion/` | Advanced terminal completion; can be noisy while editing prompts |
+| `critic/` | Experimental shadow-review loop |
+| `decision-guidance.ts` | Experimental trajectory guidance |
+| `env-json/` | Only useful if you keep secrets in `~/.pi/agent/env.jsonc` |
+| `permission-gate.ts` | Opinionated command blocking |
+| `plan-mode/` | Experimental read-only planning mode |
+| `provider/` | Experimental dynamic provider registration |
+| `rules.ts` | Personal rule loader for symlinked files in `~/.pi/agent/rules/` |
+| `sandbox/` | Experimental OS-level sandboxing |
+| `voice-input/` | Requires ElevenLabs key and audio setup |
 
-<details>
-<summary>Experimental extensions (not installed by default)</summary>
+### Optional skills
 
-| Extension | Description |
+| Skill | Why optional |
 |---|---|
-| `decision-guidance.ts` | Decision-time guidance based on trajectory analysis |
-| `plan-mode/` | Read-only plan mode toggle with step tracking |
-| `provider/` | Dynamic provider registration from remote config |
-| `sandbox/` | OS-level sandboxing for bash commands (WIP) |
-| `subagent/` | Subagent delegation (superseded by [pi-subagents](https://www.npmjs.com/package/pi-subagents)) |
+| `ai-news` | Personal AI news workflow using X/Twitter |
+| `applescript` | macOS-only automation |
+| `bird` | X/Twitter workflow; requires bird CLI/auth |
+| `chat-to-skill` | Meta workflow for creating new skills |
+| `vibe-merge` | Specialized PR/branch reimplementation workflow |
 
-To enable an experimental extension:
+Example package filter enabling only voice input and AppleScript:
 
 ```json
 {
-  "source": "git:github.com/dannote/dot-pi",
-  "extensions": ["+extensions/plan-mode"]
+  "packages": [
+    {
+      "source": "git:github.com/dannote/dot-pi",
+      "extensions": ["+extensions/voice-input"],
+      "skills": ["+skills/applescript"],
+      "prompts": ["prompts"]
+    }
+  ]
 }
 ```
 
-</details>
-
-## Skills
-
-| Skill | Description |
-|---|---|
-| `agent-browser` | Browser automation with [agent-browser](https://github.com/vercel-labs/agent-browser) CLI |
-| `ai-news` | Curated AI news digest from X/Twitter list |
-| `applescript` | AppleScript and JXA automation for macOS |
-| `bird` | X/Twitter CLI for tweets, threads, search, and social graph |
-| `chat-to-skill` | Convert current chat session into a reusable skill |
-| `github-issues` | Work with GitHub Issues via `gh` CLI — view, triage, fix, close |
-| `keyboard-layout-decoder` | Decode text typed with wrong keyboard layout (Russian ↔ English) |
-| `skill-discovery` | Discover agent skills on GitHub |
-| `vibe-merge` | Reimplement useful PR or branch ideas safely with contributor credit |
-
 ## Rules
 
-Rules are not distributed via packages. Symlink desired rules into `~/.pi/agent/rules/`:
+Rules are intentionally not enabled through the package. They are personal preference files. Symlink the ones you want into `~/.pi/agent/rules/`:
 
 ```bash
+mkdir -p ~/.pi/agent/rules
 ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 ```
 
@@ -108,6 +159,14 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 | `ripgrep.md` | Prefer `rg` over `grep` |
 | `skills-cli.md` | Run skill commands from skill directory |
 | `typescript.md` | TypeScript naming, type safety, imports, async |
+
+## Development
+
+```bash
+bun install
+bun run check
+bun run lint
+```
 
 ## License
 

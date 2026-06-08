@@ -1,8 +1,16 @@
 {
   "name": "dot-pi",
   "private": true,
+  "description": "Curated Pi extensions, skills, prompt shortcuts, and rules.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dannote/dot-pi.git"
+  },
   "type": "module",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "scripts": {
     "check": "tsc --noEmit",
     "format": "oxfmt .",
@@ -10,13 +18,27 @@
   },
   "pi": {
     "extensions": [
-      "extensions",
-      "!extensions/sandbox/**",
-      "!extensions/plan-mode/**",
-      "!extensions/provider/**",
-      "!extensions/decision-guidance.ts"
+      "extensions/ast-grep.ts",
+      "extensions/background.ts",
+      "extensions/codesearch.ts",
+      "extensions/confirm-destructive.ts",
+      "extensions/context7",
+      "extensions/lsp",
+      "extensions/notify.ts",
+      "extensions/question.ts",
+      "extensions/webfetch",
+      "extensions/websearch",
+      "extensions/worktrees"
     ],
-    "skills": ["skills"]
+    "skills": [
+      "skills/agent-browser",
+      "skills/github-issues",
+      "skills/keyboard-layout-decoder",
+      "skills/skill-discovery"
+    ],
+    "prompts": [
+      "prompts"
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.32",
@@ -29,21 +51,23 @@
     "ws": "^8.18.0"
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*",
-    "@sinclair/typebox": "*"
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   },
   "devDependencies": {
-    "@mariozechner/pi-ai": "0.51.6",
-    "@mariozechner/pi-coding-agent": "0.51.6",
-    "@mariozechner/pi-tui": "0.51.6",
-    "@sinclair/typebox": "^0.34.48",
+    "@earendil-works/pi-agent-core": "0.78.1",
+    "@earendil-works/pi-ai": "0.78.1",
+    "@earendil-works/pi-coding-agent": "0.78.1",
+    "@earendil-works/pi-tui": "0.78.1",
     "@types/bun": "latest",
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.5.10",
     "oxfmt": "^0.24.0",
     "oxlint": "^1.42.0",
+    "typebox": "^1.1.38",
     "typescript": "^5.9.3"
   }
 }

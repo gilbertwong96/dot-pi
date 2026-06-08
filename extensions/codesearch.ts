@@ -11,9 +11,9 @@ import {
   highlightCode,
   rawKeyHint,
   type Theme,
-} from "@mariozechner/pi-coding-agent";
-import { Container, Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+} from "@earendil-works/pi-coding-agent";
+import { Container, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 const API_URL = "https://mcp.grep.app/";
 const DEFAULT_TIMEOUT = 30000;

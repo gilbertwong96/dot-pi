@@ -19,14 +19,14 @@
  * Based on: https://blog.replit.com/decision-time-guidance
  */
 
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
 	AssistantMessage,
 	TextContent,
 	ToolCall as LLMToolCall,
 	ToolResultMessage,
-} from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-ai";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 interface GuidanceRule {
 	id: string;

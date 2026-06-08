@@ -11,7 +11,7 @@
  * This is intentional to prevent notification spam.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
  * Send a desktop notification using OSC escape sequences.

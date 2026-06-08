@@ -12,8 +12,8 @@
  * - ELEVENLABS_LANGUAGE - ISO-639-1/3 language code (e.g., "en", "ru", "de")
  */
 
-import { CustomEditor, type ExtensionAPI, type KeybindingsManager, type Theme } from "@mariozechner/pi-coding-agent";
-import { type EditorTheme, Key, matchesKey, type TUI } from "@mariozechner/pi-tui";
+import { CustomEditor, type ExtensionAPI, type KeybindingsManager, type Theme } from "@earendil-works/pi-coding-agent";
+import { type EditorTheme, Key, matchesKey, type TUI } from "@earendil-works/pi-tui";
 import { spawnSync, spawn, type ChildProcess } from "child_process";
 import WebSocket from "ws";
 
