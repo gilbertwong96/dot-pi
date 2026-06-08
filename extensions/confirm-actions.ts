@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import type {
   ExtensionAPI,
   SessionBeforeSwitchEvent,
@@ -17,6 +17,7 @@ import { isToolCallEventType } from '@earendil-works/pi-coding-agent'
 import { parse, type ParseEntry } from 'shell-quote'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { notifyDesktop } from './shared/desktop-notify'
+import { formatPiNotificationTitle } from './shared/project-name'
 
 export type CommandRule = {
   argv: string[]
@@ -359,5 +360,5 @@ function parseRule(item: unknown): CommandRule[] {
 }
 
 function notificationTitle(cwd: string): string {
-  return `π · ${basename(cwd)}`
+  return formatPiNotificationTitle(cwd)
 }

@@ -4,10 +4,10 @@
  * Sends native desktop notifications when the agent needs attention or finishes.
  */
 
-import { basename } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { notifyDesktop } from './shared/desktop-notify'
+import { formatPiNotificationTitle } from './shared/project-name'
 
 type StopInfo = {
   stopReason?: string
@@ -33,9 +33,7 @@ export default function (pi: ExtensionAPI) {
   pi.on('agent_end', async (event, ctx) => {
     const lastMessage = event.messages[event.messages.length - 1]
     const { stopReason, errorMessage } = getStopInfo(lastMessage)
-    const repo = basename(ctx.cwd)
-
-    const title = `π · ${repo}`
+    const title = formatPiNotificationTitle(ctx.cwd)
 
     if (stopReason === 'error') {
       notifyDesktop(title, `Error: ${summarize(errorMessage || 'Unknown error')}`)
