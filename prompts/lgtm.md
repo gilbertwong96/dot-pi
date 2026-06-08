@@ -1,5 +1,5 @@
 ---
-description: Approve the current direction and proceed autonomously
+description: Approve and proceed
 ---
 
-Proceed with the current recommended path. Do not ask follow-up questions unless truly blocked. Implement the next sensible slice, verify it locally, and report concise results.
+Proceed. Don’t ask unless blocked. Implement, verify, summarize.

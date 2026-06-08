@@ -1,5 +1,5 @@
 ---
-description: Do all pending items without piecemeal confirmation
+description: Do all pending items
 ---
 
-Do all pending items from the current plan/review. Be proactive, avoid cutting corners, verify the result, and only ask if a decision would materially change the outcome.
+Do all pending items. Verify. Ask only if blocked.

@@ -1,5 +1,5 @@
 ---
-description: Retry the last failed or incomplete operation
+description: Retry last failure
 ---
 
-Retry the last failed or incomplete operation. First identify why the previous attempt failed or was insufficient, then rerun with a tighter approach and verify the result.
+Find why it failed, retry tighter, verify.

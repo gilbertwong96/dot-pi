@@ -1,5 +1,5 @@
 ---
-description: Prepare release artifacts and final checks
+description: Prepare release
 ---
 
-Prepare this project for release: inspect the release process, update changelog/readme/version metadata as needed, run the relevant checks, and summarize what is ready. Do not publish externally without explicit confirmation.
+Prepare release: inspect process, update metadata/docs, run checks. Don’t publish without confirmation.

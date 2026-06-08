@@ -1,5 +1,5 @@
 ---
-description: Resume autoresearch loop from persisted state
+description: Resume autoresearch
 ---
 
-Resume the autoresearch experiment loop. Read autoresearch.md and git log for context, check autoresearch.ideas.md for promising paths, pick the strongest hypothesis, run the next experiment with run_experiment, then log_experiment. Do not overfit or cheat the benchmark.
+Resume autoresearch: read state, pick best hypothesis, run_experiment, log_experiment. No overfit/cheating.

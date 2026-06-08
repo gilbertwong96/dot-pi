@@ -1,6 +1,6 @@
 ---
 name: skill-discovery
-description: Discover agent skills on GitHub. Use when user asks to find new skills, search for skills, explore skill repositories, or wants to see trending/popular skills.
+description: Find agent skills and skill repositories on GitHub.
 ---
 
 # Skill Discovery

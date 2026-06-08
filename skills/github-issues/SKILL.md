@@ -1,6 +1,6 @@
 ---
 name: github-issues
-description: Work with GitHub Issues via gh CLI. Use when user asks to view, triage, fix, or close issues. Covers issue workflows, linking fixes to issues in commits/changelogs/releases, and proper closing etiquette.
+description: Use gh CLI to view, triage, fix, link, or close GitHub Issues.
 ---
 
 # GitHub Issues Workflow

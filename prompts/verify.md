@@ -1,5 +1,5 @@
 ---
-description: Run relevant checks and fix failures
+description: Verify and fix
 ---
 
-Run the relevant local checks for the current task: tests, typecheck, lint/format, and browser/manual verification when appropriate. If anything fails, fix it and rerun the focused checks.
+Run relevant checks. Fix failures. Rerun focused checks.
