@@ -17,9 +17,19 @@ type StopInfo = {
 export default function (pi: ExtensionAPI) {
   let toolsCalled = new Set<string>()
   let currentPrompt = ''
+  let suppressAgentEndUntilCompactFinishes = false
+
+  pi.on('session_before_compact', () => {
+    suppressAgentEndUntilCompactFinishes = true
+  })
+
+  pi.on('session_compact', () => {
+    suppressAgentEndUntilCompactFinishes = false
+  })
 
   pi.on('before_agent_start', (event) => {
     currentPrompt = summarize(event.prompt)
+    suppressAgentEndUntilCompactFinishes = false
   })
 
   pi.on('agent_start', () => {
@@ -41,7 +51,9 @@ export default function (pi: ExtensionAPI) {
     }
 
     if (stopReason === 'aborted') return
-    if (!shouldNotifyAgentEnd(toolsCalled, currentPrompt)) return
+    if (!shouldNotifyAgentEnd(toolsCalled, currentPrompt, suppressAgentEndUntilCompactFinishes)) {
+      return
+    }
 
     notifyDesktop(title, getNotificationBody(toolsCalled, currentPrompt))
   })
@@ -57,7 +69,12 @@ function getStopInfo(message: AgentMessage | undefined): StopInfo {
   }
 }
 
-export function shouldNotifyAgentEnd(tools: Set<string>, prompt: string): boolean {
+export function shouldNotifyAgentEnd(
+  tools: Set<string>,
+  prompt: string,
+  suppressForCompaction = false
+): boolean {
+  if (suppressForCompaction) return false
   return tools.size > 0 || prompt.length > 0
 }
 
