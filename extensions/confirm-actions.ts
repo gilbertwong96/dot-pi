@@ -24,7 +24,7 @@ export type CommandRule = {
   matches?: (argv: string[]) => boolean
 }
 
-const DEFAULT_COMMAND_RULES: CommandRule[] = [
+export const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['gh', 'pr', 'create'], label: 'Publish GitHub PR' },
   { argv: ['gh', 'pr', 'edit'], label: 'Edit GitHub PR' },
   { argv: ['gh', 'pr', 'comment'], label: 'Publish GitHub PR comment' },
@@ -32,13 +32,33 @@ const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['gh', 'issue', 'create'], label: 'Publish GitHub issue' },
   { argv: ['gh', 'issue', 'edit'], label: 'Edit GitHub issue' },
   { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
+  { argv: ['gh', 'release', 'create'], label: 'Publish GitHub release' },
   { argv: ['gh', 'api'], label: 'Mutate via GitHub API', matches: isMutatingGhApi },
   { argv: ['glab', 'mr', 'create'], label: 'Publish GitLab MR' },
   { argv: ['glab', 'mr', 'update'], label: 'Edit GitLab MR' },
   { argv: ['glab', 'mr', 'note'], label: 'Publish GitLab MR comment' },
   { argv: ['glab', 'issue', 'create'], label: 'Publish GitLab issue' },
   { argv: ['glab', 'issue', 'update'], label: 'Edit GitLab issue' },
-  { argv: ['glab', 'issue', 'note'], label: 'Publish GitLab issue comment' }
+  { argv: ['glab', 'issue', 'note'], label: 'Publish GitLab issue comment' },
+  { argv: ['glab', 'release', 'create'], label: 'Publish GitLab release' },
+  { argv: ['git'], label: 'Force push', matches: isGitForcePush },
+  { argv: ['git'], label: 'Delete remote branch', matches: isGitRemoteBranchDelete },
+  { argv: ['git'], label: 'Hard reset', matches: isGitHardReset },
+  { argv: ['git'], label: 'Clean working tree', matches: isGitForcedClean },
+  { argv: ['git'], label: 'Delete local branch', matches: isGitBranchDelete },
+  { argv: ['npm'], label: 'Publish npm package', matches: hasSubcommand('publish') },
+  { argv: ['pnpm'], label: 'Publish npm package', matches: hasSubcommand('publish') },
+  { argv: ['bun'], label: 'Publish package', matches: hasSubcommand('publish') },
+  { argv: ['yarn'], label: 'Publish npm package', matches: hasSubcommand('npm', 'publish') },
+  { argv: ['vercel'], label: 'Deploy with Vercel' },
+  { argv: ['netlify'], label: 'Deploy with Netlify', matches: hasSubcommand('deploy') },
+  { argv: ['firebase'], label: 'Deploy with Firebase', matches: hasSubcommand('deploy') },
+  { argv: ['fly'], label: 'Deploy with Fly.io', matches: hasSubcommand('deploy') },
+  {
+    argv: ['wrangler'],
+    label: 'Deploy with Wrangler',
+    matches: hasAnySubcommand(['deploy', 'publish'])
+  }
 ]
 
 const CONTROL_OPERATORS = new Set(['&&', '||', ';', '|', '|&', '&'])
@@ -200,7 +220,9 @@ function dropFlagsAndAssignments(argv: string[]): string[] {
 }
 
 function flagConsumesValue(arg: string): boolean {
-  return ['-u', '-g', '-h', '-p', '-C', '--user', '--group', '--host', '--prompt'].includes(arg)
+  return ['-u', '-g', '-h', '-p', '-C', '-c', '--user', '--group', '--host', '--prompt'].includes(
+    arg
+  )
 }
 
 function startsWithArgv(argv: string[], prefix: string[]): boolean {
@@ -213,6 +235,71 @@ function isMutatingGhApi(argv: string[]): boolean {
   if (method === 'GET') return false
 
   return argv.some((arg) => ['--field', '-f', '--raw-field', '-F'].includes(arg))
+}
+
+function isGitForcePush(argv: string[]): boolean {
+  return (
+    getGitSubcommand(argv) === 'push' && hasAnyFlag(argv, ['--force', '--force-with-lease', '-f'])
+  )
+}
+
+function isGitRemoteBranchDelete(argv: string[]): boolean {
+  return (
+    getGitSubcommand(argv) === 'push' && (argv.includes('--delete') || argv.some(isDeleteRefspec))
+  )
+}
+
+function isGitHardReset(argv: string[]): boolean {
+  return getGitSubcommand(argv) === 'reset' && hasAnyFlag(argv, ['--hard'])
+}
+
+function isGitForcedClean(argv: string[]): boolean {
+  return getGitSubcommand(argv) === 'clean' && hasAnyFlag(argv, ['-f', '--force'])
+}
+
+function isGitBranchDelete(argv: string[]): boolean {
+  return getGitSubcommand(argv) === 'branch' && hasAnyFlag(argv, ['-d', '-D', '--delete'])
+}
+
+function getGitSubcommand(argv: string[]): string | undefined {
+  let index = 1
+  while (index < argv.length) {
+    const arg = argv[index] ?? ''
+    if (isAssignment(arg)) {
+      index += 1
+      continue
+    }
+    if (!isFlag(arg)) return arg
+    index += flagConsumesValue(arg) ? 2 : 1
+  }
+}
+
+function hasSubcommand(...subcommand: string[]): (argv: string[]) => boolean {
+  return (argv) => findSubcommandIndex(argv, subcommand) !== -1
+}
+
+function hasAnySubcommand(subcommands: string[]): (argv: string[]) => boolean {
+  return (argv) => subcommands.some((subcommand) => findSubcommandIndex(argv, [subcommand]) !== -1)
+}
+
+function findSubcommandIndex(argv: string[], subcommand: string[]): number {
+  for (let index = 1; index <= argv.length - subcommand.length; index += 1) {
+    if (subcommand.every((part, offset) => argv[index + offset] === part)) return index
+  }
+  return -1
+}
+
+function hasAnyFlag(argv: string[], flags: string[]): boolean {
+  return argv.some((arg) => flags.some((flag) => hasFlag(arg, flag)))
+}
+
+function hasFlag(arg: string, flag: string): boolean {
+  if (arg === flag || arg.startsWith(`${flag}=`)) return true
+  return /^-[A-Za-z]+$/.test(arg) && /^-[A-Za-z]$/.test(flag) && arg.includes(flag.slice(1))
+}
+
+function isDeleteRefspec(arg: string): boolean {
+  return /^:[^:]+/.test(arg)
 }
 
 function getOptionValue(argv: string[], names: string[]): string | undefined {
