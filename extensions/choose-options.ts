@@ -39,6 +39,8 @@ const ParamsSchema = Type.Object({
 })
 
 const DEFAULT_ACTIONS = ['Do selected', 'Discuss selected', 'Explain selected']
+const SYSTEM_HINT =
+  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers.'
 
 export function formatChoiceResult(result: ChooseResult): string {
   if (result.cancelled) return 'User cancelled option selection.'
@@ -51,6 +53,12 @@ export function formatChoiceResult(result: ChooseResult): string {
 }
 
 export default function chooseOptions(pi: ExtensionAPI) {
+  pi.on('before_agent_start', (event) => ({
+    systemPrompt: event.systemPrompt.includes(SYSTEM_HINT)
+      ? event.systemPrompt
+      : `${event.systemPrompt}\n\n${SYSTEM_HINT}`
+  }))
+
   pi.registerTool({
     name: 'choose_from_options',
     label: 'Choose Options',
