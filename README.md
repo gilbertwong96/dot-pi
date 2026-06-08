@@ -59,22 +59,22 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Extensions
 
-| Extension                | Description                                                               | Extra setup                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ast-grep.ts`            | AST-based code search and rewrite                                         | `brew install ast-grep`                                                                                |
-| `background.ts`          | Start/stop long-running dev servers and watchers                          | None                                                                                                   |
-| `codesearch.ts`          | Search public GitHub code via grep.app                                    | None                                                                                                   |
-| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting   | Optional settings entry                                                                                |
-| `confirm-destructive.ts` | Ask before high-risk local actions                                        | None                                                                                                   |
-| `context7/`              | Fetch current library docs from Context7                                  | None                                                                                                   |
-| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                   | Install language servers as needed                                                                     |
-| `notify.ts`              | Desktop notification when work completes                                  | macOS notifications enabled                                                                            |
+| Extension                | Description                                                                | Extra setup                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ast-grep.ts`            | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
+| `background.ts`          | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
+| `codesearch.ts`          | Search public GitHub code via grep.app                                     | None                                                                                                   |
+| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
+| `confirm-destructive.ts` | Ask before high-risk local actions                                         | None                                                                                                   |
+| `context7/`              | Fetch current library docs from Context7                                   | None                                                                                                   |
+| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
+| `notify.ts`              | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
 | `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
-| `question.ts`            | Let the agent ask selectable questions                                    | None                                                                                                   |
-| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling       | None                                                                                                   |
-| `webfetch/`              | Fetch URL content as markdown/text/html/json                              | None                                                                                                   |
-| `websearch/`             | Web search via Exa                                                        | `EXA_API_KEY`                                                                                          |
-| `worktrees/`             | Git worktree helpers for isolated work                                    | None                                                                                                   |
+| `question.ts`            | Let the agent ask selectable questions                                     | None                                                                                                   |
+| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
+| `webfetch/`              | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
+| `websearch/`             | Web search via Exa                                                         | `EXA_API_KEY`                                                                                          |
+| `worktrees/`             | Git worktree helpers for isolated work                                     | None                                                                                                   |
 
 Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
@@ -99,6 +99,17 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
+Destructive command confirmations use shell-style argv parsing, not regex matching. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+
+```json
+{
+  "confirmDestructiveCommands": [
+    { "argv": ["gh", "release", "create"], "label": "Create GitHub release" },
+    { "command": "npm publish", "label": "Publish npm package" }
+  ]
+}
+```
+
 ### Workflow slash commands
 
 These mirror my actual repeated Pi prompts from recent coding sessions, so I can type less without losing intent. Most are prompt shortcuts; `/next`, `/recap`, and `/quote` are extension commands so optional arguments and selection handling stay clean.
@@ -116,20 +127,20 @@ My usual coding flow:
 9. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
 10. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
 
-| Command          | Use when I would normally type...           | Meaning                                                                                                                       |
-| ---------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `/ga`            | `go ahead`                                  | Minimal approval; continue current path.                                                                                      |
-| `/gaa`           | `go ahead with all`                         | Alias for `/all`; complete all pending review/plan items, not one-by-one.                                                     |
-| `/lgtm`          | `yes`, `do it`, `okay`                      | Proceed; do not ask unless blocked; verify and summarize.                                                                     |
+| Command          | Use when I would normally type...           | Meaning                                                                                                                        |
+| ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `/ga`            | `go ahead`                                  | Minimal approval; continue current path.                                                                                       |
+| `/gaa`           | `go ahead with all`                         | Alias for `/all`; complete all pending review/plan items, not one-by-one.                                                      |
+| `/lgtm`          | `yes`, `do it`, `okay`                      | Proceed; do not ask unless blocked; verify and summarize.                                                                      |
 | `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
-| `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                   |
-| `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                     |
-| `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                         |
-| `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                      |
-| `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                |
-| `/push`          | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                                                                                    |
-| `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                        |
-| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                                                                             |
+| `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                    |
+| `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
+| `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
+| `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                       |
+| `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                 |
+| `/push`          | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                                                                                     |
+| `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                         |
+| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                                                                              |
 
 ### Skills
 
