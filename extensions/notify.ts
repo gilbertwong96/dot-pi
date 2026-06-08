@@ -41,6 +41,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     if (stopReason === 'aborted') return
+    if (!shouldNotifyAgentEnd(toolsCalled, currentPrompt)) return
 
     notifyDesktop(title, getNotificationBody(toolsCalled, currentPrompt))
   })
@@ -54,6 +55,10 @@ function getStopInfo(message: AgentMessage | undefined): StopInfo {
     stopReason: maybeStop.stopReason,
     errorMessage: maybeStop.errorMessage
   }
+}
+
+export function shouldNotifyAgentEnd(tools: Set<string>, prompt: string): boolean {
+  return tools.size > 0 || prompt.length > 0
 }
 
 function getNotificationBody(tools: Set<string>, prompt: string): string {
