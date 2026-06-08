@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "session-db": "bun run scripts/session-db.ts"
+    "session-db": "bun run scripts/session-db.ts",
+    "test": "bun test ./tests/session-db.integration.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.5.3-r.3",
