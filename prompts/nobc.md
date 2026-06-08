@@ -1,5 +1,7 @@
 ---
-description: No unnecessary backward compatibility
+description: No compatibility shims for new stuff
 ---
 
-Do not preserve backward compatibility for code/config/API names introduced in this unmerged or just-created change. Prefer renaming or replacing them cleanly. Keep compatibility only when there are real external users or released versions that need migration support.
+NO BACKCOMPAT FOR NEW STUFF.
+
+If this name/config/API was introduced in this branch/session and has no real released users, replace it cleanly. No aliases. No legacy option names. No migration shims. Rename the thing.
