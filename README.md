@@ -44,11 +44,14 @@ Useful companion packages, installed separately when you want them:
 
 ```bash
 pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
+pi install npm:pi-elixir                                    # Elixir/BEAM development
 pi install npm:pi-subagents                                 # subagent delegation
 pi install npm:pi-context                                   # context history tags/checkouts
 ```
 
 `pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
+
+`pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
 
 ## What is enabled by default
 
