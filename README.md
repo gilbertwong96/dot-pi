@@ -53,6 +53,18 @@ pi install npm:pi-context                                   # context history ta
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
 
+Recommended external skill/tool bundle for Google Workspace:
+
+```bash
+# Google Workspace CLI with Gmail/Drive/Calendar/etc. agent skills
+# Repo: https://github.com/googleworkspace/cli
+# Note: the repo says it is not an officially supported Google product.
+npm install -g @googleworkspace/cli
+cd ~/.pi/agent && gws generate-skills
+```
+
+The generated `gws-*` skills are useful for Gmail and broader Workspace workflows. Keep them personal/local unless you want every install to get Workspace access assumptions. This package's confirmation rules ask before Gmail write actions such as send, reply, forward, modify, trash, or delete.
+
 ## What is enabled by default
 
 The default install focuses on broadly useful, low-surprise tools.
@@ -101,7 +113,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
-Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing/editing GitHub/GitLab issues, PRs/MRs, comments, reviews, mutating `gh api` calls, risky git actions, package publishing, releases, and common deploy CLIs. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing/editing GitHub/GitLab issues, PRs/MRs, comments, reviews, mutating `gh api` calls, Gmail writes via `gws gmail`, X/Twitter mutations via `bird`, risky git actions, package publishing, releases, and common deploy CLIs. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
