@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type {
   ExtensionAPI,
   SessionBeforeSwitchEvent,
@@ -79,7 +79,7 @@ export default function (pi: ExtensionAPI) {
     const match = matchCommandRule(command, commandRules)
     if (!match) return
 
-    notifyDesktop('Pi needs approval', `${match.label}: ${summarize(command)}`)
+    notifyDesktop(notificationTitle(ctx.cwd), `Approve: ${match.label}`)
 
     const confirmed = await ctx.ui.confirm(
       `${match.label}?`,
@@ -96,7 +96,7 @@ export default function (pi: ExtensionAPI) {
     if (!ctx.hasUI) return
 
     if (event.reason === 'new') {
-      notifyDesktop('Pi needs approval', 'Clear current session?')
+      notifyDesktop(notificationTitle(ctx.cwd), 'Approve: clear current session')
 
       const confirmed = await ctx.ui.confirm(
         'Clear session?',
@@ -116,7 +116,7 @@ export default function (pi: ExtensionAPI) {
     )
 
     if (hasUnsavedWork) {
-      notifyDesktop('Pi needs approval', 'Switch session with unsaved messages?')
+      notifyDesktop(notificationTitle(ctx.cwd), 'Approve: switch session')
 
       const confirmed = await ctx.ui.confirm(
         'Switch session?',
@@ -133,7 +133,7 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_before_fork', async (event, ctx) => {
     if (!ctx.hasUI) return
 
-    notifyDesktop('Pi needs approval', `Fork from entry ${event.entryId.slice(0, 8)}?`)
+    notifyDesktop(notificationTitle(ctx.cwd), `Approve: fork from ${event.entryId.slice(0, 8)}`)
 
     const choice = await ctx.ui.select(`Fork from entry ${event.entryId.slice(0, 8)}?`, [
       'Yes, create fork',
@@ -358,6 +358,6 @@ function parseRule(item: unknown): CommandRule[] {
   return [{ argv, label: rule.label }]
 }
 
-function summarize(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().slice(0, 120)
+function notificationTitle(cwd: string): string {
+  return `Pi · ${basename(cwd)}`
 }

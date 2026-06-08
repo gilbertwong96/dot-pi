@@ -35,15 +35,16 @@ export default function (pi: ExtensionAPI) {
     const { stopReason, errorMessage } = getStopInfo(lastMessage)
     const repo = basename(ctx.cwd)
 
+    const title = `Pi · ${repo}`
+
     if (stopReason === 'error') {
-      notifyDesktop(`Pi error in ${repo}`, errorMessage || 'Unknown error')
+      notifyDesktop(title, `Error: ${summarize(errorMessage || 'Unknown error')}`)
       return
     }
 
     if (stopReason === 'aborted') return
 
-    const body = getNotificationBody(toolsCalled, currentPrompt, repo)
-    notifyDesktop('Pi', body)
+    notifyDesktop(title, getNotificationBody(toolsCalled, currentPrompt))
   })
 }
 
@@ -57,15 +58,9 @@ function getStopInfo(message: AgentMessage | undefined): StopInfo {
   }
 }
 
-function getNotificationBody(tools: Set<string>, prompt: string, repo: string): string {
-  const action = getActionSummary(tools)
-  const suffix = prompt ? `: ${prompt}` : ''
-
-  if (tools.has('question')) {
-    return `Waiting for your choice in ${repo}${suffix}`
-  }
-
-  return `${action} in ${repo}${suffix}`
+function getNotificationBody(tools: Set<string>, prompt: string): string {
+  const action = tools.has('question') ? 'Waiting for your choice' : getActionSummary(tools)
+  return prompt ? `${action}: ${prompt}` : action
 }
 
 function getActionSummary(tools: Set<string>): string {
@@ -78,5 +73,5 @@ function getActionSummary(tools: Set<string>): string {
 }
 
 function summarize(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().slice(0, 120)
+  return text.replace(/\s+/g, ' ').trim().slice(0, 80)
 }
