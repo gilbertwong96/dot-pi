@@ -59,19 +59,19 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Extensions
 
-| Extension | Description | Extra setup |
-|---|---|---|
-| `ast-grep.ts` | AST-based code search and rewrite | `brew install ast-grep` |
-| `background.ts` | Start/stop long-running dev servers and watchers | None |
-| `codesearch.ts` | Search public GitHub code via grep.app | None |
-| `confirm-destructive.ts` | Ask before high-risk local actions | None |
-| `context7/` | Fetch current library docs from Context7 | None |
-| `lsp/` | LSP tools: definitions, references, diagnostics, rename | Install language servers as needed |
-| `notify.ts` | Desktop notification when work completes | macOS notifications enabled |
-| `question.ts` | Let the agent ask selectable questions | None |
-| `webfetch/` | Fetch URL content as markdown/text/html/json | None |
-| `websearch/` | Web search via Exa | `EXA_API_KEY` |
-| `worktrees/` | Git worktree helpers for isolated work | None |
+| Extension                | Description                                             | Extra setup                        |
+| ------------------------ | ------------------------------------------------------- | ---------------------------------- |
+| `ast-grep.ts`            | AST-based code search and rewrite                       | `brew install ast-grep`            |
+| `background.ts`          | Start/stop long-running dev servers and watchers        | None                               |
+| `codesearch.ts`          | Search public GitHub code via grep.app                  | None                               |
+| `confirm-destructive.ts` | Ask before high-risk local actions                      | None                               |
+| `context7/`              | Fetch current library docs from Context7                | None                               |
+| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename | Install language servers as needed |
+| `notify.ts`              | Desktop notification when work completes                | macOS notifications enabled        |
+| `question.ts`            | Let the agent ask selectable questions                  | None                               |
+| `webfetch/`              | Fetch URL content as markdown/text/html/json            | None                               |
+| `websearch/`             | Web search via Exa                                      | `EXA_API_KEY`                      |
+| `worktrees/`             | Git worktree helpers for isolated work                  | None                               |
 
 ### Prompt shortcuts
 
@@ -88,26 +88,26 @@ My usual coding flow:
 7. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
 8. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
 
-| Prompt | Use when I would normally type... | Meaning |
-|---|---|---|
-| `/ga` | `go ahead` | Minimal approval; continue current path. |
-| `/lgtm` | `yes`, `do it`, `okay` | Proceed; do not ask unless blocked; verify and summarize. |
-| `/next [count]` | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action. |
-| `/ar` | `autoresearch loop ended... resume` | Resume experiment loop from saved state; run and log next experiment. |
-| `/verify` | `did you test?`, `use browser`, `run ci` | Run relevant checks, fix failures, rerun focused checks. |
-| `/all` | `go ahead with all`, `fix all`, `do all` | Complete all pending review/plan items, not one-by-one. |
-| `/push` | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push. |
-| `/release` | `publish`, `changelog`, `prepare release` | Prepare release artifacts/checks; do not publish without confirmation. |
-| `/retry` | `retry`, `try again`, `rerun` | Diagnose previous failure, retry tighter, verify. |
+| Prompt          | Use when I would normally type...           | Meaning                                                                |
+| --------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
+| `/ga`           | `go ahead`                                  | Minimal approval; continue current path.                               |
+| `/lgtm`         | `yes`, `do it`, `okay`                      | Proceed; do not ask unless blocked; verify and summarize.              |
+| `/next [count]` | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.            |
+| `/ar`           | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.  |
+| `/verify`       | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.               |
+| `/all`          | `go ahead with all`, `fix all`, `do all`    | Complete all pending review/plan items, not one-by-one.                |
+| `/push`         | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                             |
+| `/release`      | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation. |
+| `/retry`        | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                      |
 
 ### Skills
 
-| Skill | Description | Extra setup |
-|---|---|---|
-| `agent-browser` | Browser automation via agent-browser CLI. This wrapper loads current docs from `agent-browser skills get core` instead of vendoring them. | `npm install -g agent-browser && agent-browser install` |
-| `github-issues` | Work with GitHub Issues via `gh` | `gh auth login` |
-| `keyboard-layout-decoder` | Decode Russian/English wrong-keyboard-layout text | None |
-| `skill-discovery` | Discover agent skills on GitHub | None |
+| Skill                     | Description                                                                                                                               | Extra setup                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `agent-browser`           | Browser automation via agent-browser CLI. This wrapper loads current docs from `agent-browser skills get core` instead of vendoring them. | `npm install -g agent-browser && agent-browser install` |
+| `github-issues`           | Work with GitHub Issues via `gh`                                                                                                          | `gh auth login`                                         |
+| `keyboard-layout-decoder` | Decode Russian/English wrong-keyboard-layout text                                                                                         | None                                                    |
+| `skill-discovery`         | Discover agent skills on GitHub                                                                                                           | None                                                    |
 
 ## Optional resources
 
@@ -117,30 +117,38 @@ Enable them by replacing the package entry in `~/.pi/agent/settings.json` with a
 
 ### Optional extensions
 
-| Extension | Why optional |
-|---|---|
-| `bash-completion/` | Advanced terminal completion; can be noisy while editing prompts |
-| `critic/` | Experimental shadow-review loop |
-| `decision-guidance.ts` | Experimental trajectory guidance |
-| `env-json/` | Only useful if you keep secrets in `~/.pi/agent/env.jsonc` |
-| `permission-gate.ts` | Opinionated command blocking |
-| `plan-mode/` | Experimental read-only planning mode |
-| `provider/` | Experimental dynamic provider registration |
-| `rules.ts` | Personal rule loader for symlinked files in `~/.pi/agent/rules/` |
-| `sandbox/` | Experimental OS-level sandboxing |
-| `voice-input/` | Requires ElevenLabs key and audio setup |
+| Extension              | Why optional                                                     |
+| ---------------------- | ---------------------------------------------------------------- |
+| `bash-completion/`     | Advanced terminal completion; can be noisy while editing prompts |
+| `critic/`              | Experimental shadow-review loop                                  |
+| `decision-guidance.ts` | Experimental trajectory guidance                                 |
+| `env-json/`            | Only useful if you keep secrets in `~/.pi/agent/env.jsonc`       |
+| `permission-gate.ts`   | Opinionated command blocking                                     |
+| `plan-mode/`           | Experimental read-only planning mode                             |
+| `provider/`            | Experimental dynamic provider registration                       |
+| `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/` |
+| `sandbox/`             | Experimental OS-level sandboxing                                 |
+| `voice-input/`         | Requires ElevenLabs key and audio setup                          |
 
 ### Optional skills
 
-| Skill | Why optional |
-|---|---|
-| `ai-news` | Personal AI news workflow using X/Twitter |
-| `applescript` | macOS-only automation |
-| `bird` | X/Twitter workflow; requires bird CLI/auth |
-| `chat-to-skill` | Meta workflow for creating new skills |
-| `vibe-merge` | Specialized PR/branch reimplementation workflow |
+Regular optional skills live under `skills/`. Extra/meta skills live under `skills/extra/` so they do not look like core setup features.
 
-Example package filter enabling only voice input and AppleScript:
+| Skill           | Why optional                                    |
+| --------------- | ----------------------------------------------- |
+| `ai-news`       | Personal AI news workflow using X/Twitter       |
+| `applescript`   | macOS-only automation                           |
+| `bird`          | X/Twitter workflow; requires bird CLI/auth      |
+| `chat-to-skill` | Meta workflow for creating new skills           |
+| `vibe-merge`    | Specialized PR/branch reimplementation workflow |
+
+### Extra skills
+
+| Skill              | Why extra                                                            |
+| ------------------ | -------------------------------------------------------------------- |
+| `dont-anger-mario` | Meta etiquette for drafting concise pi issues/contribution proposals |
+
+Example package filter enabling only voice input, AppleScript, and the extra Mario etiquette skill:
 
 ```json
 {
@@ -148,7 +156,7 @@ Example package filter enabling only voice input and AppleScript:
     {
       "source": "git:github.com/dannote/dot-pi",
       "extensions": ["+extensions/voice-input"],
-      "skills": ["+skills/applescript"],
+      "skills": ["+skills/applescript", "+skills/extra/dont-anger-mario"],
       "prompts": ["prompts"]
     }
   ]
@@ -164,18 +172,18 @@ mkdir -p ~/.pi/agent/rules
 ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 ```
 
-| Rule | Description |
-|---|---|
-| `backward-compatibility.md` | Avoid unnecessary compatibility shims |
-| `bun.md` | Use Bun instead of Node.js/npm |
-| `comments.md` | Avoid redundant comments |
-| `commit-messages.md` | Follow existing repo commit style |
-| `delete-files.md` | Use `rm -f` to delete files |
-| `git-hosting.md` | Use `gh`/`glab` CLI instead of fetching URLs |
-| `pull-requests.md` | PR workflow: study templates, preview before submit |
-| `ripgrep.md` | Prefer `rg` over `grep` |
-| `skills-cli.md` | Run skill commands from skill directory |
-| `typescript.md` | TypeScript naming, type safety, imports, async |
+| Rule                        | Description                                         |
+| --------------------------- | --------------------------------------------------- |
+| `backward-compatibility.md` | Avoid unnecessary compatibility shims               |
+| `bun.md`                    | Use Bun instead of Node.js/npm                      |
+| `comments.md`               | Avoid redundant comments                            |
+| `commit-messages.md`        | Follow existing repo commit style                   |
+| `delete-files.md`           | Use `rm -f` to delete files                         |
+| `git-hosting.md`            | Use `gh`/`glab` CLI instead of fetching URLs        |
+| `pull-requests.md`          | PR workflow: study templates, preview before submit |
+| `ripgrep.md`                | Prefer `rg` over `grep`                             |
+| `skills-cli.md`             | Run skill commands from skill directory             |
+| `typescript.md`             | TypeScript naming, type safety, imports, async      |
 
 ## Development
 
