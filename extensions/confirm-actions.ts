@@ -21,6 +21,7 @@ import { notifyDesktop } from './shared/desktop-notify'
 export type CommandRule = {
   argv: string[]
   label: string
+  matches?: (argv: string[]) => boolean
 }
 
 const DEFAULT_COMMAND_RULES: CommandRule[] = [
@@ -31,6 +32,7 @@ const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['gh', 'issue', 'create'], label: 'Publish GitHub issue' },
   { argv: ['gh', 'issue', 'edit'], label: 'Edit GitHub issue' },
   { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
+  { argv: ['gh', 'api'], label: 'Mutate via GitHub API', matches: isMutatingGhApi },
   { argv: ['glab', 'mr', 'create'], label: 'Publish GitLab MR' },
   { argv: ['glab', 'mr', 'update'], label: 'Edit GitLab MR' },
   { argv: ['glab', 'mr', 'note'], label: 'Publish GitLab MR comment' },
@@ -128,7 +130,9 @@ export default function (pi: ExtensionAPI) {
 export function matchCommandRule(command: string, rules: CommandRule[]): CommandRule | undefined {
   for (const invocation of parseInvocations(command)) {
     const normalized = normalizeInvocation(invocation)
-    const match = rules.find((rule) => startsWithArgv(normalized, rule.argv))
+    const match = rules.find(
+      (rule) => startsWithArgv(normalized, rule.argv) && (rule.matches?.(normalized) ?? true)
+    )
     if (match) return match
   }
 }
@@ -203,6 +207,24 @@ function startsWithArgv(argv: string[], prefix: string[]): boolean {
   return prefix.length > 0 && prefix.every((part, index) => argv[index] === part)
 }
 
+function isMutatingGhApi(argv: string[]): boolean {
+  const method = getOptionValue(argv, ['--method', '-X'])?.toUpperCase()
+  if (method && method !== 'GET') return true
+  if (method === 'GET') return false
+
+  return argv.some((arg) => ['--field', '-f', '--raw-field', '-F'].includes(arg))
+}
+
+function getOptionValue(argv: string[], names: string[]): string | undefined {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] ?? ''
+    for (const name of names) {
+      if (arg === name) return argv[index + 1]
+      if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1)
+    }
+  }
+}
+
 function isAssignment(arg: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=.*/.test(arg)
 }
@@ -226,11 +248,7 @@ function readCommandRules(path: string): CommandRule[] {
 
   try {
     const settings = parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
-    const value =
-      settings.confirmCommands ??
-      settings.commandApprovalRules ??
-      settings.confirmDestructiveCommands ??
-      settings.destructiveCommandRules
+    const value = settings.confirmCommands ?? settings.commandApprovalRules
     if (!Array.isArray(value)) return []
 
     return value.flatMap((item) => parseRule(item))

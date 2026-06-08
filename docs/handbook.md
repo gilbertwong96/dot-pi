@@ -12,6 +12,7 @@ Minimal operating notes for this Pi setup.
 - `/lgtm` — review/verification before trusting changes.
 - `/verify` — focused validation.
 - `/retry` — recover after failed checks or an interrupted attempt.
+- `/nobc` — do not keep backward compatibility for names/config introduced in the current unreleased change.
 
 ## Habits
 

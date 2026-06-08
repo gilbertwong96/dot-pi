@@ -88,6 +88,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
     "next",
     "recap",
     "all",
+    "nobc",
     "verify",
     "retry",
     "push",
@@ -99,7 +100,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
-Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing GitHub/GitLab issues, PRs/MRs, comments, and reviews. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing/editing GitHub/GitLab issues, PRs/MRs, comments, reviews, and mutating `gh api` calls. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
@@ -109,8 +110,6 @@ Action confirmations use shell-style argv parsing, not regex matching. Defaults 
   ]
 }
 ```
-
-Legacy `confirmDestructiveCommands` still works, but new configs should use `confirmCommands`.
 
 ### Workflow slash commands
 
@@ -140,6 +139,7 @@ My usual coding flow:
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
 | `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                       |
 | `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                 |
+| `/nobc`          | `no backward compatibility for new stuff`   | Replace newly introduced names/config cleanly; keep compatibility only for real released users.                                |
 | `/push`          | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                                                                                     |
 | `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                         |
 | `/retry`         | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                                                                              |
