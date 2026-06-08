@@ -59,6 +59,7 @@
     "extensions": [
       "extensions/ast-grep.ts",
       "extensions/background.ts",
+      "extensions/choose-options.ts",
       "extensions/command-priority.ts",
       "extensions/codesearch.ts",
       "extensions/confirm-actions.ts",
