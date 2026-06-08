@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["extensions/**/*.ts", "skills/**/*.ts"]
+  "include": ["extensions/**/*.ts", "skills/**/*.ts", "skills/**/*.d.ts"]
 }

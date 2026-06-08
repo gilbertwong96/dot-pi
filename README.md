@@ -214,13 +214,14 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 
 Regular optional skills live under `skills/`. Extra/meta skills live under `skills/extra/` so they do not look like core setup features.
 
-| Skill           | Why optional                                    |
-| --------------- | ----------------------------------------------- |
-| `ai-news`       | Personal AI news workflow using X/Twitter       |
-| `applescript`   | macOS-only automation                           |
-| `bird`          | X/Twitter workflow for my `@dannote/bird-premium` CLI; forked from/credits `steipete/bird` |
-| `chat-to-skill` | Meta workflow for creating new skills           |
-| `vibe-merge`    | Specialized PR/branch reimplementation workflow |
+| Skill             | Why optional                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ai-news`         | Personal AI news workflow using X/Twitter                                                                    |
+| `applescript`     | macOS-only automation                                                                                        |
+| `bird`            | X/Twitter workflow for my `@dannote/bird-premium` CLI; forked from/credits `steipete/bird`                   |
+| `chat-to-skill`   | Meta workflow for creating new skills                                                                        |
+| `session-reflect` | Analyze local Pi session history for workflow patterns; writes cache to `~/.pi/agent/cache/session-reflect/` |
+| `vibe-merge`      | Specialized PR/branch reimplementation workflow                                                              |
 
 ### Extra skills
 
@@ -236,7 +237,11 @@ Example package filter enabling only voice input, AppleScript, and the extra Mar
     {
       "source": "git:github.com/dannote/dot-pi",
       "extensions": ["+extensions/voice-input"],
-      "skills": ["+skills/applescript", "+skills/extra/dont-anger-mario"],
+      "skills": [
+        "+skills/applescript",
+        "+skills/session-reflect",
+        "+skills/extra/dont-anger-mario"
+      ],
       "prompts": ["prompts"]
     }
   ]
