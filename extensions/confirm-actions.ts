@@ -248,7 +248,7 @@ function readCommandRules(path: string): CommandRule[] {
 
   try {
     const settings = parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
-    const value = settings.confirmCommands ?? settings.commandApprovalRules
+    const value = settings.confirmCommands
     if (!Array.isArray(value)) return []
 
     return value.flatMap((item) => parseRule(item))
