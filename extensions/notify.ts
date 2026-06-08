@@ -51,9 +51,8 @@ export default function (pi: ExtensionAPI) {
     }
 
     if (stopReason === 'aborted') return
-    if (!shouldNotifyAgentEnd(toolsCalled, currentPrompt, suppressAgentEndUntilCompactFinishes)) {
-      return
-    }
+    if (suppressAgentEndUntilCompactFinishes) return
+    if (!shouldNotifyAgentEnd(toolsCalled, currentPrompt)) return
 
     notifyDesktop(title, getNotificationBody(toolsCalled, currentPrompt))
   })
@@ -69,12 +68,7 @@ function getStopInfo(message: AgentMessage | undefined): StopInfo {
   }
 }
 
-export function shouldNotifyAgentEnd(
-  tools: Set<string>,
-  prompt: string,
-  suppressForCompaction = false
-): boolean {
-  if (suppressForCompaction) return false
+export function shouldNotifyAgentEnd(tools: Set<string>, prompt: string): boolean {
   return tools.size > 0 || prompt.length > 0
 }
 

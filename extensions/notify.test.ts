@@ -2,10 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { shouldNotifyAgentEnd } from './notify'
 
 describe('shouldNotifyAgentEnd', () => {
-  test('skips compaction summary turns using core compaction events', () => {
-    expect(shouldNotifyAgentEnd(new Set(['read']), 'Summarize conversation', true)).toBe(false)
-  })
-
   test('skips empty internal turns', () => {
     expect(shouldNotifyAgentEnd(new Set(), '')).toBe(false)
   })
