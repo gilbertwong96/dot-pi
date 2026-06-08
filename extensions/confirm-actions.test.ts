@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   DEFAULT_COMMAND_RULES,
+  buildDefaultCommandRules,
   matchCommandRule,
   parseInvocations,
   type CommandRule
@@ -83,6 +84,14 @@ describe('matchCommandRule', () => {
     expect(matchCommandRule('git branch -D old-branch', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Delete local branch'
     )
+  })
+
+  test('can disable default rule groups', () => {
+    const rules = buildDefaultCommandRules({ git: false, twitter: false })
+
+    expect(matchCommandRule('git push origin master', rules)).toBeUndefined()
+    expect(matchCommandRule('bird tweet "hello"', rules)).toBeUndefined()
+    expect(matchCommandRule('gh repo delete acme/app', rules)?.label).toBe('Delete GitHub repo')
   })
 
   test('default rules confirm Gmail and X/Twitter mutations', () => {

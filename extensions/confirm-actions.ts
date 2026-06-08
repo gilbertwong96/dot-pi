@@ -57,8 +57,9 @@ const GITLAB_RULES: CommandRule[] = [
   exact(['glab', 'release', 'create'], 'Publish GitLab release')
 ]
 
-const PERSONAL_CLI_RULES: CommandRule[] = [
-  matched(['gws', 'gmail'], 'Mutate Gmail', isMutatingGmail),
+const GMAIL_RULES: CommandRule[] = [matched(['gws', 'gmail'], 'Mutate Gmail', isMutatingGmail)]
+
+const TWITTER_RULES: CommandRule[] = [
   matched(['bird'], 'Mutate X/Twitter', isMutatingBird),
   matched(['bunx', '@dannote/bird-premium'], 'Mutate X/Twitter', isMutatingBird)
 ]
@@ -87,14 +88,27 @@ const DEPLOY_RULES: CommandRule[] = [
   matched(['wrangler'], 'Deploy with Wrangler', hasAnySubcommand(['deploy', 'publish']))
 ]
 
-export const DEFAULT_COMMAND_RULES: CommandRule[] = [
-  ...GITHUB_RULES,
-  ...GITLAB_RULES,
-  ...PERSONAL_CLI_RULES,
-  ...GIT_RULES,
-  ...PACKAGE_PUBLISH_RULES,
-  ...DEPLOY_RULES
-]
+const RULE_GROUPS = {
+  github: GITHUB_RULES,
+  gitlab: GITLAB_RULES,
+  gmail: GMAIL_RULES,
+  twitter: TWITTER_RULES,
+  git: GIT_RULES,
+  publish: PACKAGE_PUBLISH_RULES,
+  deploy: DEPLOY_RULES
+} satisfies Record<string, CommandRule[]>
+
+type RuleGroupName = keyof typeof RULE_GROUPS
+
+type ConfirmActionGroups = Partial<Record<RuleGroupName, boolean>>
+
+export const DEFAULT_COMMAND_RULES: CommandRule[] = buildDefaultCommandRules()
+
+export function buildDefaultCommandRules(groups: ConfirmActionGroups = {}): CommandRule[] {
+  return Object.entries(RULE_GROUPS).flatMap(([name, rules]) =>
+    groups[name as RuleGroupName] === false ? [] : rules
+  )
+}
 
 function exact(argv: string[], label: string): CommandRule {
   return { argv, label }
@@ -423,23 +437,40 @@ function loadCommandRules(cwd: string): CommandRule[] {
     ? join(process.env.PI_CODING_AGENT_DIR, 'settings.json')
     : join(homedir(), '.pi', 'agent', 'settings.json')
   const projectPath = join(cwd, '.pi', 'settings.json')
+  const settings = [readSettings(globalPath), readSettings(projectPath)]
+  const groups = Object.assign({}, ...settings.map((item) => readConfirmActionGroups(item)))
+  const customRules = settings.flatMap(readCommandRules)
 
-  const customRules = [...readCommandRules(globalPath), ...readCommandRules(projectPath)]
-  return [...DEFAULT_COMMAND_RULES, ...customRules]
+  return [...buildDefaultCommandRules(groups), ...customRules]
 }
 
-function readCommandRules(path: string): CommandRule[] {
-  if (!existsSync(path)) return []
+function readSettings(path: string): Record<string, unknown> {
+  if (!existsSync(path)) return {}
 
   try {
-    const settings = parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
-    const value = settings.confirmCommands
-    if (!Array.isArray(value)) return []
-
-    return value.flatMap((item) => parseRule(item))
+    return parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
   } catch {
-    return []
+    return {}
   }
+}
+
+function readConfirmActionGroups(settings: Record<string, unknown>): ConfirmActionGroups {
+  if (!settings.confirmActionGroups || typeof settings.confirmActionGroups !== 'object') return {}
+
+  const groups: ConfirmActionGroups = {}
+  for (const [name, enabled] of Object.entries(settings.confirmActionGroups)) {
+    if (name in RULE_GROUPS && typeof enabled === 'boolean') {
+      groups[name as RuleGroupName] = enabled
+    }
+  }
+  return groups
+}
+
+function readCommandRules(settings: Record<string, unknown>): CommandRule[] {
+  const value = settings.confirmCommands
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => parseRule(item))
 }
 
 function parseRule(item: unknown): CommandRule[] {
