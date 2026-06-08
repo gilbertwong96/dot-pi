@@ -241,9 +241,12 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 
 ```bash
 bun install
+bun run format:check
 bun run check
-bun run lint
+bun test
 ```
+
+Manual workflow smoke test: `docs/smoke-test.md`.
 
 ## License
 

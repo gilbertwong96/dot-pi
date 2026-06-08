@@ -8,7 +8,7 @@ const promptsPath = join(packageRoot, 'prompts')
 const rulesPath = join(packageRoot, 'rules')
 const skillsPath = join(packageRoot, 'skills')
 
-function buildCoachPrompt(args: string): string {
+export function buildCoachPrompt(args: string): string {
   const focus = args.trim()
 
   return `Act as a newcomer coach for this Pi setup. Help a human understand the setup, patterns, and habits.
