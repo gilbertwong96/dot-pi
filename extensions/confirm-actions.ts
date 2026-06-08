@@ -33,7 +33,21 @@ export const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['gh', 'issue', 'create'], label: 'Publish GitHub issue' },
   { argv: ['gh', 'issue', 'edit'], label: 'Edit GitHub issue' },
   { argv: ['gh', 'issue', 'comment'], label: 'Publish GitHub issue comment' },
+  { argv: ['gh', 'repo', 'create'], label: 'Create GitHub repo' },
+  { argv: ['gh', 'repo', 'delete'], label: 'Delete GitHub repo' },
+  { argv: ['gh', 'repo', 'archive'], label: 'Archive GitHub repo' },
+  { argv: ['gh', 'repo', 'edit'], label: 'Edit GitHub repo' },
+  { argv: ['gh', 'repo', 'rename'], label: 'Rename GitHub repo' },
+  { argv: ['gh', 'repo', 'transfer'], label: 'Transfer GitHub repo' },
+  {
+    argv: ['gh', 'repo', 'deploy-key'],
+    label: 'Mutate GitHub repo deploy keys',
+    matches: isMutatingGhSubcommand
+  },
+  { argv: ['gh', 'repo', 'set-default'], label: 'Change default GitHub repo' },
   { argv: ['gh', 'release', 'create'], label: 'Publish GitHub release' },
+  { argv: ['gh', 'release', 'delete'], label: 'Delete GitHub release' },
+  { argv: ['gh', 'release', 'edit'], label: 'Edit GitHub release' },
   { argv: ['gh', 'api'], label: 'Mutate via GitHub API', matches: isMutatingGhApi },
   { argv: ['gws', 'gmail'], label: 'Mutate Gmail', matches: isMutatingGmail },
   { argv: ['bird'], label: 'Mutate X/Twitter', matches: isMutatingBird },
@@ -51,6 +65,7 @@ export const DEFAULT_COMMAND_RULES: CommandRule[] = [
   { argv: ['glab', 'release', 'create'], label: 'Publish GitLab release' },
   { argv: ['git'], label: 'Force push', matches: isGitForcePush },
   { argv: ['git'], label: 'Delete remote branch', matches: isGitRemoteBranchDelete },
+  { argv: ['git'], label: 'Push git commits', matches: isGitPush },
   { argv: ['git'], label: 'Hard reset', matches: isGitHardReset },
   { argv: ['git'], label: 'Clean working tree', matches: isGitForcedClean },
   { argv: ['git'], label: 'Delete local branch', matches: isGitBranchDelete },
@@ -245,6 +260,10 @@ function isMutatingGhApi(argv: string[]): boolean {
   return argv.some((arg) => ['--field', '-f', '--raw-field', '-F'].includes(arg))
 }
 
+function isMutatingGhSubcommand(argv: string[]): boolean {
+  return argv.some((arg) => ['add', 'delete', 'remove'].includes(arg))
+}
+
 function isMutatingGmail(argv: string[]): boolean {
   if (hasAnyFlag(argv, ['--dry-run'])) return false
 
@@ -298,6 +317,10 @@ function isGitRemoteBranchDelete(argv: string[]): boolean {
   return (
     getGitSubcommand(argv) === 'push' && (argv.includes('--delete') || argv.some(isDeleteRefspec))
   )
+}
+
+function isGitPush(argv: string[]): boolean {
+  return getGitSubcommand(argv) === 'push'
 }
 
 function isGitHardReset(argv: string[]): boolean {

@@ -68,6 +68,12 @@ describe('matchCommandRule', () => {
     expect(matchCommandRule('git push origin :old-branch', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Delete remote branch'
     )
+    expect(matchCommandRule('git push origin master', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Push git commits'
+    )
+    expect(matchCommandRule('git -C repo push', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Push git commits'
+    )
     expect(matchCommandRule('git reset --hard HEAD~1', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Hard reset'
     )
@@ -117,6 +123,30 @@ describe('matchCommandRule', () => {
     expect(matchCommandRule('bird search "pi"', DEFAULT_COMMAND_RULES)).toBeUndefined()
   })
 
+  test('default rules confirm GitHub repo mutations', () => {
+    expect(
+      matchCommandRule('gh repo create acme/app --private', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Create GitHub repo')
+    expect(matchCommandRule('gh repo delete acme/app --yes', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Delete GitHub repo'
+    )
+    expect(matchCommandRule('gh repo archive acme/app --yes', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Archive GitHub repo'
+    )
+    expect(
+      matchCommandRule('gh repo transfer acme/app other-org', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Transfer GitHub repo')
+    expect(
+      matchCommandRule(
+        'gh repo deploy-key add ~/.ssh/id.pub --repo acme/app',
+        DEFAULT_COMMAND_RULES
+      )?.label
+    ).toBe('Mutate GitHub repo deploy keys')
+    expect(
+      matchCommandRule('gh repo deploy-key list --repo acme/app', DEFAULT_COMMAND_RULES)
+    ).toBeUndefined()
+  })
+
   test('default rules confirm release publish and deploy commands', () => {
     expect(matchCommandRule('npm publish', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Publish npm package'
@@ -130,6 +160,9 @@ describe('matchCommandRule', () => {
     )
     expect(matchCommandRule('gh release create v1.0.0', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Publish GitHub release'
+    )
+    expect(matchCommandRule('gh release delete v1.0.0 --yes', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Delete GitHub release'
     )
     expect(matchCommandRule('vercel --prod', DEFAULT_COMMAND_RULES)?.label).toBe(
       'Deploy with Vercel'

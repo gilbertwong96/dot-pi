@@ -119,7 +119,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
-Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing/editing GitHub/GitLab issues, PRs/MRs, comments, reviews, mutating `gh api` calls, Gmail writes via `gws gmail`, X/Twitter mutations via `bird`, risky git actions, package publishing, releases, and common deploy CLIs. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
+Action confirmations use shell-style argv parsing, not regex matching. Defaults cover publishing/editing GitHub/GitLab issues, PRs/MRs, comments, reviews, GitHub repo/release mutations, mutating `gh api` calls, Gmail writes via `gws gmail`, X/Twitter mutations via `bird`, git pushes/risky git actions, package publishing, releases, and common deploy CLIs. Add local rules in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
 ```json
 {
