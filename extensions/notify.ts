@@ -35,7 +35,7 @@ export default function (pi: ExtensionAPI) {
     const { stopReason, errorMessage } = getStopInfo(lastMessage)
     const repo = basename(ctx.cwd)
 
-    const title = `Pi · ${repo}`
+    const title = `π · ${repo}`
 
     if (stopReason === 'error') {
       notifyDesktop(title, `Error: ${summarize(errorMessage || 'Unknown error')}`)

@@ -359,5 +359,5 @@ function parseRule(item: unknown): CommandRule[] {
 }
 
 function notificationTitle(cwd: string): string {
-  return `Pi · ${basename(cwd)}`
+  return `π · ${basename(cwd)}`
 }
