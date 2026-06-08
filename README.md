@@ -71,6 +71,7 @@ The default install focuses on broadly useful, low-surprise tools.
 | `notify.ts`              | Desktop notification when work completes                                  | macOS notifications enabled                                                                            |
 | `quote.ts`               | `/quote` or `alt+q`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
 | `question.ts`            | Let the agent ask selectable questions                                    | None                                                                                                   |
+| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling       | None                                                                                                   |
 | `webfetch/`              | Fetch URL content as markdown/text/html/json                              | None                                                                                                   |
 | `websearch/`             | Web search via Exa                                                        | `EXA_API_KEY`                                                                                          |
 | `worktrees/`             | Git worktree helpers for isolated work                                    | None                                                                                                   |
@@ -98,9 +99,9 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 
 Project settings append after user settings. The extension only changes autocomplete order; commands still come from normal Pi prompt/extension/skill discovery.
 
-### Prompt shortcuts
+### Workflow slash commands
 
-These mirror my actual repeated Pi prompts from recent coding sessions, so I can type less without losing intent.
+These mirror my actual repeated Pi prompts from recent coding sessions, so I can type less without losing intent. Most are prompt shortcuts; `/next`, `/recap`, and `/quote` are extension commands so optional arguments and selection handling stay clean.
 
 My usual coding flow:
 
@@ -115,7 +116,7 @@ My usual coding flow:
 9. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
 10. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
 
-| Prompt           | Use when I would normally type...           | Meaning                                                                                                                       |
+| Command          | Use when I would normally type...           | Meaning                                                                                                                       |
 | ---------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `/ga`            | `go ahead`                                  | Minimal approval; continue current path.                                                                                      |
 | `/gaa`           | `go ahead with all`                         | Alias for `/all`; complete all pending review/plan items, not one-by-one.                                                     |

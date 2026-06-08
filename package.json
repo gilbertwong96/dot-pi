@@ -65,6 +65,7 @@
       "extensions/notify.ts",
       "extensions/quote.ts",
       "extensions/question.ts",
+      "extensions/workflow-shortcuts.ts",
       "extensions/webfetch",
       "extensions/websearch",
       "extensions/worktrees"

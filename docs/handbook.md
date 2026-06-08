@@ -4,8 +4,8 @@ Minimal operating notes for this Pi setup.
 
 ## Shortcuts
 
-- `/next` — quick state summary and next steps. Use this when momentum matters.
-- `/recap` — re-orient both user and agent: original goal, current state, decisions, open threads, drift, best action.
+- `/next` — extension command for quick state summary and next steps. Optional count defaults cleanly to 7.
+- `/recap` — extension command to re-orient both user and agent: original goal, current state, decisions, open threads, drift, best action.
 - `/quote` / `alt+q` — quote assistant text into the editor with `>` prefixes, then write the comment below it. Select text and press `alt+q`; it uses native selection APIs first and avoids stale clipboard text for the shortcut.
 - `/ga` — minimal approval to continue the current path.
 - `/gaa` / `/all` — go ahead with all pending review/plan items, not one-by-one.
