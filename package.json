@@ -64,6 +64,7 @@
       "extensions/codesearch.ts",
       "extensions/confirm-actions.ts",
       "extensions/context7",
+      "extensions/env-json",
       "extensions/lsp",
       "extensions/notify.ts",
       "extensions/quote.ts",

@@ -84,14 +84,15 @@ The default install focuses on broadly useful, low-surprise tools.
 | `choose-options.ts`     | `choose_from_options` tool: TUI picker for LLM-proposed options/lists      | None                                                                                                   |
 | `command-priority.ts`   | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
 | `confirm-actions.ts`    | Ask before publish/mutate commands and high-risk local actions             | None                                                                                                   |
-| `context7/`             | Fetch current library docs from Context7                                   | None                                                                                                   |
+| `context7/`             | Fetch current library docs from Context7                                   | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
+| `env-json/`             | Load `~/.pi/agent/env.jsonc` into `process.env` for API-backed extensions  | `~/.pi/agent/env.jsonc`                                                                                |
 | `lsp/`                  | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
 | `notify.ts`             | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
 | `quote.ts`              | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
 | `question.ts`           | Let the agent ask selectable questions                                     | None                                                                                                   |
 | `workflow-shortcuts.ts` | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
 | `webfetch/`             | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
-| `websearch/`            | Web search via Exa                                                         | `EXA_API_KEY`                                                                                          |
+| `websearch/`            | Web search via Exa                                                         | `EXA_API_KEY`, often via `env-json`                                                                    |
 | `worktrees/`            | Git worktree helpers for isolated work                                     | None                                                                                                   |
 
 Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/settings.json`:
@@ -191,7 +192,6 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `coach.ts`             | Recommended for newcomers copying this setup; explains habits and first workflows |
 | `critic/`              | Experimental shadow-review loop                                                   |
 | `decision-guidance.ts` | Experimental trajectory guidance                                                  |
-| `env-json/`            | Only useful if you keep secrets in `~/.pi/agent/env.jsonc`                        |
 | `permission-gate.ts`   | Opinionated command blocking                                                      |
 | `plan-mode/`           | Experimental read-only planning mode                                              |
 | `provider/`            | Experimental dynamic provider registration                                        |
