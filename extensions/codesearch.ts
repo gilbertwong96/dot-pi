@@ -16,7 +16,7 @@ import { Type } from 'typebox'
 
 const API_URL = 'https://mcp.grep.app/'
 const DEFAULT_TIMEOUT = 30000
-const PREVIEW_SNIPPETS = 2
+const PREVIEW_REPOS = 2
 
 interface McpResponse {
   result?: {
@@ -339,23 +339,28 @@ export default function (pi: ExtensionAPI) {
         return renderMuted('No results found.', theme)
       }
 
-      const lines: string[] = [theme.fg('muted', `${results.length} repos`)]
-      const maxResults = expanded ? results.length : Math.min(PREVIEW_SNIPPETS, results.length)
+      const totalSnippets = results.reduce((sum, r) => sum + r.snippets.length, 0)
+      const lines: string[] = [
+        theme.fg('muted', `${results.length} repos · ${totalSnippets} snippets`)
+      ]
+      const maxResults = expanded ? results.length : Math.min(PREVIEW_REPOS, results.length)
 
       for (let i = 0; i < maxResults; i++) {
         const r = results[i]
         if (!r) continue
         const lang = getLanguageFromPath(r.path)
+        const firstSnippet = r.snippets[0]
+        const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
 
         lines.push(
           '',
           theme.fg('accent', r.repo) +
             theme.fg('dim', ' · ') +
-            theme.fg('muted', r.path) +
+            theme.fg('muted', expanded ? r.path : location) +
             (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
         )
 
-        const maxSnippets = expanded ? r.snippets.length : 1
+        const maxSnippets = expanded ? r.snippets.length : 0
         for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
           const snippet = r.snippets[j]
           if (!snippet) continue
@@ -363,18 +368,17 @@ export default function (pi: ExtensionAPI) {
           lines.push(theme.fg('dim', `Line ${snippet.lineNumber}:`))
           lines.push(...highlightCode(snippet.code, lang))
         }
-
-        if (!expanded && r.snippets.length > 1) {
-          lines.push(theme.fg('dim', `  … ${r.snippets.length - 1} more snippets`))
-        }
       }
 
       const hiddenResults = results.length - maxResults
-      const totalSnippets = results.reduce((sum, r) => sum + r.snippets.length, 0)
+      const shownSnippets = expanded ? totalSnippets : 0
+      const hiddenSnippets = totalSnippets - shownSnippets
 
-      if (!expanded && (hiddenResults > 0 || totalSnippets > maxResults)) {
-        const more = `${hiddenResults} more repos, ${totalSnippets - maxResults} more snippets`
-        lines.push(theme.fg('dim', `  … ${more}`), expandHint(theme))
+      if (!expanded && (hiddenResults > 0 || hiddenSnippets > 0)) {
+        const pieces = []
+        if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
+        if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
+        lines.push(theme.fg('dim', `  … ${pieces.join(' · ')}`), expandHint(theme))
       }
 
       return renderLines(lines)

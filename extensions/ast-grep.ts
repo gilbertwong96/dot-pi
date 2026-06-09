@@ -93,7 +93,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(result) {
-      return renderLines(firstText(result).split('\n'))
+      return renderLines(firstText(result).trimEnd().split('\n'))
     }
   })
 
@@ -186,7 +186,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(result) {
-      return renderLines(firstText(result).split('\n'))
+      return renderLines(firstText(result).trimEnd().split('\n'))
     }
   })
 }

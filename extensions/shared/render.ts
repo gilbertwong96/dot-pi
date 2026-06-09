@@ -29,6 +29,11 @@ export function compactText(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
+export function truncateText(text: string, maxChars: number): string {
+  const compact = compactText(text)
+  return compact.length > maxChars ? compact.slice(0, Math.max(0, maxChars - 1)) + '…' : compact
+}
+
 export function truncateLine(text: string, maxWidth: number): string {
   if (maxWidth <= 0) return ''
   if (visibleWidth(text) <= maxWidth) return text

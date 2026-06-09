@@ -7,7 +7,14 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
-import { expandHint, firstText, renderError, renderLines, renderMuted } from '../shared/render'
+import {
+  expandHint,
+  firstText,
+  renderError,
+  renderLines,
+  renderMuted,
+  truncateText
+} from '../shared/render'
 import { Type } from 'typebox'
 import Exa from 'exa-js'
 
@@ -154,7 +161,7 @@ const WebSearchParams = Type.Object({
   )
 })
 
-const PREVIEW_TEXT_LENGTH = 200
+const PREVIEW_TEXT_LENGTH = 220
 const PREVIEW_RESULTS = 2
 const DEFAULT_NUM_RESULTS = 8
 const DEFAULT_CONTEXT_MAX = 10000
@@ -335,15 +342,15 @@ export default function (pi: ExtensionAPI) {
         if (r.publishedDate) meta += theme.fg('dim', ` · ${r.publishedDate.split('T')[0]}`)
         lines.push(meta)
 
-        if (r.summary) lines.push(theme.fg('dim', `Summary: ${r.summary}`))
-
-        if (r.text) {
-          if (expanded || r.text.length <= PREVIEW_TEXT_LENGTH) {
-            lines.push(theme.fg('dim', r.text))
-          } else {
-            textHidden = true
-            lines.push(theme.fg('dim', r.text.slice(0, PREVIEW_TEXT_LENGTH) + '…'))
-          }
+        const previewText = r.summary || r.highlights?.[0]
+        if (expanded) {
+          if (r.summary) lines.push(theme.fg('dim', `Summary: ${r.summary}`))
+          if (r.text) lines.push(theme.fg('dim', r.text))
+        } else if (previewText) {
+          textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
+          lines.push(theme.fg('dim', truncateText(previewText, PREVIEW_TEXT_LENGTH)))
+        } else if (r.text) {
+          textHidden = true
         }
       }
 
