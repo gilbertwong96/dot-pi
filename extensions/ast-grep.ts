@@ -223,7 +223,7 @@ export default function (pi: ExtensionAPI) {
           theme.fg('muted', `${matches.length} ${matches.length === 1 ? 'match' : 'matches'}`),
           ...matches.map((match) => {
             const [, file, line, source] = match
-            return `${theme.fg('muted', `${file}:${line}`)}  ${source.trim()}`
+            return `${theme.fg('muted', `${file}:${line}`)}  ${theme.fg('toolOutput', source.trim())}`
           })
         ])
       }
@@ -343,7 +343,13 @@ export default function (pi: ExtensionAPI) {
           expandHint(theme)
         ])
       }
-      return renderLines(text.split('\n'))
+      return renderLines(
+        text.split('\n').map((line) => {
+          if (line.startsWith('+')) return theme.fg('success', line)
+          if (line.startsWith('-')) return theme.fg('error', line)
+          return theme.fg('toolOutput', line)
+        })
+      )
     }
   })
 }

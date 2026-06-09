@@ -397,7 +397,7 @@ export default function (pi: ExtensionAPI) {
         const hiddenCount = lines.length - preview.length
         return renderLines([
           theme.fg('muted', meta),
-          ...preview,
+          ...preview.map((line) => theme.fg('toolOutput', line)),
           ...(hiddenCount > 0
             ? [theme.fg('muted', `… ${hiddenCount} more lines`), '', expandHint(theme)]
             : [])
