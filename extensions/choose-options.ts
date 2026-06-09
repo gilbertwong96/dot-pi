@@ -113,7 +113,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
     renderCall(args, theme) {
       const count = Array.isArray(args.options) ? args.options.length : 0
       return new Text(
-        theme.fg('toolTitle', theme.bold('choose_from_options ')) +
+        theme.fg('toolTitle', theme.bold('choose ')) +
           theme.fg('muted', `${args.question ?? ''} (${count} options)`),
         0,
         0
@@ -124,8 +124,13 @@ export default function chooseOptions(pi: ExtensionAPI) {
       const details = result.details as ChooseResult | undefined
       if (!details) return renderLines([])
       if (details.cancelled) return renderLines([theme.fg('warning', 'Cancelled')])
-      const selected = details.selectedIndexes.map((index) => index + 1).join(', ')
-      return renderLines([theme.fg('accent', details.action) + theme.fg('muted', `: ${selected}`)])
+      const selected = details.selectedIndexes
+        .map((index) => details.options[index]?.label)
+        .filter(Boolean)
+        .join(', ')
+      return renderLines([
+        theme.fg('toolOutput', details.action) + theme.fg('muted', selected ? ` · ${selected}` : '')
+      ])
     }
   })
 }

@@ -511,7 +511,7 @@ export default function (pi: ExtensionAPI) {
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg('toolTitle', theme.bold('background-start ')) +
+        theme.fg('toolTitle', theme.bold('bg start ')) +
           theme.fg('accent', args.name) +
           theme.fg('dim', ` → ${args.command}`),
         0,
@@ -560,7 +560,7 @@ export default function (pi: ExtensionAPI) {
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg('toolTitle', theme.bold('background-stop ')) + theme.fg('accent', args.name),
+        theme.fg('toolTitle', theme.bold('bg stop ')) + theme.fg('accent', args.name),
         0,
         0
       )
@@ -603,7 +603,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(_args, theme) {
-      return new Text(theme.fg('toolTitle', theme.bold('background-list')), 0, 0)
+      return new Text(theme.fg('toolTitle', theme.bold('bg list')), 0, 0)
     },
 
     renderResult(result, _options, theme) {
@@ -659,7 +659,7 @@ export default function (pi: ExtensionAPI) {
 
     renderCall(args, theme) {
       return new Text(
-        theme.fg('toolTitle', theme.bold('background-logs ')) +
+        theme.fg('toolTitle', theme.bold('bg logs ')) +
           theme.fg('accent', args.name) +
           theme.fg('dim', ` (${args.lines ?? 50} lines)`),
         0,

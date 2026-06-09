@@ -205,7 +205,7 @@ export default function (pi: ExtensionAPI) {
     renderCall(params, theme) {
       const { libraryName, query } = params as { libraryName: string; query: string }
       return new Text(
-        theme.fg('toolTitle', theme.bold('context7-resolve ')) +
+        theme.fg('toolTitle', theme.bold('docs find ')) +
           theme.fg('accent', libraryName) +
           theme.fg('dim', ` "${query}"`),
         0,
@@ -285,7 +285,7 @@ export default function (pi: ExtensionAPI) {
     renderCall(params, theme) {
       const { libraryId, query } = params as { libraryId: string; query: string }
       return new Text(
-        theme.fg('toolTitle', theme.bold('context7-docs ')) +
+        theme.fg('toolTitle', theme.bold('docs ')) +
           theme.fg('accent', libraryId) +
           theme.fg('dim', ` "${query}"`),
         0,

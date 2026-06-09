@@ -304,7 +304,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      let text = theme.fg('toolTitle', theme.bold('websearch '))
+      let text = theme.fg('toolTitle', theme.bold('web '))
       text += theme.fg('accent', params.query || '')
 
       const tags: string[] = []

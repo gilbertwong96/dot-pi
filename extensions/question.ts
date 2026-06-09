@@ -248,7 +248,7 @@ export default function question(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      let text = theme.fg('toolTitle', theme.bold('question ')) + theme.fg('muted', args.question)
+      let text = theme.fg('toolTitle', theme.bold('ask ')) + theme.fg('muted', args.question)
       const opts = Array.isArray(args.options) ? args.options : []
       if (opts.length) {
         const labels = opts.map((o: OptionWithDesc) => o.label)

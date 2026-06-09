@@ -313,7 +313,7 @@ export default function (pi: ExtensionAPI) {
 
     renderCall(params, theme) {
       const args = params as CodeSearchParams
-      let text = theme.fg('toolTitle', theme.bold('codesearch '))
+      let text = theme.fg('toolTitle', theme.bold('code search '))
       text += theme.fg('accent', args.query || '')
       const filters: string[] = []
       if (args.repo) filters.push(`repo:${args.repo}`)
