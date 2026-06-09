@@ -211,8 +211,24 @@ export default function (pi: ExtensionAPI) {
       return new Text(text, 0, 0)
     },
 
-    renderResult(result) {
-      return renderLines(firstText(result).trimEnd().split('\n'))
+    renderResult(result, _options, theme) {
+      const text = firstText(result).trimEnd()
+      const matches = text
+        .split('\n')
+        .map((line) => line.match(/^(.*?):(\d+):(.*)$/))
+        .filter((match): match is RegExpMatchArray => Boolean(match))
+
+      if (matches.length > 0) {
+        return renderLines([
+          theme.fg('muted', `${matches.length} ${matches.length === 1 ? 'match' : 'matches'}`),
+          ...matches.map((match) => {
+            const [, file, line, source] = match
+            return `${theme.fg('muted', `${file}:${line}`)}  ${source.trim()}`
+          })
+        ])
+      }
+
+      return renderLines(text.split('\n'))
     }
   })
 
@@ -323,6 +339,7 @@ export default function (pi: ExtensionAPI) {
         return renderLines([
           theme.fg('muted', 'changes preview'),
           ...(file ? [file] : []),
+          '',
           expandHint(theme)
         ])
       }

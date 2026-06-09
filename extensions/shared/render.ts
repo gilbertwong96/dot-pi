@@ -14,8 +14,7 @@ export function firstText(result: AgentToolResult<unknown>, fallback = ''): stri
 }
 
 export function renderLines(lines: string[]): Component {
-  const padded = lines.map((line) => (line ? `  ${line}` : ''))
-  return new Text(['', ...padded].join('\n'), 0, 0)
+  return new Text(['', ...lines].join('\n'), 0, 0)
 }
 
 export function renderError(text: string, theme: Theme): Component {

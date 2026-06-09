@@ -382,19 +382,24 @@ export default function (pi: ExtensionAPI) {
       const fullText = content?.type === 'text' ? content.text : ''
 
       const lines = fullText.split('\n').filter(Boolean)
-      const sizeInfo = details?.size ? ` (${formatSize(details.size)})` : ''
-      const truncationInfo = details?.truncated ? ' [truncated]' : ''
-      const redirectInfo = details?.redirected ? ` → ${details.finalUrl}` : ''
-      const selectorInfo = details?.selector ? ` [${details.selector}]` : ''
+      const finalUrl = details?.finalUrl ?? details?.url
+      const meta = [
+        finalUrl,
+        details?.size ? formatSize(details.size) : undefined,
+        details?.truncated ? 'truncated' : undefined,
+        details?.selector
+      ]
+        .filter(Boolean)
+        .join(' · ')
 
       if (!expanded) {
         const preview = lines.slice(0, 4).map(dedupeRepeatedHeading)
         const hiddenCount = lines.length - preview.length
         return renderLines([
-          theme.fg('muted', `${sizeInfo}${truncationInfo}${redirectInfo}${selectorInfo}`.trim()),
+          theme.fg('muted', meta),
           ...preview,
           ...(hiddenCount > 0
-            ? [theme.fg('muted', `… ${hiddenCount} more lines`), expandHint(theme)]
+            ? [theme.fg('muted', `… ${hiddenCount} more lines`), '', expandHint(theme)]
             : [])
         ])
       }
