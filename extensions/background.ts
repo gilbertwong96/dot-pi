@@ -10,6 +10,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { DynamicBorder, truncateTail } from '@earendil-works/pi-coding-agent'
 import { Container, Text } from '@earendil-works/pi-tui'
+import { firstText, renderError, renderLines, renderMuted } from './shared/render'
 import { Type } from 'typebox'
 import { spawn, spawnSync } from 'child_process'
 import * as crypto from 'crypto'
@@ -512,17 +513,10 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as ProcessInfo
-      if (details.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
-      return new Text(
-        theme.fg('success', '✓ ') +
-          theme.fg('accent', details.name) +
-          theme.fg('dim', ` PID ${details.pid}`),
-        0,
-        0
-      )
+      if (details.error) return renderError(firstText(result, 'Error'), theme)
+      return renderLines([
+        theme.fg('accent', details.name) + theme.fg('dim', ` PID ${details.pid}`)
+      ])
     }
   })
 
@@ -568,11 +562,8 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as StopDetails
-      if (details.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
-      return new Text(theme.fg('success', '✓ Stopped'), 0, 0)
+      if (details.error) return renderError(firstText(result, 'Error'), theme)
+      return renderLines([theme.fg('muted', 'Stopped')])
     }
   })
 
@@ -595,7 +586,7 @@ export default function (pi: ExtensionAPI) {
 
       const lines = processes.map((p) => {
         const displayName = getDisplayName(p)
-        const status = p.running ? `✓ Running (PID ${p.pid})` : '✗ Stopped'
+        const status = p.running ? `running (PID ${p.pid})` : 'stopped'
         return `${displayName}: ${status}`
       })
 
@@ -611,18 +602,17 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as { processes: ProcessInfo[] }
-      if (details.processes.length === 0) {
-        return new Text(theme.fg('dim', 'No processes'), 0, 0)
-      }
+      if (details.processes.length === 0) return renderMuted('No processes', theme)
 
       const lines = details.processes.map((p) => {
-        const icon = p.running ? theme.fg('success', '✓') : theme.fg('error', '✗')
-        const status = p.running ? theme.fg('dim', `PID ${p.pid}`) : theme.fg('dim', 'stopped')
+        const status = p.running
+          ? theme.fg('dim', `running PID ${p.pid}`)
+          : theme.fg('dim', 'stopped')
         const displayName = getDisplayName(p)
-        return `${icon} ${theme.fg('text', displayName)} ${status}`
+        return `${theme.fg('text', displayName)} ${status}`
       })
 
-      return new Text(lines.join('\n'), 0, 0)
+      return renderLines(lines)
     }
   })
 
@@ -675,12 +665,10 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as LogsDetails
-      if (details.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
-      const preview = details.logs.split('\n').slice(-3).join('\n')
-      return new Text(theme.fg('dim', preview || '(empty)'), 0, 0)
+      if (details.error) return renderError(firstText(result, 'Error'), theme)
+      if (!details.logs.trim()) return renderMuted('(empty)', theme)
+      const preview = details.logs.split('\n').slice(-3)
+      return renderLines(preview.map((line) => theme.fg('dim', line)))
     }
   })
 }

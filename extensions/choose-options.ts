@@ -1,5 +1,6 @@
 import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
 import { Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import { renderLines } from './shared/render'
 import { Type } from 'typebox'
 
 type Option = {
@@ -121,16 +122,10 @@ export default function chooseOptions(pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as ChooseResult | undefined
-      if (!details) return new Text('', 0, 0)
-      if (details.cancelled) return new Text(theme.fg('warning', 'Cancelled'), 0, 0)
+      if (!details) return renderLines([])
+      if (details.cancelled) return renderLines([theme.fg('warning', 'Cancelled')])
       const selected = details.selectedIndexes.map((index) => index + 1).join(', ')
-      return new Text(
-        theme.fg('success', '✓ ') +
-          theme.fg('accent', details.action) +
-          theme.fg('muted', `: ${selected}`),
-        0,
-        0
-      )
+      return renderLines([theme.fg('accent', details.action) + theme.fg('muted', `: ${selected}`)])
     }
   })
 }

@@ -13,6 +13,7 @@ import {
   Text,
   truncateToWidth
 } from '@earendil-works/pi-tui'
+import { firstText, renderLines } from './shared/render'
 import { Type } from 'typebox'
 
 interface OptionWithDesc {
@@ -259,27 +260,16 @@ export default function question(pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as QuestionDetails | undefined
-      if (!details) {
-        const text = result.content[0]
-        return new Text(text?.type === 'text' ? text.text : '', 0, 0)
-      }
+      if (!details) return renderLines([firstText(result)])
 
-      if (details.answer === null) {
-        return new Text(theme.fg('warning', 'Cancelled'), 0, 0)
-      }
+      if (details.answer === null) return renderLines([theme.fg('warning', 'Cancelled')])
 
       if (details.wasCustom) {
-        return new Text(
-          theme.fg('success', '✓ ') +
-            theme.fg('muted', '(wrote) ') +
-            theme.fg('accent', details.answer),
-          0,
-          0
-        )
+        return renderLines([theme.fg('muted', '(wrote) ') + theme.fg('accent', details.answer)])
       }
       const idx = details.options.indexOf(details.answer) + 1
       const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer
-      return new Text(theme.fg('success', '✓ ') + theme.fg('accent', display), 0, 0)
+      return renderLines([theme.fg('accent', display)])
     }
   })
 }

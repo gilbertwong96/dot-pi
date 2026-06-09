@@ -12,6 +12,7 @@ import {
   truncateTail
 } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
+import { firstText, renderLines } from './shared/render'
 import { Type } from 'typebox'
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
@@ -84,11 +85,15 @@ export default function (pi: ExtensionAPI) {
 
     renderCall(params, theme) {
       const { pattern, lang, path } = params as { pattern: string; lang?: string; path?: string }
-      let text = theme.fg('toolTitle', theme.bold('ast-search '))
+      let text = theme.fg('toolTitle', theme.bold('ast grep '))
       text += theme.fg('accent', `'${pattern}'`)
       if (lang) text += theme.fg('dim', ` -l ${lang}`)
       if (path) text += theme.fg('muted', ` ${path}`)
       return new Text(text, 0, 0)
+    },
+
+    renderResult(result) {
+      return renderLines(firstText(result).split('\n'))
     }
   })
 
@@ -170,7 +175,7 @@ export default function (pi: ExtensionAPI) {
         path?: string
         dryRun?: boolean
       }
-      let text = theme.fg('toolTitle', theme.bold('ast-rewrite '))
+      let text = theme.fg('toolTitle', theme.bold('ast edit '))
       text += theme.fg('accent', `'${pattern}'`)
       text += theme.fg('dim', ' → ')
       text += theme.fg('success', `'${replacement}'`)
@@ -178,6 +183,10 @@ export default function (pi: ExtensionAPI) {
       if (path) text += theme.fg('muted', ` ${path}`)
       if (dryRun) text += theme.fg('warning', ' [dry-run]')
       return new Text(text, 0, 0)
+    },
+
+    renderResult(result) {
+      return renderLines(firstText(result).split('\n'))
     }
   })
 }
