@@ -5,10 +5,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const handbookPath = join(packageRoot, 'docs', 'handbook.md')
-const smokeTestPath = join(packageRoot, 'docs', 'smoke-test.md')
 const promptsPath = join(packageRoot, 'prompts')
-const skillsPath = join(packageRoot, 'skills')
-const extensionsPath = join(packageRoot, 'extensions')
 const readmePath = join(packageRoot, 'README.md')
 
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? `${process.env.HOME}/.pi/agent`
@@ -21,52 +18,28 @@ export function tutorWorkspaceFor(cwd: string): string {
 }
 
 export function buildTutorPrompt(args: string, cwd = process.cwd()): string {
-  const focus = args.trim()
+  const focus = args.trim() || '/next'
   const workspace = tutorWorkspaceFor(cwd)
 
-  return `Act as Dannote's Pi workflow tutor. Your job is not generic education; teach the user how to use this dot-pi setup in Dannote's preferred style.
+  return `Teach me one small lesson for using this Pi setup in Dannote's style.
 
-Live evidence to read before teaching when relevant:
-- README: ${readmePath}
-- handbook: ${handbookPath}
-- smoke-test checklist: ${smokeTestPath}
-- prompt shortcuts: ${promptsPath}
-- optional/core skills: ${skillsPath}
-- extension behavior: ${extensionsPath}
+Focus: ${focus}
 
-Tutor workspace for small persistent learning state:
-- ${workspace}/MISSION.md — default mission: learn Dannote's Pi workflow style; revise only if the user wants another Pi workflow goal
-- ${workspace}/NOTES.md — user preferences, friction, keyboard/platform details
-- ${workspace}/learning-records/0001-<slug>.md — only demonstrated understanding, prior knowledge, corrected misconceptions, or mission shifts
-- ${workspace}/reference/*.md — compact Pi workflow cheatsheets when genuinely reusable
+Use these references only if needed:
+- ${readmePath}
+- ${handbookPath}
+- ${promptsPath}
 
-Teach these patterns before generic agent advice:
-- /next, /next big N, /recap, /discuss, /quote, /gaa, /nobc
-- quote/selection-first context preservation
-- discuss before acting when intent is ambiguous
-- verify with real evidence before claiming done
-- do all pending work without asking unless blocked
-- use background-start for long-running dev servers/watchers
-- keep prompts concise and operational
-- prefer safe confirmations for git push, publishing, GitHub/Gmail/X mutations
-- use session-reflect for workflow evidence when diagnosing habits
+Tutor notes, only if worth recording later: ${workspace}
 
-Rules:
-- If MISSION.md is missing, assume the default mission above; do not block on interviews.
-- Ask at most one clarifying question only when the requested focus cannot be mapped to a Pi workflow habit.
-- If a focus is given, use it as today's Pi workflow lesson: ${focus || '(choose the highest-leverage beginner habit)'}.
-- Read existing tutor state before choosing the lesson when useful.
-- Teach exactly one small Pi workflow habit in the user's zone of proximal development.
-- Give one tiny exercise/check using this Pi setup.
-- Record learning state only when it changes future tutoring; avoid session logs.
-- Stay advisory/read-only. Do not edit project code, commit, push, or run broad implementation unless the user explicitly switches out of tutoring mode.
+Keep it newcomer-friendly. Do not show internal scaffolding. Do not edit files, run commands, commit, or push.
 
-Return only:
+Return exactly:
 1. Lesson focus
-2. Why it matters in Dannote's Pi style
-3. The micro-lesson
-4. One exercise/check
-5. What to record, if anything`
+2. Why it matters
+3. Micro-lesson
+4. Try this now
+5. What to remember`
 }
 
 export function isTutorSmokeMode(): boolean {
