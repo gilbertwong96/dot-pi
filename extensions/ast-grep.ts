@@ -331,16 +331,7 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded }, theme) {
       const text = firstText(result).trimEnd()
       if (!expanded && /^[-+]\d+ /m.test(text)) {
-        const file = text
-          .split('\n')
-          .map((line) => line.trim())
-          .find((line) => line.startsWith('/'))
-        return renderLines([
-          theme.fg('muted', 'changes preview'),
-          ...(file ? [file] : []),
-          '',
-          expandHint(theme)
-        ])
+        return renderLines([theme.fg('toolOutput', 'changes preview'), '', expandHint(theme)])
       }
       return renderLines(
         text.split('\n').map((line) => {

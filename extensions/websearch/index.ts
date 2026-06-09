@@ -8,11 +8,14 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
 import {
-  expandHint,
   firstText,
+  meta as renderMeta,
+  primary,
   renderError,
+  renderExpandFooter,
   renderLines,
   renderMuted,
+  title,
   truncateText
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -327,28 +330,29 @@ export default function (pi: ExtensionAPI) {
         return renderMuted('No results found.', theme)
       }
 
-      const lines: string[] = [theme.fg('muted', `${results.length} results`)]
-      const maxResults = expanded ? results.length : Math.min(PREVIEW_RESULTS, results.length)
+      const lines: string[] = []
+      const maxResults = expanded ? results.length : Math.min(1, results.length)
       let textHidden = false
 
       for (let i = 0; i < maxResults; i++) {
         const r = results[i]
         if (!r) continue
 
-        lines.push('', theme.fg('dim', theme.bold(r.title)))
+        if (lines.length > 0) lines.push('')
+        lines.push(title(r.title, theme))
 
-        let meta = theme.fg('dim', theme.underline(r.url))
-        if (r.author) meta += theme.fg('dim', ` · ${r.author}`)
-        if (r.publishedDate) meta += theme.fg('dim', ` · ${r.publishedDate.split('T')[0]}`)
-        lines.push(meta)
+        let metadata = renderMeta(theme.underline(r.url), theme)
+        if (r.author) metadata += renderMeta(` · ${r.author}`, theme)
+        if (r.publishedDate) metadata += renderMeta(` · ${r.publishedDate.split('T')[0]}`, theme)
+        lines.push(metadata)
 
         const previewText = r.summary || r.highlights?.[0]
         if (expanded) {
-          if (r.summary) lines.push(theme.fg('dim', `Summary: ${r.summary}`))
-          if (r.text) lines.push(theme.fg('dim', r.text))
+          if (r.summary) lines.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
+          if (r.text) lines.push(primary(r.text, theme))
         } else if (previewText) {
           textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
-          lines.push(theme.fg('dim', truncateText(previewText, PREVIEW_TEXT_LENGTH)))
+          lines.push(primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
         } else if (r.text) {
           textHidden = true
         }
@@ -356,8 +360,8 @@ export default function (pi: ExtensionAPI) {
 
       const hiddenResults = results.length - maxResults
       if (!expanded && (hiddenResults > 0 || textHidden)) {
-        if (hiddenResults > 0) lines.push(theme.fg('dim', `… ${hiddenResults} more results`))
-        lines.push(expandHint(theme))
+        if (hiddenResults > 0) lines.push(renderMeta(`… ${hiddenResults} more results`, theme))
+        lines.push(...renderExpandFooter(theme))
       }
 
       return renderLines(lines)

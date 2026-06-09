@@ -9,7 +9,16 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
-import { expandHint, firstText, renderError, renderLines, renderMuted } from '../shared/render'
+import {
+  firstText,
+  meta as renderMeta,
+  primary,
+  renderError,
+  renderExpandFooter,
+  renderLines,
+  renderMuted,
+  title
+} from '../shared/render'
 import { Type } from 'typebox'
 
 const DEFAULT_API_BASE = 'https://context7.com/api'
@@ -183,17 +192,21 @@ export default function (pi: ExtensionAPI) {
       const libraries = details.libraries ?? []
       if (libraries.length === 0) return renderMuted('No libraries found', theme)
 
-      const lines: string[] = [theme.fg('muted', `${libraries.length} libraries`)]
+      const lines: string[] = []
       const maxItems = expanded ? libraries.length : 1
       for (let i = 0; i < maxItems; i++) {
         const lib = libraries[i]
         if (!lib) continue
-        lines.push('', theme.fg('accent', lib.id) + theme.fg('dim', ` — ${lib.title}`))
-        if (expanded && lib.description) lines.push(theme.fg('muted', `  ${lib.description}`))
+        if (lines.length > 0) lines.push('')
+        lines.push(title(lib.id, theme) + renderMeta(` — ${lib.title}`, theme))
+        if (expanded && lib.description) lines.push(primary(lib.description, theme))
       }
 
       if (!expanded && libraries.length > 1) {
-        lines.push(theme.fg('dim', `… ${libraries.length - 1} more libraries`), expandHint(theme))
+        lines.push(
+          renderMeta(`… ${libraries.length - 1} more libraries`, theme),
+          ...renderExpandFooter(theme)
+        )
       }
 
       return renderLines(lines)
@@ -253,15 +266,27 @@ export default function (pi: ExtensionAPI) {
       )
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, { expanded }, theme) {
       const details = result.details as { libraryId?: string; error?: boolean; empty?: boolean }
       if (details.error) return renderError(firstText(result, 'Error'), theme)
       if (details.empty) return renderMuted('No docs found', theme)
       const text = result.content[0]
-      const lines = text?.type === 'text' ? text.text.split('\n').length : 0
-      return renderLines([
-        theme.fg('muted', `${lines} lines from `) + theme.fg('accent', details.libraryId || '')
-      ])
+      const docs = text?.type === 'text' ? text.text : ''
+      const allLines = docs.split('\n').filter((line) => line.trim())
+      const displayLines = expanded ? allLines : allLines.slice(0, 6)
+      const lines = displayLines.map((line) => {
+        if (line.startsWith('### ')) return title(line.replace(/^###\s+/, ''), theme)
+        if (line.startsWith('Source: ')) return renderMeta(line, theme)
+        if (line.startsWith('```')) return renderMeta(line, theme)
+        return primary(line, theme)
+      })
+      if (!expanded && allLines.length > displayLines.length) {
+        lines.push(
+          renderMeta(`… ${allLines.length - displayLines.length} more lines`, theme),
+          ...renderExpandFooter(theme)
+        )
+      }
+      return renderLines(lines)
     }
   })
 }
