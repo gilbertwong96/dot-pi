@@ -13,7 +13,7 @@ npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 Then install this package:
 
 ```bash
-pi install git:github.com/dannote/dot-pi
+pi install git:github.com/gilbertwong96/dot-pi
 ```
 
 For the recommended end-user setup, run the bootstrap script. Safer review-first flow:
@@ -54,7 +54,7 @@ DOT_PI_REF=v0.2.1 sh install.sh    # install a specific release/tag
 Project-local install for a repo/team:
 
 ```bash
-pi install git:github.com/dannote/dot-pi -l
+pi install git:github.com/gilbertwong96/dot-pi -l
 ```
 
 Start Pi and use `pi config` to review or change what is enabled:
