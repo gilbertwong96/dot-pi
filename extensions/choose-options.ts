@@ -181,20 +181,25 @@ class OptionPicker {
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
-    const innerWidth = Math.max(20, Math.min(width, 100))
+    const innerWidth = Math.max(32, Math.min(width, 96))
     const lines: string[] = []
     const add = (line: string) => lines.push(truncateToWidth(line, innerWidth))
-    const border = this.theme.fg('accent', '─'.repeat(innerWidth))
 
-    add(border)
     for (const line of wrapTextWithAnsi(
-      this.theme.fg('text', ` ${this.config.question}`),
+      this.theme.fg('toolOutput', this.config.question),
       innerWidth
     )) {
       add(line)
     }
-    lines.push('')
-    add(`${this.theme.fg('muted', ' Action:')} ${this.theme.fg('accent', this.currentAction())}`)
+
+    const actions = this.config.actions
+      .map((action, index) =>
+        index === this.actionIndex
+          ? this.theme.fg('accent', this.theme.bold(action))
+          : this.theme.fg('muted', action)
+      )
+      .join(this.theme.fg('muted', ' / '))
+    add(actions)
     lines.push('')
 
     for (let index = 0; index < this.config.options.length; index++) {
@@ -203,7 +208,6 @@ class OptionPicker {
 
     lines.push('')
     this.renderFooter(innerWidth).forEach(add)
-    add(border)
 
     this.cachedWidth = width
     this.cachedLines = lines
@@ -217,16 +221,19 @@ class OptionPicker {
 
   private renderOption(index: number, width: number): string[] {
     const option = this.config.options[index]
-    const cursor = index === this.optionIndex ? this.theme.fg('accent', '>') : ' '
+    const cursor = index === this.optionIndex ? this.theme.fg('accent', '›') : ' '
     const mark = this.selected.has(index)
-      ? this.theme.fg('success', '●')
-      : this.theme.fg('muted', '○')
+      ? this.theme.fg('accent', '[x]')
+      : this.theme.fg('muted', '[ ]')
     const label = `${cursor} ${mark} ${index + 1}. ${option.label}`
-    const rendered = index === this.optionIndex ? this.theme.fg('accent', label) : label
+    const rendered =
+      index === this.optionIndex
+        ? this.theme.fg('toolOutput', this.theme.bold(label))
+        : this.theme.fg('toolOutput', label)
     const lines = wrapTextWithAnsi(rendered, width)
 
     if (option.description) {
-      lines.push(...wrapTextWithAnsi(`     ${this.theme.fg('muted', option.description)}`, width))
+      lines.push(...wrapTextWithAnsi(`      ${this.theme.fg('muted', option.description)}`, width))
     }
 
     return lines
@@ -235,15 +242,10 @@ class OptionPicker {
   private renderFooter(width: number): string[] {
     const footer = this.numberMode
       ? [
-          this.theme.fg('muted', ` Go/toggle item #: ${this.numberBuffer || '_'}`),
-          this.theme.fg('dim', ' Enter toggle • Backspace edit • Esc cancel')
+          this.theme.fg('muted', `Go to option: ${this.numberBuffer || '_'}`),
+          this.theme.fg('dim', 'Enter toggle · Backspace edit · Esc cancel')
         ]
-      : [
-          this.theme.fg(
-            'dim',
-            ' ↑↓ move • Space/1-9 toggle • g number • Tab action • a all • n none • Enter OK • Esc cancel'
-          )
-        ]
+      : [this.theme.fg('dim', '↑↓ move · Space toggle · Tab action · Enter confirm · Esc cancel')]
 
     return footer.flatMap((line) => wrapTextWithAnsi(line, width))
   }
