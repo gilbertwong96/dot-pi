@@ -132,7 +132,19 @@ describe('matchCommandRule', () => {
     expect(matchCommandRule('bird search "pi"', DEFAULT_COMMAND_RULES)).toBeUndefined()
   })
 
-  test('default rules confirm GitHub repo mutations', () => {
+  test('default rules confirm GitHub issue publication and repo mutations', () => {
+    expect(
+      matchCommandRule('gh issue create --title bug --body details', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Create GitHub issue')
+    expect(
+      matchCommandRule(
+        'cd repo && gh issue create --title bug --body details',
+        DEFAULT_COMMAND_RULES
+      )?.label
+    ).toBe('Create GitHub issue')
+    expect(matchCommandRule('gh issue comment 1 --body thanks', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Publish GitHub issue comment'
+    )
     expect(
       matchCommandRule('gh repo create acme/app --private', DEFAULT_COMMAND_RULES)?.label
     ).toBe('Create GitHub repo')

@@ -30,7 +30,7 @@ const GITHUB_RULES: CommandRule[] = [
   exact(['gh', 'pr', 'edit'], 'Edit GitHub PR'),
   exact(['gh', 'pr', 'comment'], 'Publish GitHub PR comment'),
   exact(['gh', 'pr', 'review'], 'Publish GitHub PR review'),
-  exact(['gh', 'issue', 'create'], 'Publish GitHub issue'),
+  exact(['gh', 'issue', 'create'], 'Create GitHub issue'),
   exact(['gh', 'issue', 'edit'], 'Edit GitHub issue'),
   exact(['gh', 'issue', 'comment'], 'Publish GitHub issue comment'),
   exact(['gh', 'repo', 'create'], 'Create GitHub repo'),
