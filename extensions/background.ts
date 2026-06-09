@@ -324,6 +324,15 @@ function getDisplayName(proc: ProcessInfo): string {
   return proc.name
 }
 
+function renderProcessRow(
+  theme: Parameters<typeof title>[1],
+  name: string,
+  status: string,
+  extra?: string
+): string[] {
+  return [title(name, theme) + '  ' + meta(status, theme), ...(extra ? [meta(extra, theme)] : [])]
+}
+
 function updateStatus(ctx: ExtensionContext) {
   const running = listProcesses(ctx.cwd).filter((p) => p.running)
   if (running.length === 0) {
@@ -522,7 +531,9 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, _options, theme) {
       const details = result.details as ProcessInfo
       if (details.error) return renderError(firstText(result, 'Error'), theme)
-      return renderLines([title(details.name, theme) + meta(`  PID ${details.pid}`, theme)])
+      return renderLines(
+        renderProcessRow(theme, details.name, `running  PID ${details.pid}`, details.cwd)
+      )
     }
   })
 
@@ -569,7 +580,7 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, _options, theme) {
       const details = result.details as StopDetails
       if (details.error) return renderError(firstText(result, 'Error'), theme)
-      return renderLines([theme.fg('muted', 'Stopped')])
+      return renderLines(renderProcessRow(theme, details.name, 'stopped'))
     }
   })
 
@@ -610,11 +621,10 @@ export default function (pi: ExtensionAPI) {
       const details = result.details as { processes: ProcessInfo[] }
       if (details.processes.length === 0) return renderMuted('No processes', theme)
 
-      const lines = details.processes.map((p) => {
-        const status = p.running ? meta(`running  PID ${p.pid}`, theme) : meta('stopped', theme)
-        const cwd = p.cwd ? meta(p.cwd, theme) : undefined
-        return [title(p.name, theme) + '  ' + status, cwd].filter(Boolean).join('\n')
-      })
+      const lines = details.processes.flatMap((p, index) => [
+        ...(index > 0 ? [''] : []),
+        ...renderProcessRow(theme, p.name, p.running ? `running  PID ${p.pid}` : 'stopped', p.cwd)
+      ])
 
       return renderLines(lines)
     }
@@ -672,7 +682,11 @@ export default function (pi: ExtensionAPI) {
       if (details.error) return renderError(firstText(result, 'Error'), theme)
       if (!details.logs.trim()) return renderMuted('(empty)', theme)
       const preview = details.logs.split('\n').slice(-3)
-      return renderLines(preview.map((line) => primary(line, theme)))
+      return renderLines([
+        ...renderProcessRow(theme, details.name, `logs  last ${preview.length}`),
+        '',
+        ...preview.map((line) => primary(line, theme))
+      ])
     }
   })
 }

@@ -330,16 +330,24 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, { expanded }, theme) {
       const text = firstText(result).trimEnd()
-      if (!expanded && /^[-+]\d+ /m.test(text)) {
-        return renderLines([theme.fg('toolOutput', 'changes preview'), '', expandHint(theme)])
+      const renderDiffLine = (line: string) => {
+        if (line.startsWith('+')) return theme.fg('success', line)
+        if (line.startsWith('-')) return theme.fg('error', line)
+        return theme.fg('toolOutput', line)
       }
-      return renderLines(
-        text.split('\n').map((line) => {
-          if (line.startsWith('+')) return theme.fg('success', line)
-          if (line.startsWith('-')) return theme.fg('error', line)
-          return theme.fg('toolOutput', line)
-        })
-      )
+
+      const diffLines = text.split('\n')
+      if (!expanded && /^[-+]\d+ /m.test(text)) {
+        const shown = diffLines.slice(0, 8)
+        const hidden = diffLines.length - shown.length
+        return renderLines([
+          ...shown.map(renderDiffLine),
+          ...(hidden > 0
+            ? [theme.fg('muted', `… ${hidden} more lines`), '', expandHint(theme)]
+            : [])
+        ])
+      }
+      return renderLines(diffLines.map(renderDiffLine))
     }
   })
 }
