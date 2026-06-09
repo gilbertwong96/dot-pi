@@ -8,7 +8,15 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
-import { expandHint, firstText, renderError, renderLines } from '../shared/render'
+import {
+  firstText,
+  meta as renderMeta,
+  primary,
+  renderError,
+  renderExpandFooter,
+  renderLines,
+  title
+} from '../shared/render'
 import { Type } from 'typebox'
 import * as cheerio from 'cheerio'
 import TurndownService from 'turndown'
@@ -34,6 +42,13 @@ interface FetchParams {
   selector?: string
   timeout?: number
   headers?: Record<string, string>
+}
+
+function stylePreviewLine(line: string, theme: Parameters<typeof title>[1]): string {
+  const match = line.match(/^([A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,3})(\s+.+)$/)
+  if (!match) return primary(line, theme)
+  const [, heading, rest] = match
+  return title(heading, theme) + primary(rest, theme)
 }
 
 function dedupeRepeatedHeading(line: string): string {
@@ -395,11 +410,15 @@ export default function (pi: ExtensionAPI) {
       if (!expanded) {
         const preview = lines.slice(0, 4).map(dedupeRepeatedHeading)
         const hiddenCount = lines.length - preview.length
+        const previewChanged = preview.join('\n') !== lines.slice(0, 4).join('\n')
         return renderLines([
-          theme.fg('muted', meta),
-          ...preview.map((line) => theme.fg('toolOutput', line)),
-          ...(hiddenCount > 0
-            ? [theme.fg('muted', `… ${hiddenCount} more lines`), '', expandHint(theme)]
+          renderMeta(meta, theme),
+          ...preview.map((line) => stylePreviewLine(line, theme)),
+          ...(hiddenCount > 0 || previewChanged
+            ? [
+                ...(hiddenCount > 0 ? [renderMeta(`… ${hiddenCount} more lines`, theme)] : []),
+                ...renderExpandFooter(theme)
+              ]
             : [])
         ])
       }

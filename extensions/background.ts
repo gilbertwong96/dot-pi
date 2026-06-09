@@ -10,7 +10,15 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { DynamicBorder, truncateTail } from '@earendil-works/pi-coding-agent'
 import { Container, Text } from '@earendil-works/pi-tui'
-import { firstText, renderError, renderLines, renderMuted } from './shared/render'
+import {
+  firstText,
+  meta,
+  primary,
+  renderError,
+  renderLines,
+  renderMuted,
+  title
+} from './shared/render'
 import { Type } from 'typebox'
 import { spawn, spawnSync } from 'child_process'
 import * as crypto from 'crypto'
@@ -514,9 +522,7 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, _options, theme) {
       const details = result.details as ProcessInfo
       if (details.error) return renderError(firstText(result, 'Error'), theme)
-      return renderLines([
-        theme.fg('accent', details.name) + theme.fg('dim', ` PID ${details.pid}`)
-      ])
+      return renderLines([title(details.name, theme) + meta(`  PID ${details.pid}`, theme)])
     }
   })
 
@@ -605,11 +611,9 @@ export default function (pi: ExtensionAPI) {
       if (details.processes.length === 0) return renderMuted('No processes', theme)
 
       const lines = details.processes.map((p) => {
-        const status = p.running
-          ? theme.fg('dim', `running PID ${p.pid}`)
-          : theme.fg('dim', 'stopped')
-        const displayName = getDisplayName(p)
-        return `${theme.fg('text', displayName)} ${status}`
+        const status = p.running ? meta(`running  PID ${p.pid}`, theme) : meta('stopped', theme)
+        const cwd = p.cwd ? meta(p.cwd, theme) : undefined
+        return [title(p.name, theme) + '  ' + status, cwd].filter(Boolean).join('\n')
       })
 
       return renderLines(lines)
@@ -668,7 +672,7 @@ export default function (pi: ExtensionAPI) {
       if (details.error) return renderError(firstText(result, 'Error'), theme)
       if (!details.logs.trim()) return renderMuted('(empty)', theme)
       const preview = details.logs.split('\n').slice(-3)
-      return renderLines(preview.map((line) => theme.fg('dim', line)))
+      return renderLines(preview.map((line) => primary(line, theme)))
     }
   })
 }

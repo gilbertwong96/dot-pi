@@ -13,8 +13,33 @@ export function firstText(result: AgentToolResult<unknown>, fallback = ''): stri
   return first?.type === 'text' ? first.text : fallback
 }
 
+/**
+ * Native pi-style tool result block.
+ *
+ * Rules:
+ * - Leading blank line before result content.
+ * - No blanket left padding; each renderer decides semantic indentation.
+ * - Metadata is muted, primary content is toolOutput, titles may be bold/accent.
+ * - Expand hints are standalone footers: insert a blank line before expandHint().
+ */
 export function renderLines(lines: string[]): Component {
   return new Text(['', ...lines].join('\n'), 0, 0)
+}
+
+export function meta(text: string, theme: Theme): string {
+  return theme.fg('muted', text)
+}
+
+export function primary(text: string, theme: Theme): string {
+  return theme.fg('toolOutput', text)
+}
+
+export function title(text: string, theme: Theme): string {
+  return theme.fg('toolOutput', theme.bold(text))
+}
+
+export function renderExpandFooter(theme: Theme): string[] {
+  return ['', expandHint(theme)]
 }
 
 export function renderError(text: string, theme: Theme): Component {
