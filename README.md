@@ -13,13 +13,13 @@ npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 Then install this package:
 
 ```bash
-pi install git:github.com/dannote/dot-pi
+pi install git:github.com/gilbertwong96/dot-pi
 ```
 
 For the recommended end-user setup, run the bootstrap script. Safer review-first flow:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh
+curl -fsSLO https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh
 less install.sh
 sh install.sh
 ```
@@ -27,17 +27,17 @@ sh install.sh
 Convenience one-liner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-mise`, `pi-token-speed`, `pi-provider-umans`, `pi-vcc`, `pi-atlas`, `pi-discuss-mode`, `superpowers`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; `pi-mise` defaults to yes when `mise` is detected; other companions default to no.
 
 Headless/non-interactive Linux needs Node.js 22.19.0+ and npm available before Pi can install. Check with `node --version` and `npm --version`; install Node 22+ with your preferred Node manager or distro setup if needed.
 
 Use non-interactive defaults with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh -s -- --yes
 ```
 
 Useful bootstrap options:
@@ -54,7 +54,7 @@ DOT_PI_REF=v0.2.1 sh install.sh    # install a specific release/tag
 Project-local install for a repo/team:
 
 ```bash
-pi install git:github.com/dannote/dot-pi -l
+pi install git:github.com/gilbertwong96/dot-pi -l
 ```
 
 Start Pi and use `pi config` to review or change what is enabled:
@@ -73,7 +73,7 @@ If prompt shortcuts such as `/ga` or `/wn` do not appear, check that `dot-pi` is
 
 ```json
 {
-  "packages": ["git:github.com/dannote/dot-pi"]
+  "packages": ["git:github.com/gilbertwong96/dot-pi"]
 }
 ```
 
@@ -87,15 +87,33 @@ ln -s /path/to/dot-pi/prompts/*.md ~/.pi/agent/prompts/
 Useful companion packages, installed separately when you want them:
 
 ```bash
-pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
 pi install npm:pi-elixir                                    # Elixir/BEAM development
 pi install npm:pi-subagents                                 # subagent delegation
 pi install npm:pi-context                                   # context history tags/checkouts
+pi install npm:pi-delete-session                            # bulk session deletion
+pi install npm:pi-cost                                      # cost/usage dashboard
+pi install npm:@capotej/pi-mise                             # auto-activate mise toolchains
+pi install npm:pi-token-speed                               # tokens-per-second via sliding window
+pi install npm:pi-provider-umans                            # Umans.ai model provider
+pi install npm:@sting8k/pi-vcc                              # transcript-preserving compaction
+pi install npm:@mohndoe/pi-atlas                            # agent usage/cost dashboard from session logs
+pi install npm:pi-discuss-mode                              # read-only discuss mode for safe code review
+pi install git:github.com/obra/superpowers                  # upstream superpowers skills (TDD, debugging, brainstorming, plans, ...)
+pi install git:github.com/injaneity/pi-computer-use@v0.3.2  # macOS computer use
 ```
+
+`pi-atlas` is useful for reviewing your agent usage. It parses `~/.pi/agent/sessions/` JSONL logs into an interactive `/atlas` dashboard with costs, languages, models, projects, tool frequency, and token breakdowns, with SHA-256-gated on-disk caching for instant reopens. All processing is local.
+
+`pi-discuss-mode` is useful for reviewing or exploring code without risk of unintended changes. It blocks Edit/Write tools and destructive bash commands so the agent can only read and explore — toggle with `/discuss`, `Ctrl+Alt+D`, or `pi --discuss`.
+
+`superpowers` is the upstream agentic-skills framework from `obra/superpowers`. It ships 14 skills (TDD, systematic debugging, brainstorming, writing-plans, subagent-driven-development, requesting/receiving code review, worktree workflows, finishing-a-development-branch) and a small session-start extension that injects the `using-superpowers` bootstrap, so skills auto-trigger at the right moments.
 
 `pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
+
+`pi-mise` is useful for projects that manage tool versions with mise. It trusts and auto-activates the project's mise config so every `bash` command runs with the correct toolchain, and contributes a `mise` skill for manual `mise exec`/`mise run`/`mise install` cases.
+`pi-delete-session` is useful for cleaning up accumulated sessions. It adds a `/delete-session` command with multi-select checkboxes, project grouping, a red confirmation dialog before permanent deletion, and auto-reset to a new session if you delete the active one.
 
 Recommended external Gmail skill/tool setup:
 
@@ -339,7 +357,7 @@ Example package filter enabling only voice input, AppleScript, and the extra Mar
 {
   "packages": [
     {
-      "source": "git:github.com/dannote/dot-pi",
+      "source": "git:github.com/gilbertwong96/dot-pi",
       "extensions": ["+extensions/voice-input"],
       "skills": [
         "+skills/applescript",
@@ -368,6 +386,7 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 | `commit-messages.md`        | Follow existing repo commit style              |
 | `delete-files.md`           | Use `rm -f` to delete files                    |
 | `git-hosting.md`            | Use `gh`/`glab` CLI instead of fetching URLs   |
+| `git-identity.md`           | Never override or invent git committer identity |
 | `pull-requests.md`          | Short PR drafting and review safety defaults   |
 | `ripgrep.md`                | Prefer `rg` over `grep`                        |
 | `skills-cli.md`             | Run skill commands from skill directory        |

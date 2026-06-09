@@ -2,7 +2,7 @@
 
 set -u
 
-DOT_PI_SOURCE="git:github.com/dannote/dot-pi"
+DOT_PI_SOURCE="git:github.com/gilbertwong96/dot-pi"
 DOT_PI_REF=${DOT_PI_REF:-}
 PI_PACKAGE="@earendil-works/pi-coding-agent"
 
@@ -264,6 +264,14 @@ elixir_default() {
   fi
 }
 
+mise_default() {
+  if has mise; then
+    echo y
+  else
+    echo n
+  fi
+}
+
 install_companions() {
   install_pi_package \
     "npm:pi-elixir" \
@@ -280,10 +288,55 @@ install_companions() {
     "pi-context" \
     "Context history tags and checkouts for resuming or navigating long-running work." \
     n
+  install_pi_package \
+    "npm:pi-delete-session" \
+    "pi-delete-session" \
+    "Bulk session deletion: delete multiple sessions at once, grouped by project, with safety confirmations." \
+    n
+  install_pi_package \
+    "npm:pi-cost" \
+    "pi-cost" \
+    "Cost dashboard: usage and cost tracking for the pi coding agent." \
+    n
+  install_pi_package \
+    "npm:@capotej/pi-mise" \
+    "pi-mise" \
+    "Mise auto-activation: trusts and activates mise-managed toolchains when a mise config is present in the project." \
+    "$(mise_default)"
+  install_pi_package \
+    "npm:pi-token-speed" \
+    "pi-token-speed" \
+    "Token speed: measures tokens per second via a sliding window." \
+    n
+  install_pi_package \
+    "npm:pi-provider-umans" \
+    "pi-provider-umans" \
+    "Umans.ai model provider: OpenAI-compatible endpoint with dynamic model discovery." \
+    n
+  install_pi_package \
+    "npm:@sting8k/pi-vcc" \
+    "pi-vcc" \
+    "Conversation compactor: transcript-preserving structured summaries with no LLM calls." \
+    n
+  install_pi_package \
+    "npm:@mohndoe/pi-atlas" \
+    "pi-atlas" \
+    "Agent usage dashboard: parses session logs into costs, languages, models, projects, and tools with an interactive /atlas view. All processing is local." \
+    n
+  install_pi_package \
+    "npm:pi-discuss-mode" \
+    "pi-discuss-mode" \
+    "Read-only discuss mode: blocks Edit/Write tools and destructive bash so the agent can only read and explore. Toggle via /discuss, Ctrl+Alt+D, or --discuss." \
+    n
+  install_pi_package \
+    "git:github.com/obra/superpowers" \
+    "superpowers" \
+    "Upstream agentic-skills framework (obra/superpowers): 14 skills for TDD, systematic debugging, brainstorming, writing-plans, subagent-driven-development, code review, worktree workflows, and more. Session-start extension injects the using-superpowers bootstrap." \
+    n
 
   if [ "$(os_name)" = "macos" ]; then
     install_pi_package \
-      "git:github.com/injaneity/pi-computer-use@v0.2.6" \
+      "git:github.com/injaneity/pi-computer-use@v0.3.2" \
       "pi-computer-use" \
       "macOS visible-app automation with screenshot, window, and accessibility tools." \
       n
