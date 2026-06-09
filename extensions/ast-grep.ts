@@ -219,13 +219,12 @@ export default function (pi: ExtensionAPI) {
         .filter((match): match is RegExpMatchArray => Boolean(match))
 
       if (matches.length > 0) {
-        return renderLines([
-          theme.fg('muted', `${matches.length} ${matches.length === 1 ? 'match' : 'matches'}`),
-          ...matches.map((match) => {
+        return renderLines(
+          matches.map((match) => {
             const [, file, line, source] = match
-            return `${theme.fg('muted', `${file}:${line}`)}  ${theme.fg('toolOutput', source.trim())}`
+            return `${theme.fg('muted', `${file}:${line}:`)} ${theme.fg('toolOutput', source.trim())}`
           })
-        ])
+        )
       }
 
       return renderLines(text.split('\n'))

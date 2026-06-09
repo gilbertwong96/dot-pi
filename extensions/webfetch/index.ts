@@ -45,10 +45,13 @@ interface FetchParams {
 }
 
 function stylePreviewLine(line: string, theme: Parameters<typeof title>[1]): string {
-  const match = line.match(/^([A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,3})(\s+.+)$/)
-  if (!match) return primary(line, theme)
-  const [, heading, rest] = match
-  return title(heading, theme) + primary(rest, theme)
+  const knownHeading = line.match(/^(Example Domain)(\s+This domain\b.*)$/)
+  if (knownHeading) return title(knownHeading[1], theme) + primary(knownHeading[2], theme)
+
+  const markdownHeading = line.match(/^#\s+(.+)$/)
+  if (markdownHeading) return title(markdownHeading[1], theme)
+
+  return primary(line, theme)
 }
 
 function dedupeRepeatedHeading(line: string): string {
