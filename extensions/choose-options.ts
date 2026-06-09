@@ -100,8 +100,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
             theme,
             () => tui.requestRender(),
             done
-          ),
-        { overlay: true, overlayOptions: { width: '80%', maxHeight: '80%', minWidth: 56 } }
+          )
       )
 
       return {
