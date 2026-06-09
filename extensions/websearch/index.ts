@@ -5,8 +5,9 @@
  * Requires EXA_API_KEY environment variable.
  */
 
-import { type ExtensionAPI, rawKeyHint } from '@earendil-works/pi-coding-agent'
-import { Container, Text } from '@earendil-works/pi-tui'
+import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { Text } from '@earendil-works/pi-tui'
+import { expandHint, firstText, renderError, renderLines, renderMuted } from '../shared/render'
 import { Type } from 'typebox'
 import Exa from 'exa-js'
 
@@ -310,67 +311,49 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as WebSearchDetails | undefined
 
-      if (details?.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
+      if (details?.error) return renderError(firstText(result, 'Error'), theme)
 
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return new Text(theme.fg('muted', 'Searching...'), 0, 0)
-        return new Text(theme.fg('muted', 'No results found.'), 0, 0)
+        if (isPartial) return renderMuted('Searching...', theme)
+        return renderMuted('No results found.', theme)
       }
 
-      const container = new Container()
-
-      container.addChild(
-        new Text(theme.fg('success', '✓ ') + theme.fg('muted', `${results.length} results`), 0, 0)
-      )
-
+      const lines: string[] = [theme.fg('muted', `${results.length} results`)]
       const maxResults = expanded ? results.length : Math.min(PREVIEW_RESULTS, results.length)
+      let textHidden = false
 
       for (let i = 0; i < maxResults; i++) {
         const r = results[i]
         if (!r) continue
 
-        container.addChild(new Text('\n' + theme.fg('dim', theme.bold(r.title)), 0, 0))
+        lines.push('', theme.fg('dim', theme.bold(r.title)))
 
         let meta = theme.fg('dim', theme.underline(r.url))
         if (r.author) meta += theme.fg('dim', ` · ${r.author}`)
         if (r.publishedDate) meta += theme.fg('dim', ` · ${r.publishedDate.split('T')[0]}`)
-        container.addChild(new Text(meta, 0, 0))
+        lines.push(meta)
 
-        if (r.summary) {
-          container.addChild(new Text(theme.fg('dim', `Summary: ${r.summary}`), 0, 0))
-        }
+        if (r.summary) lines.push(theme.fg('dim', `Summary: ${r.summary}`))
 
         if (r.text) {
-          if (expanded) {
-            container.addChild(new Text(theme.fg('dim', r.text), 0, 0))
-          } else if (r.text.length > PREVIEW_TEXT_LENGTH) {
-            const truncated = r.text.slice(0, PREVIEW_TEXT_LENGTH) + '...'
-            container.addChild(new Text(theme.fg('dim', truncated), 0, 0))
+          if (expanded || r.text.length <= PREVIEW_TEXT_LENGTH) {
+            lines.push(theme.fg('dim', r.text))
           } else {
-            container.addChild(new Text(theme.fg('dim', r.text), 0, 0))
+            textHidden = true
+            lines.push(theme.fg('dim', r.text.slice(0, PREVIEW_TEXT_LENGTH) + '…'))
           }
         }
       }
 
       const hiddenResults = results.length - maxResults
-      if (!expanded && hiddenResults > 0) {
-        container.addChild(
-          new Text(
-            theme.fg('dim', `\n... ${hiddenResults} more, `) + rawKeyHint('ctrl+o', 'expand'),
-            0,
-            0
-          )
-        )
-      } else if (!expanded && results.some((r) => r.text.length > PREVIEW_TEXT_LENGTH)) {
-        container.addChild(new Text(theme.fg('dim', '\n') + rawKeyHint('ctrl+o', 'expand'), 0, 0))
+      if (!expanded && (hiddenResults > 0 || textHidden)) {
+        if (hiddenResults > 0) lines.push(theme.fg('dim', `  … ${hiddenResults} more results`))
+        lines.push(expandHint(theme))
       }
 
-      return container
+      return renderLines(lines)
     }
   })
 }

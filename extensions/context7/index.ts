@@ -7,8 +7,9 @@
  * Requires CONTEXT7_API_KEY environment variable.
  */
 
-import { type ExtensionAPI, rawKeyHint } from '@earendil-works/pi-coding-agent'
-import { Container, Text } from '@earendil-works/pi-tui'
+import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { Text } from '@earendil-works/pi-tui'
+import { expandHint, firstText, renderError, renderLines, renderMuted } from '../shared/render'
 import { Type } from 'typebox'
 
 const DEFAULT_API_BASE = 'https://context7.com/api'
@@ -178,47 +179,24 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, { expanded }, theme) {
       const details = result.details as { libraries?: Library[]; error?: boolean }
-      if (details.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
+      if (details.error) return renderError(firstText(result, 'Error'), theme)
       const libraries = details.libraries ?? []
-      if (libraries.length === 0) {
-        return new Text(theme.fg('warning', 'No libraries found'), 0, 0)
-      }
+      if (libraries.length === 0) return renderMuted('No libraries found', theme)
 
-      const container = new Container()
-      container.addChild(
-        new Text(
-          theme.fg('success', '✓ ') + theme.fg('muted', `${libraries.length} libraries`),
-          0,
-          0
-        )
-      )
-
+      const lines: string[] = [theme.fg('muted', `${libraries.length} libraries`)]
       const maxItems = expanded ? libraries.length : 1
       for (let i = 0; i < maxItems; i++) {
         const lib = libraries[i]
-        container.addChild(
-          new Text('\n' + theme.fg('accent', lib.id) + theme.fg('dim', ` — ${lib.title}`), 0, 0)
-        )
-        if (expanded && lib.description) {
-          container.addChild(new Text(theme.fg('muted', `  ${lib.description}`), 0, 0))
-        }
+        if (!lib) continue
+        lines.push('', theme.fg('accent', lib.id) + theme.fg('dim', ` — ${lib.title}`))
+        if (expanded && lib.description) lines.push(theme.fg('muted', `  ${lib.description}`))
       }
 
       if (!expanded && libraries.length > 1) {
-        container.addChild(
-          new Text(
-            theme.fg('dim', `\n... +${libraries.length - 1} more, `) +
-              rawKeyHint('ctrl+o', 'to expand'),
-            0,
-            0
-          )
-        )
+        lines.push(theme.fg('dim', `  … ${libraries.length - 1} more libraries`), expandHint(theme))
       }
 
-      return container
+      return renderLines(lines)
     }
   })
 
@@ -277,22 +255,13 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, _options, theme) {
       const details = result.details as { libraryId?: string; error?: boolean; empty?: boolean }
-      if (details.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
-      if (details.empty) {
-        return new Text(theme.fg('warning', 'No docs found'), 0, 0)
-      }
+      if (details.error) return renderError(firstText(result, 'Error'), theme)
+      if (details.empty) return renderMuted('No docs found', theme)
       const text = result.content[0]
       const lines = text?.type === 'text' ? text.text.split('\n').length : 0
-      return new Text(
-        theme.fg('success', '✓ ') +
-          theme.fg('dim', `${lines} lines from `) +
-          theme.fg('accent', details.libraryId || ''),
-        0,
-        0
-      )
+      return renderLines([
+        theme.fg('muted', `${lines} lines from `) + theme.fg('accent', details.libraryId || '')
+      ])
     }
   })
 }

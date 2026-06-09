@@ -8,6 +8,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
+import { expandHint, firstText, renderError, renderLines } from '../shared/render'
 import { Type } from 'typebox'
 import * as cheerio from 'cheerio'
 import TurndownService from 'turndown'
@@ -365,10 +366,7 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded }, theme) {
       const details = result.details as FetchDetails | undefined
 
-      if (details?.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
+      if (details?.error) return renderError(firstText(result, 'Error'), theme)
 
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''
@@ -380,22 +378,18 @@ export default function (pi: ExtensionAPI) {
       const selectorInfo = details?.selector ? ` [${details.selector}]` : ''
 
       if (!expanded) {
-        const preview = lines.slice(0, 4).join('\n')
-        const hiddenCount = lines.length - 4
-        const moreInfo = hiddenCount > 0 ? theme.fg('dim', `\n... ${hiddenCount} more lines`) : ''
-        return new Text(
-          theme.fg('success', '✓') +
-            theme.fg(
-              'muted',
-              `${sizeInfo}${truncationInfo}${redirectInfo}${selectorInfo}\n${preview}`
-            ) +
-            moreInfo,
-          0,
-          0
-        )
+        const preview = lines.slice(0, 4)
+        const hiddenCount = lines.length - preview.length
+        return renderLines([
+          theme.fg('muted', `${sizeInfo}${truncationInfo}${redirectInfo}${selectorInfo}`.trim()),
+          ...preview.map((line) => theme.fg('muted', line)),
+          ...(hiddenCount > 0
+            ? [theme.fg('muted', `  … ${hiddenCount} more lines`), expandHint(theme)]
+            : [])
+        ])
       }
 
-      return new Text(fullText, 0, 0)
+      return renderLines(fullText.split('\n'))
     }
   })
 }

@@ -8,11 +8,10 @@
 import {
   type ExtensionAPI,
   getLanguageFromPath,
-  highlightCode,
-  rawKeyHint,
-  type Theme
+  highlightCode
 } from '@earendil-works/pi-coding-agent'
-import { Container, Text } from '@earendil-works/pi-tui'
+import { Text } from '@earendil-works/pi-tui'
+import { expandHint, firstText, renderError, renderLines, renderMuted } from './shared/render'
 import { Type } from 'typebox'
 
 const API_URL = 'https://mcp.grep.app/'
@@ -331,26 +330,16 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as CodeSearchDetails | undefined
 
-      if (details?.error) {
-        const text = result.content[0]
-        return new Text(theme.fg('error', text?.type === 'text' ? text.text : 'Error'), 0, 0)
-      }
+      if (details?.error) return renderError(firstText(result, 'Error'), theme)
 
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return new Text(theme.fg('muted', 'Searching...'), 0, 0)
-        return new Text(theme.fg('muted', 'No results found.'), 0, 0)
+        if (isPartial) return renderMuted('Searching...', theme)
+        return renderMuted('No results found.', theme)
       }
 
-      const container = new Container()
-
-      // Header
-      container.addChild(
-        new Text(theme.fg('success', '✓ ') + theme.fg('muted', `${results.length} repos`), 0, 0)
-      )
-
-      // Determine how many results/snippets to show
+      const lines: string[] = [theme.fg('muted', `${results.length} repos`)]
       const maxResults = expanded ? results.length : Math.min(PREVIEW_SNIPPETS, results.length)
 
       for (let i = 0; i < maxResults; i++) {
@@ -358,53 +347,37 @@ export default function (pi: ExtensionAPI) {
         if (!r) continue
         const lang = getLanguageFromPath(r.path)
 
-        // Repo header
-        container.addChild(
-          new Text(
-            '\n' +
-              theme.fg('accent', r.repo) +
-              theme.fg('dim', ' · ') +
-              theme.fg('muted', r.path) +
-              (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : ''),
-            0,
-            0
-          )
+        lines.push(
+          '',
+          theme.fg('accent', r.repo) +
+            theme.fg('dim', ' · ') +
+            theme.fg('muted', r.path) +
+            (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
         )
 
-        // Show snippets (limit in preview mode)
         const maxSnippets = expanded ? r.snippets.length : 1
         for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
           const snippet = r.snippets[j]
           if (!snippet) continue
 
-          // Line number
-          container.addChild(new Text(theme.fg('dim', `Line ${snippet.lineNumber}:`), 0, 0))
-
-          // Highlighted code
-          const codeLines = highlightCode(snippet.code, lang)
-          container.addChild(new Text(codeLines.join('\n'), 0, 0))
+          lines.push(theme.fg('dim', `Line ${snippet.lineNumber}:`))
+          lines.push(...highlightCode(snippet.code, lang))
         }
 
-        // Show remaining snippets count if collapsed
         if (!expanded && r.snippets.length > 1) {
-          container.addChild(
-            new Text(theme.fg('dim', `... ${r.snippets.length - 1} more snippets`), 0, 0)
-          )
+          lines.push(theme.fg('dim', `  … ${r.snippets.length - 1} more snippets`))
         }
       }
 
-      // Footer showing hidden content count
       const hiddenResults = results.length - maxResults
       const totalSnippets = results.reduce((sum, r) => sum + r.snippets.length, 0)
 
       if (!expanded && (hiddenResults > 0 || totalSnippets > maxResults)) {
         const more = `${hiddenResults} more repos, ${totalSnippets - maxResults} more snippets`
-        container.addChild(
-          new Text(theme.fg('dim', `\n... ${more}, `) + rawKeyHint('ctrl+o', 'to expand'), 0, 0)
-        )
+        lines.push(theme.fg('dim', `  … ${more}`), expandHint(theme))
       }
 
-      return container
+      return renderLines(lines)
     }
   })
 }
