@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildPlaybookHint, buildTutorPrompt, isTutorSmokeMode, tutorWorkspaceFor } from './tutor'
+import { buildTutorPrompt, isTutorSmokeMode, tutorWorkspaceFor } from './tutor'
 
 describe('tutorWorkspaceFor', () => {
   test('uses a stable project-scoped Pi cache path', () => {
@@ -16,34 +16,23 @@ describe('isTutorSmokeMode', () => {
   })
 })
 
-describe('buildPlaybookHint', () => {
-  test('uses a general workflow playbook, not an Elixir-specific one', () => {
-    const hint = buildPlaybookHint('vibe workflow')
-
-    expect(hint).toContain('Use Pi as a thinking partner before coding')
-    expect(hint).toContain('list 7 next steps')
-    expect(hint).not.toContain('Elixir')
-    expect(hint).not.toContain('Igniter')
-  })
-})
-
 describe('buildTutorPrompt', () => {
-  test('defaults to a newcomer-friendly /next lesson', () => {
+  test('is an in-place workflow hint, not a generic lesson', () => {
     const prompt = buildTutorPrompt('', '/tmp/example-project')
 
-    expect(prompt).toContain("using this Pi setup in Dan's style")
-    expect(prompt).toContain('Focus: /next')
-    expect(prompt).toContain('Pi is a thinking framework')
-    expect(prompt).toContain('Keep it newcomer-friendly')
-    expect(prompt).toContain('Do not show internal scaffolding')
-    expect(prompt).not.toContain('Dan-style playbook to teach')
+    expect(prompt).toContain('in-place Dan-style workflow hint')
+    expect(prompt).toContain('Use the current conversation as evidence')
+    expect(prompt).toContain('Do not give a generic lesson')
+    expect(prompt).toContain('What Dan would notice')
+    expect(prompt).toContain('What he would ask Pi')
   })
 
-  test('includes the focus and stays read-only', () => {
-    const prompt = buildTutorPrompt('quote shortcut', '/tmp/example-project')
+  test('handles realistic build tasks and stays read-only', () => {
+    const prompt = buildTutorPrompt('building a web app', '/tmp/example-project')
 
-    expect(prompt).toContain('Focus: quote shortcut')
+    expect(prompt).toContain('Focus: building a web app')
+    expect(prompt).toContain('smallest useful slice')
+    expect(prompt).toContain('Stay advisory/read-only')
     expect(prompt).toContain('Do not edit files')
-    expect(prompt).toContain('Try this now')
   })
 })

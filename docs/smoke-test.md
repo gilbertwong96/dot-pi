@@ -92,6 +92,6 @@ Manual check:
 pi --no-extensions -e extensions/tutor.ts
 ```
 
-Then run `/tutor quote`.
+Then run `/tutor` while a realistic task is stuck or drifting, or `/tutor building a web app` in a test session.
 
-Expected: sends a Dan-style Pi workflow tutoring prompt, mentions `/quote`, stays advisory/read-only, and does not edit/commit/push.
+Expected: sends an in-place Dan-style workflow hint for the current session, explains what Dan would notice/think/do/ask, stays advisory/read-only, and does not edit/commit/push.
