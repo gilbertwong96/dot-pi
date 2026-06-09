@@ -20,10 +20,11 @@ export function tutorWorkspaceFor(cwd: string): string {
 export function buildTutorPrompt(args: string, cwd = process.cwd()): string {
   const focus = args.trim() || '/next'
   const workspace = tutorWorkspaceFor(cwd)
+  const playbook = buildPlaybookHint(focus)
 
-  return `Teach me one small lesson for using this Pi setup in Dannote's style.
+  return `Teach me one small lesson for using this Pi setup in Dan's style.
 
-Focus: ${focus}
+Focus: ${focus}${playbook ? `\n\nDan-style playbook to teach:\n${playbook}` : ''}
 
 Use these references only if needed:
 - ${readmePath}
@@ -42,13 +43,26 @@ Return exactly:
 5. What to remember`
 }
 
+export function buildPlaybookHint(focus: string): string {
+  const normalized = focus.toLowerCase()
+  if (!/(vibe|package|workflow|imitat|ship|release|style|playbook)/.test(normalized)) return ''
+
+  return `1. Discuss the shape, user value, and ecosystem fit before coding.
+2. Inspect real docs, examples, conventions, and repo history instead of guessing.
+3. Choose the smallest coherent package/API/product shape and name it clearly.
+4. Build the smallest useful slice, then align tests with source structure.
+5. Keep docs focused on the end user: purpose, install/use, examples, limits.
+6. Run focused checks, reject noisy overfit gates, and verify with real output.
+7. Use the cadence: list 7 next steps → go ahead → verify → confirm risky publish/push/release actions.`
+}
+
 export function isTutorSmokeMode(): boolean {
   return process.env.PI_TUTOR_SMOKE === '1'
 }
 
 export default function tutor(pi: ExtensionAPI) {
   pi.registerCommand('tutor', {
-    description: 'Teach one small Dannote-style Pi workflow lesson',
+    description: 'Teach one small Dan-style Pi workflow lesson',
     async handler(args, ctx) {
       if (isTutorSmokeMode()) {
         ctx.ui.notify(`Tutor smoke OK: ${args.trim() || 'default'}`, 'info')

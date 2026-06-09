@@ -94,4 +94,4 @@ pi --no-extensions -e extensions/tutor.ts
 
 Then run `/tutor quote`.
 
-Expected: sends a Dannote-style Pi workflow tutoring prompt, mentions `/quote`, stays advisory/read-only, and does not edit/commit/push.
+Expected: sends a Dan-style Pi workflow tutoring prompt, mentions `/quote`, stays advisory/read-only, and does not edit/commit/push.
