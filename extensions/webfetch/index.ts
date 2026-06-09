@@ -36,6 +36,16 @@ interface FetchParams {
   headers?: Record<string, string>
 }
 
+function dedupeRepeatedHeading(line: string): string {
+  const words = line.trim().split(/\s+/)
+  for (let size = 1; size <= Math.min(6, Math.floor(words.length / 2)); size++) {
+    const first = words.slice(0, size).join(' ')
+    const second = words.slice(size, size * 2).join(' ')
+    if (first === second) return words.slice(size).join(' ')
+  }
+  return line
+}
+
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024
 const MAX_OUTPUT_CHARS = 20000
 const DEFAULT_TIMEOUT = 30 * 1000
@@ -378,13 +388,13 @@ export default function (pi: ExtensionAPI) {
       const selectorInfo = details?.selector ? ` [${details.selector}]` : ''
 
       if (!expanded) {
-        const preview = lines.slice(0, 4)
+        const preview = lines.slice(0, 4).map(dedupeRepeatedHeading)
         const hiddenCount = lines.length - preview.length
         return renderLines([
           theme.fg('muted', `${sizeInfo}${truncationInfo}${redirectInfo}${selectorInfo}`.trim()),
-          ...preview.map((line) => theme.fg('muted', line)),
+          ...preview,
           ...(hiddenCount > 0
-            ? [theme.fg('muted', `  … ${hiddenCount} more lines`), expandHint(theme)]
+            ? [theme.fg('muted', `… ${hiddenCount} more lines`), expandHint(theme)]
             : [])
         ])
       }

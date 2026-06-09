@@ -14,7 +14,8 @@ export function firstText(result: AgentToolResult<unknown>, fallback = ''): stri
 }
 
 export function renderLines(lines: string[]): Component {
-  return new Text(['', ...lines].join('\n'), 0, 0)
+  const padded = lines.map((line) => (line ? `  ${line}` : ''))
+  return new Text(['', ...padded].join('\n'), 0, 0)
 }
 
 export function renderError(text: string, theme: Theme): Component {
@@ -58,9 +59,9 @@ export function renderSingleLine(text: string): Component {
 }
 
 export function expandHint(theme: Theme): string {
-  return theme.fg('muted', '  (') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
+  return theme.fg('muted', '(') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
 }
 
 export function hiddenLine(count: number, theme: Theme, unit = 'more'): string | undefined {
-  return count > 0 ? theme.fg('muted', `  … ${count} ${unit}`) : undefined
+  return count > 0 ? theme.fg('muted', `… ${count} ${unit}`) : undefined
 }

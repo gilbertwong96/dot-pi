@@ -356,7 +356,7 @@ export default function (pi: ExtensionAPI) {
 
       const hiddenResults = results.length - maxResults
       if (!expanded && (hiddenResults > 0 || textHidden)) {
-        if (hiddenResults > 0) lines.push(theme.fg('dim', `  … ${hiddenResults} more results`))
+        if (hiddenResults > 0) lines.push(theme.fg('dim', `… ${hiddenResults} more results`))
         lines.push(expandHint(theme))
       }
 

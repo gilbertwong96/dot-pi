@@ -378,7 +378,7 @@ export default function (pi: ExtensionAPI) {
         const pieces = []
         if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
         if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
-        lines.push(theme.fg('dim', `  … ${pieces.join(' · ')}`), expandHint(theme))
+        lines.push(theme.fg('dim', `… ${pieces.join(' · ')}`), expandHint(theme))
       }
 
       return renderLines(lines)

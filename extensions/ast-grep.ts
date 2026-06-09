@@ -12,7 +12,11 @@ import {
   truncateTail
 } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
-import { firstText, renderLines } from './shared/render'
+import { diffLines } from 'diff'
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import pathModule from 'path'
+import { expandHint, firstText, renderLines } from './shared/render'
 import { Type } from 'typebox'
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
@@ -37,6 +41,121 @@ Examples:
 - pattern: '$ARR.forEach(($ITEM) => { $$$BODY })' → replacement: 'for (const $ITEM of $ARR) { $$$BODY }'
 
 Use dryRun:true to preview changes without applying.`
+
+function generateDiffString(oldContent: string, newContent: string, contextLines = 4) {
+  const parts = diffLines(oldContent, newContent)
+  const output: string[] = []
+  const oldLines = oldContent.split('\n')
+  const newLines = newContent.split('\n')
+  const maxLineNum = Math.max(oldLines.length, newLines.length)
+  const lineNumWidth = String(maxLineNum).length
+  let oldLineNum = 1
+  let newLineNum = 1
+  let lastWasChange = false
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (!part) continue
+    const raw = part.value.split('\n')
+    if (raw[raw.length - 1] === '') raw.pop()
+
+    if (part.added || part.removed) {
+      for (const line of raw) {
+        if (part.added) {
+          output.push(`+${String(newLineNum).padStart(lineNumWidth, ' ')} ${line}`)
+          newLineNum++
+        } else {
+          output.push(`-${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
+          oldLineNum++
+        }
+      }
+      lastWasChange = true
+      continue
+    }
+
+    const nextPart = parts[i + 1]
+    const nextPartIsChange = Boolean(nextPart?.added || nextPart?.removed)
+    const hasLeadingChange = lastWasChange
+    const hasTrailingChange = nextPartIsChange
+
+    if (hasLeadingChange && hasTrailingChange) {
+      const shown =
+        raw.length <= contextLines * 2
+          ? raw
+          : [...raw.slice(0, contextLines), '...', ...raw.slice(-contextLines)]
+      const skipped = raw.length - shown.filter((line) => line !== '...').length
+      for (const line of shown) {
+        if (line === '...') {
+          output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
+          oldLineNum += skipped
+          newLineNum += skipped
+        } else {
+          output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
+          oldLineNum++
+          newLineNum++
+        }
+      }
+    } else if (hasLeadingChange) {
+      const shown = raw.slice(0, contextLines)
+      for (const line of shown) {
+        output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
+        oldLineNum++
+        newLineNum++
+      }
+      const skipped = raw.length - shown.length
+      if (skipped > 0) {
+        output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
+        oldLineNum += skipped
+        newLineNum += skipped
+      }
+    } else if (hasTrailingChange) {
+      const skipped = Math.max(0, raw.length - contextLines)
+      if (skipped > 0) {
+        output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
+        oldLineNum += skipped
+        newLineNum += skipped
+      }
+      for (const line of raw.slice(skipped)) {
+        output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
+        oldLineNum++
+        newLineNum++
+      }
+    } else {
+      oldLineNum += raw.length
+      newLineNum += raw.length
+    }
+    lastWasChange = false
+  }
+
+  return output.join('\n')
+}
+
+async function dryRunFileRewrite(
+  pi: Pick<ExtensionAPI, 'exec'>,
+  sourcePath: string,
+  args: string[],
+  cwd: string
+): Promise<{ cancelled?: boolean; diff?: string }> {
+  const absolutePath = pathModule.isAbsolute(sourcePath)
+    ? sourcePath
+    : pathModule.join(cwd, sourcePath)
+  const oldContent = await readFile(absolutePath, 'utf8')
+  const tempDir = await mkdtemp(pathModule.join(tmpdir(), 'dot-pi-ast-rewrite-'))
+  const tempFile = pathModule.join(tempDir, pathModule.basename(sourcePath))
+
+  try {
+    await writeFile(tempFile, oldContent)
+    const tempArgs = args.slice(0, -1).concat('-U', tempFile)
+    const result = await pi.exec('sg', tempArgs, { cwd })
+    if (result.killed) return { cancelled: true }
+
+    const newContent = await readFile(tempFile, 'utf8')
+    if (oldContent === newContent) return {}
+    return { diff: generateDiffString(oldContent, newContent) }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+}
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
@@ -131,6 +250,19 @@ export default function (pi: ExtensionAPI) {
       if (!dryRun) args.push('-U') // --update-all: apply changes in place
       args.push(path || '.')
 
+      if (dryRun && path) {
+        try {
+          const preview = await dryRunFileRewrite(pi, path, args, ctx.cwd)
+          if (preview.cancelled) {
+            return { content: [{ type: 'text', text: 'Rewrite cancelled' }], details: {} }
+          }
+          if (preview.diff) return { content: [{ type: 'text', text: preview.diff }], details: {} }
+          return { content: [{ type: 'text', text: 'No matches found' }], details: {} }
+        } catch {
+          // Fall back to ast-grep's own dry-run output for non-file paths or unexpected failures.
+        }
+      }
+
       const result = await pi.exec('sg', args, { cwd: ctx.cwd })
 
       if (result.killed) {
@@ -156,10 +288,6 @@ export default function (pi: ExtensionAPI) {
       })
       let text = truncation.content
 
-      if (dryRun) {
-        text = 'DRY RUN — changes NOT applied:\n\n' + text
-      }
-
       if (truncation.truncated) {
         text += `\n\n[Truncated: showing last ${truncation.outputLines} of ${truncation.totalLines} lines]`
       }
@@ -181,12 +309,24 @@ export default function (pi: ExtensionAPI) {
       text += theme.fg('success', `'${replacement}'`)
       if (lang) text += theme.fg('dim', ` -l ${lang}`)
       if (path) text += theme.fg('muted', ` ${path}`)
-      if (dryRun) text += theme.fg('warning', ' [dry-run]')
+      if (dryRun) text += theme.fg('muted', ' dry-run')
       return new Text(text, 0, 0)
     },
 
-    renderResult(result) {
-      return renderLines(firstText(result).trimEnd().split('\n'))
+    renderResult(result, { expanded }, theme) {
+      const text = firstText(result).trimEnd()
+      if (!expanded && /^[-+]\d+ /m.test(text)) {
+        const file = text
+          .split('\n')
+          .map((line) => line.trim())
+          .find((line) => line.startsWith('/'))
+        return renderLines([
+          theme.fg('muted', 'changes preview'),
+          ...(file ? [file] : []),
+          expandHint(theme)
+        ])
+      }
+      return renderLines(text.split('\n'))
     }
   })
 }
