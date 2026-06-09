@@ -392,10 +392,11 @@ export default function (pi: ExtensionAPI) {
       return new Text(text, 0, 0)
     },
 
-    renderResult(result, { expanded }, theme) {
+    renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as FetchDetails | undefined
 
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
+      if (isPartial) return renderLines([renderMeta(firstText(result, 'Fetching...'), theme)])
 
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''
@@ -431,7 +432,11 @@ export default function (pi: ExtensionAPI) {
         color: (text) => theme.fg('toolOutput', text)
       })
       return {
-        render: (width) => ['', renderMeta(meta, theme), '', ...markdown.render(width)],
+        render: (width) => [
+          '',
+          ...(meta ? [renderMeta(meta, theme), ''] : []),
+          ...markdown.render(width)
+        ],
         invalidate: () => markdown.invalidate()
       }
     }
