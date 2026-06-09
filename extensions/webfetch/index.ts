@@ -32,6 +32,7 @@ interface FetchDetails {
   totalChars?: number
   truncated?: boolean
   error?: boolean
+  loading?: boolean
   status?: number
   redirected?: boolean
   selector?: string
@@ -192,8 +193,8 @@ export default function (pi: ExtensionAPI) {
       const timeout = Math.min((timeoutSec ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
 
       onUpdate?.({
-        content: [{ type: 'text', text: `Fetching ${url}...` }],
-        details: {}
+        content: [],
+        details: { loading: true }
       })
 
       const controller = new AbortController()
@@ -396,7 +397,7 @@ export default function (pi: ExtensionAPI) {
       const details = result.details as FetchDetails | undefined
 
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
-      if (isPartial) return renderLines([renderMeta(firstText(result, 'Fetching...'), theme)])
+      if (isPartial) return renderLines([])
 
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''
