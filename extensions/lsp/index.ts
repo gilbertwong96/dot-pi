@@ -12,6 +12,7 @@ import {
   highlightCode
 } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
+import { expandHint, firstText, renderError, renderLines } from '../shared/render'
 import type {
   CallHierarchyIncomingCall,
   CallHierarchyItem,
@@ -500,7 +501,7 @@ export default function (pi: ExtensionAPI) {
           const resolved = resolveToCwd(target, cwd)
           const servers = getServersForFile(config, resolved)
           if (servers.length === 0) {
-            results.push(`✗ ${target}: No language server found`)
+            results.push(`${target}: no language server found`)
             continue
           }
 
@@ -558,10 +559,10 @@ export default function (pi: ExtensionAPI) {
           }
 
           if (uniqueDiagnostics.length === 0) {
-            results.push(`✓ ${relPath}: no issues`)
+            results.push(`${relPath}: no issues`)
           } else {
             const summary = formatDiagnosticsSummary(uniqueDiagnostics)
-            results.push(`✗ ${relPath}: ${summary}`)
+            results.push(`${relPath}: ${summary}`)
             for (const diag of uniqueDiagnostics) {
               results.push(`  ${formatDiagnostic(diag, relPath)}`)
             }
@@ -1134,19 +1135,10 @@ export default function (pi: ExtensionAPI) {
 
     renderResult(result, { expanded }, theme) {
       const details = result.details as LspToolDetails | undefined
-      const content = result.content?.[0]
+      const text = firstText(result)
 
-      if (!content || content.type !== 'text' || !('text' in content)) {
-        return new Text(theme.fg('error', 'No result'), 0, 0)
-      }
-
-      const text = content.text
-
-      if (!details?.success) {
-        return new Text(theme.fg('error', text), 0, 0)
-      }
-
-      const icon = theme.fg('success', '✓')
+      if (!text) return renderError('No result', theme)
+      if (!details?.success) return renderError(text, theme)
 
       // Detect language from file path
       const fileLang = details.file ? getLanguageFromPath(details.file) : undefined
@@ -1161,20 +1153,18 @@ export default function (pi: ExtensionAPI) {
         })
       }
 
-      const lines = text.split('\n')
+      const lines = formatOutput(text).split('\n')
       const PREVIEW_LINES = 8
+      const shown = expanded ? lines : lines.slice(0, PREVIEW_LINES)
+      const hiddenCount = expanded ? 0 : lines.length - shown.length
 
-      if (!expanded && lines.length > PREVIEW_LINES) {
-        const preview = lines.slice(0, PREVIEW_LINES).join('\n')
-        const hiddenCount = lines.length - PREVIEW_LINES
-        return new Text(
-          `${icon} ${theme.fg('muted', details.action)}\n${formatOutput(preview)}\n${theme.fg('dim', `... ${hiddenCount} more lines`)}`,
-          0,
-          0
-        )
-      }
-
-      return new Text(`${icon} ${theme.fg('muted', details.action)}\n${formatOutput(text)}`, 0, 0)
+      return renderLines([
+        theme.fg('muted', details.action),
+        ...shown,
+        ...(hiddenCount > 0
+          ? [theme.fg('dim', `  … ${hiddenCount} more lines`), expandHint(theme)]
+          : [])
+      ])
     }
   })
 
