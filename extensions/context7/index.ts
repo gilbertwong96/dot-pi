@@ -193,7 +193,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (!expanded && libraries.length > 1) {
-        lines.push(theme.fg('dim', `  … ${libraries.length - 1} more libraries`), expandHint(theme))
+        lines.push(theme.fg('dim', `… ${libraries.length - 1} more libraries`), expandHint(theme))
       }
 
       return renderLines(lines)

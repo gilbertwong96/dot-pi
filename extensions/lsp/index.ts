@@ -1162,7 +1162,7 @@ export default function (pi: ExtensionAPI) {
         theme.fg('muted', details.action),
         ...shown,
         ...(hiddenCount > 0
-          ? [theme.fg('dim', `  … ${hiddenCount} more lines`), expandHint(theme)]
+          ? [theme.fg('dim', `… ${hiddenCount} more lines`), expandHint(theme)]
           : [])
       ])
     }
