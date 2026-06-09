@@ -181,12 +181,13 @@ class OptionPicker {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
     const innerWidth = Math.max(32, Math.min(width, 96))
-    const lines: string[] = []
-    const add = (line: string) => lines.push(truncateToWidth(line, innerWidth))
+    const contentWidth = Math.max(1, innerWidth - 2)
+    const lines: string[] = ['']
+    const add = (line: string) => lines.push('  ' + truncateToWidth(line, contentWidth))
 
     for (const line of wrapTextWithAnsi(
       this.theme.fg('toolOutput', this.config.question),
-      innerWidth
+      contentWidth
     )) {
       add(line)
     }
@@ -202,11 +203,11 @@ class OptionPicker {
     lines.push('')
 
     for (let index = 0; index < this.config.options.length; index++) {
-      this.renderOption(index, innerWidth).forEach(add)
+      this.renderOption(index, contentWidth).forEach(add)
     }
 
     lines.push('')
-    this.renderFooter(innerWidth).forEach(add)
+    this.renderFooter(contentWidth).forEach(add)
 
     this.cachedWidth = width
     this.cachedLines = lines
