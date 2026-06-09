@@ -19,19 +19,24 @@ export function tutorWorkspaceFor(cwd: string): string {
 
 export function buildTutorPrompt(args: string, cwd = process.cwd()): string {
   const focus = args.trim() || '/next'
-  const workspace = tutorWorkspaceFor(cwd)
   const playbook = buildPlaybookHint(focus)
 
   return `Teach me one small lesson for using this Pi setup in Dan's style.
 
-Focus: ${focus}${playbook ? `\n\nDan-style playbook to teach:\n${playbook}` : ''}
+Dan-style philosophy:
+- Pi is a thinking framework, not just a coding harness.
+- Optimize the workflow intentionally instead of maintaining long plans or TODO lists.
+- Use LLM leverage especially in uncertainty: docs, architecture options, unfamiliar domains.
+- Do not delegate decisions; use the agent as a critical thinking partner.
+- Accelerate research, exploration, and judgment work, not only typing code.
+- Keep the loop mentally sustainable: short lessons, concrete next moves, no giant brainstorm dumps.
+
+Focus: ${focus}${playbook ? `\n\nFor workflow-imitation topics, cover this pattern:\n${playbook}` : ''}
 
 Use these references only if needed:
 - ${readmePath}
 - ${handbookPath}
 - ${promptsPath}
-
-Tutor notes, only if worth recording later: ${workspace}
 
 Keep it newcomer-friendly. Do not show internal scaffolding. Do not edit files, run commands, commit, or push.
 
@@ -47,11 +52,11 @@ export function buildPlaybookHint(focus: string): string {
   const normalized = focus.toLowerCase()
   if (!/(vibe|package|workflow|imitat|ship|release|style|playbook)/.test(normalized)) return ''
 
-  return `1. Discuss the shape, user value, and ecosystem fit before coding.
+  return `1. Use Pi as a thinking partner before coding: clarify uncertainty and options.
 2. Inspect real docs, examples, conventions, and repo history instead of guessing.
-3. Choose the smallest coherent package/API/product shape and name it clearly.
-4. Build the smallest useful slice, then align tests with source structure.
-5. Keep docs focused on the end user: purpose, install/use, examples, limits.
+3. Discuss shape, user value, ecosystem fit, and the smallest coherent direction.
+4. Decide explicitly; do not let the agent silently choose the product/API shape.
+5. Build the smallest useful slice, then align tests, docs, and naming.
 6. Run focused checks, reject noisy overfit gates, and verify with real output.
 7. Use the cadence: list 7 next steps → go ahead → verify → confirm risky publish/push/release actions.`
 }

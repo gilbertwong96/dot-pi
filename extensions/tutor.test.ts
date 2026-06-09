@@ -20,7 +20,7 @@ describe('buildPlaybookHint', () => {
   test('uses a general workflow playbook, not an Elixir-specific one', () => {
     const hint = buildPlaybookHint('vibe workflow')
 
-    expect(hint).toContain('Discuss the shape, user value, and ecosystem fit')
+    expect(hint).toContain('Use Pi as a thinking partner before coding')
     expect(hint).toContain('list 7 next steps')
     expect(hint).not.toContain('Elixir')
     expect(hint).not.toContain('Igniter')
@@ -33,6 +33,7 @@ describe('buildTutorPrompt', () => {
 
     expect(prompt).toContain("using this Pi setup in Dan's style")
     expect(prompt).toContain('Focus: /next')
+    expect(prompt).toContain('Pi is a thinking framework')
     expect(prompt).toContain('Keep it newcomer-friendly')
     expect(prompt).toContain('Do not show internal scaffolding')
     expect(prompt).not.toContain('Dan-style playbook to teach')
