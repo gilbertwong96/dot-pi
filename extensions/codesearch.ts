@@ -5,13 +5,16 @@
  * Returns formatted code snippets with repository info.
  */
 
-import {
-  type ExtensionAPI,
-  getLanguageFromPath,
-  highlightCode
-} from '@earendil-works/pi-coding-agent'
+import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
-import { expandHint, firstText, renderError, renderLines, renderMuted } from './shared/render'
+import {
+  firstText,
+  primary,
+  renderError,
+  renderExpandFooter,
+  renderLines,
+  renderMuted
+} from './shared/render'
 import { Type } from 'typebox'
 
 const API_URL = 'https://mcp.grep.app/'
@@ -348,7 +351,6 @@ export default function (pi: ExtensionAPI) {
       for (let i = 0; i < maxResults; i++) {
         const r = results[i]
         if (!r) continue
-        const lang = getLanguageFromPath(r.path)
         const firstSnippet = r.snippets[0]
         const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
 
@@ -366,7 +368,7 @@ export default function (pi: ExtensionAPI) {
           if (!snippet) continue
 
           lines.push(theme.fg('dim', `Line ${snippet.lineNumber}:`))
-          lines.push(...highlightCode(snippet.code, lang))
+          lines.push(...snippet.code.split('\n').map((line) => primary(line, theme)))
         }
       }
 
@@ -378,7 +380,7 @@ export default function (pi: ExtensionAPI) {
         const pieces = []
         if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
         if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
-        lines.push(theme.fg('dim', `… ${pieces.join(' · ')}`), expandHint(theme))
+        lines.push(theme.fg('dim', `… ${pieces.join(' · ')}`), ...renderExpandFooter(theme))
       }
 
       return renderLines(lines)
