@@ -14,6 +14,8 @@ function parseNextArgs(args: string): { count: string; coarse: boolean } {
 
 export function buildNextPrompt(args: string): string {
   const { count, coarse } = parseNextArgs(args)
+  if (count === '1' && !coarse) return "What's next?"
+
   const granularity = coarse
     ? ' at coarse granularity. Each step should be a meaningful work chunk, not a micro-action. Avoid routine substeps unless they are the main work item.'
     : '.'

@@ -14,6 +14,10 @@ describe('buildNextPrompt', () => {
     )
   })
 
+  test('uses a simpler prompt for one next step', () => {
+    expect(buildNextPrompt('1')).toBe("What's next?")
+  })
+
   test('supports coarse-grained next steps', () => {
     expect(buildNextPrompt('big')).toBe(
       'State briefly. List exactly 7 next steps at coarse granularity. Each step should be a meaningful work chunk, not a micro-action. Avoid routine substeps unless they are the main work item. End with best action.'
