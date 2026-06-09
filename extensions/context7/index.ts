@@ -8,7 +8,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
+import { Markdown, Text, type MarkdownTheme } from '@earendil-works/pi-tui'
 import {
   firstText,
   meta as renderMeta,
@@ -55,6 +55,52 @@ interface DocsDetails {
   libraryId: string
   error?: boolean
   empty?: boolean
+}
+
+function docsMarkdownTheme(theme: Parameters<typeof title>[1]): MarkdownTheme {
+  return {
+    heading: (text) => title(text, theme),
+    link: (text) => primary(text, theme),
+    linkUrl: (text) => renderMeta(text, theme),
+    code: (text) => theme.fg('accent', text),
+    codeBlock: (text) => primary(text, theme),
+    codeBlockBorder: (text) => renderMeta(text, theme),
+    quote: (text) => primary(text, theme),
+    quoteBorder: (text) => renderMeta(text, theme),
+    hr: (text) => renderMeta(text, theme),
+    listBullet: (text) => renderMeta(text, theme),
+    bold: (text) => theme.bold(text),
+    italic: (text) => text,
+    strikethrough: (text) => text,
+    underline: (text) => theme.underline(text),
+    codeBlockIndent: ''
+  }
+}
+
+function compactDocsPreview(markdown: string): { lines: string[]; hidden: number } {
+  const lines: string[] = []
+  let inFence = false
+
+  for (const rawLine of markdown.split('\n')) {
+    const trimmed = rawLine.trim()
+    if (!trimmed || trimmed === '--------------------------------') continue
+
+    if (trimmed.startsWith('```')) {
+      inFence = !inFence
+      continue
+    }
+
+    const cleaned = trimmed.replace(/^###\s+/, '').replace(/^Source:\s+/, 'Source: ')
+    lines.push(inFence ? rawLine.replace(/\s+$/u, '') : cleaned)
+    if (lines.length >= 8) break
+  }
+
+  const totalMeaningful = markdown.split('\n').filter((line) => {
+    const trimmed = line.trim()
+    return trimmed && trimmed !== '--------------------------------' && !trimmed.startsWith('```')
+  }).length
+
+  return { lines, hidden: Math.max(0, totalMeaningful - lines.length) }
 }
 
 async function searchLibrary(
@@ -272,17 +318,20 @@ export default function (pi: ExtensionAPI) {
       if (details.empty) return renderMuted('No docs found', theme)
       const text = result.content[0]
       const docs = text?.type === 'text' ? text.text : ''
-      const allLines = docs.split('\n').filter((line) => line.trim())
-      const displayLines = expanded ? allLines : allLines.slice(0, 6)
-      const lines = displayLines.map((line) => {
-        if (line.startsWith('### ')) return title(line.replace(/^###\s+/, ''), theme)
+      if (expanded) {
+        return new Markdown(docs.trim(), 0, 1, docsMarkdownTheme(theme), {
+          color: (text) => theme.fg('toolOutput', text)
+        })
+      }
+
+      const preview = compactDocsPreview(docs)
+      const lines = preview.lines.map((line) => {
         if (line.startsWith('Source: ')) return renderMeta(line, theme)
-        if (line.startsWith('```')) return renderMeta(line, theme)
         return primary(line, theme)
       })
-      if (!expanded && allLines.length > displayLines.length) {
+      if (preview.hidden > 0) {
         lines.push(
-          renderMeta(`… ${allLines.length - displayLines.length} more lines`, theme),
+          renderMeta(`… ${preview.hidden} more lines`, theme),
           ...renderExpandFooter(theme)
         )
       }
