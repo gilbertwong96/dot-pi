@@ -7,10 +7,11 @@
  */
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
+import { Markdown, Text } from '@earendil-works/pi-tui'
 import {
   firstText,
   meta as renderMeta,
+  nativeMarkdownTheme,
   primary,
   renderError,
   renderExpandFooter,
@@ -426,7 +427,13 @@ export default function (pi: ExtensionAPI) {
         ])
       }
 
-      return renderLines(fullText.split('\n'))
+      const markdown = new Markdown(fullText.trim(), 0, 0, nativeMarkdownTheme(theme), {
+        color: (text) => theme.fg('toolOutput', text)
+      })
+      return {
+        render: (width) => ['', renderMeta(meta, theme), '', ...markdown.render(width)],
+        invalidate: () => markdown.invalidate()
+      }
     }
   })
 }

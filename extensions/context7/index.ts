@@ -8,7 +8,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Markdown, Text, type MarkdownTheme } from '@earendil-works/pi-tui'
+import { Markdown, Text } from '@earendil-works/pi-tui'
 import {
   firstText,
   meta as renderMeta,
@@ -17,7 +17,8 @@ import {
   renderExpandFooter,
   renderLines,
   renderMuted,
-  title
+  title,
+  nativeMarkdownTheme
 } from '../shared/render'
 import { Type } from 'typebox'
 
@@ -55,26 +56,6 @@ interface DocsDetails {
   libraryId: string
   error?: boolean
   empty?: boolean
-}
-
-function docsMarkdownTheme(theme: Parameters<typeof title>[1]): MarkdownTheme {
-  return {
-    heading: (text) => title(text, theme),
-    link: (text) => primary(text, theme),
-    linkUrl: (text) => renderMeta(text, theme),
-    code: (text) => theme.fg('accent', text),
-    codeBlock: (text) => primary(text, theme),
-    codeBlockBorder: (text) => renderMeta(text, theme),
-    quote: (text) => primary(text, theme),
-    quoteBorder: (text) => renderMeta(text, theme),
-    hr: (text) => renderMeta(text, theme),
-    listBullet: (text) => renderMeta(text, theme),
-    bold: (text) => theme.bold(text),
-    italic: (text) => text,
-    strikethrough: (text) => text,
-    underline: (text) => theme.underline(text),
-    codeBlockIndent: ''
-  }
 }
 
 function compactDocsPreview(markdown: string): { lines: string[]; hidden: number } {
@@ -319,7 +300,7 @@ export default function (pi: ExtensionAPI) {
       const text = result.content[0]
       const docs = text?.type === 'text' ? text.text : ''
       if (expanded) {
-        return new Markdown(docs.trim(), 0, 1, docsMarkdownTheme(theme), {
+        return new Markdown(docs.trim(), 0, 1, nativeMarkdownTheme(theme), {
           color: (text) => theme.fg('toolOutput', text)
         })
       }

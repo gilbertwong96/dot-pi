@@ -1,5 +1,5 @@
 import { rawKeyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
-import { Text, visibleWidth, type Component } from '@earendil-works/pi-tui'
+import { Text, visibleWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
 
 export function resultText(result: AgentToolResult<unknown>): string {
   return result.content
@@ -36,6 +36,26 @@ export function primary(text: string, theme: Theme): string {
 
 export function title(text: string, theme: Theme): string {
   return theme.fg('toolOutput', theme.bold(text))
+}
+
+export function nativeMarkdownTheme(theme: Theme): MarkdownTheme {
+  return {
+    heading: (text) => title(text, theme),
+    link: (text) => primary(text, theme),
+    linkUrl: (text) => meta(text, theme),
+    code: (text) => theme.fg('accent', text),
+    codeBlock: (text) => primary(text, theme),
+    codeBlockBorder: (text) => meta(text, theme),
+    quote: (text) => primary(text, theme),
+    quoteBorder: (text) => meta(text, theme),
+    hr: (text) => meta(text, theme),
+    listBullet: (text) => meta(text, theme),
+    bold: (text) => theme.bold(text),
+    italic: (text) => text,
+    strikethrough: (text) => text,
+    underline: (text) => theme.underline(text),
+    codeBlockIndent: ''
+  }
 }
 
 export function renderExpandFooter(theme: Theme): string[] {
