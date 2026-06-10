@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
-import { Key, matchesKey, Text, truncateToWidth } from '@earendil-works/pi-tui'
+import { Key, matchesKey, SelectList, Text, truncateToWidth } from '@earendil-works/pi-tui'
 import { renderLines } from './shared/render'
 import { Type } from 'typebox'
 
@@ -319,33 +319,39 @@ function renderChoiceRows(
   theme: Theme,
   options: { width?: number; footer: boolean }
 ): string[] {
-  const contentWidth = Math.max(20, (options.width ?? 100) - 4)
-  const lines: string[] = []
-  const visible = visibleOptionIndexes(config, state)
-  for (const index of visible) {
-    lines.push(`  ${renderChoiceOption(config, state, theme, index, contentWidth)}`)
-  }
-  if (options.footer) lines.push(`  ${renderChoiceFooter(config, state, theme, contentWidth)}`)
+  const width = options.width ?? 100
+  const items = config.options.map((option, index) => {
+    const selected = state.selected.has(index)
+    const number = selected
+      ? theme.fg('accent', `${index + 1}`)
+      : theme.fg('toolOutput', `${index + 1}`)
+    const marker = selected ? theme.fg('muted', ' selected') : ''
+    return {
+      value: String(index),
+      label: `${number} ${option.label}${marker}`,
+      description: option.description
+    }
+  })
+
+  const list = new SelectList(items, MAX_VISIBLE_OPTIONS, selectListTheme(theme), {
+    minPrimaryColumnWidth: 28,
+    maxPrimaryColumnWidth: 48
+  })
+  list.setSelectedIndex(state.optionIndex)
+
+  const lines = list.render(width)
+  if (options.footer) lines.push(renderChoiceFooter(config, state, theme, width))
   return lines
 }
 
-function renderChoiceOption(
-  config: PickerConfig,
-  state: ChooserState,
-  theme: Theme,
-  index: number,
-  width: number
-): string {
-  const option = config.options[index]
-  const current = index === state.optionIndex
-  const selected = state.selected.has(index)
-  const cursor = current ? theme.fg('accent', '→') : selected ? theme.fg('accent', '•') : ' '
-  const number = selected ? theme.fg('accent', `${index + 1}`) : theme.fg('muted', `${index + 1}`)
-  const label = current ? theme.fg('accent', option.label) : theme.fg('toolOutput', option.label)
-  const selectedText = selected ? theme.fg('muted', ' selected') : ''
-  const description = option.description ? theme.fg('muted', `  ${option.description}`) : ''
-
-  return truncateToWidth(`${cursor} ${number}  ${label}${selectedText}${description}`, width)
+function selectListTheme(theme: Theme) {
+  return {
+    selectedPrefix: (text: string) => theme.fg('accent', text),
+    selectedText: (text: string) => theme.fg('accent', text),
+    description: (text: string) => theme.fg('muted', text),
+    scrollInfo: (text: string) => theme.fg('muted', text),
+    noMatch: (text: string) => theme.fg('muted', text)
+  }
 }
 
 function renderChoiceFooter(
@@ -358,17 +364,9 @@ function renderChoiceFooter(
   const position = `${state.optionIndex + 1}/${total}`
   const action = currentAction(config, state)
   return truncateToWidth(
-    theme.fg('dim', `(${position}) ${action} · Enter confirm · Esc cancel · type comment`),
+    theme.fg('dim', `  (${position}) ${action} · Enter confirm · Esc cancel · type comment`),
     width
   )
-}
-
-function visibleOptionIndexes(config: PickerConfig, state: ChooserState): number[] {
-  const total = config.options.length
-  if (total <= MAX_VISIBLE_OPTIONS) return [...Array(total).keys()]
-  const half = Math.floor(MAX_VISIBLE_OPTIONS / 2)
-  const start = Math.max(0, Math.min(total - MAX_VISIBLE_OPTIONS, state.optionIndex - half))
-  return [...Array(MAX_VISIBLE_OPTIONS).keys()].map((offset) => start + offset)
 }
 
 function move(config: PickerConfig, state: ChooserState, delta: number): void {
