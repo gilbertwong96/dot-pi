@@ -148,19 +148,6 @@ const MAX_VISIBLE_OPTIONS = 5
 const NONE_OPTION_LABEL = 'None of these'
 const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
 
-const MAC_OPTION_DIGITS = new Map([
-  ['¡', 0],
-  ['™', 1],
-  ['£', 2],
-  ['¢', 3],
-  ['∞', 4],
-  ['§', 5],
-  ['¶', 6],
-  ['•', 7],
-  ['ª', 8],
-  ['º', 9]
-])
-
 type AltBaseKey = Parameters<typeof Key.alt>[0]
 
 function altKey(key: string) {
@@ -282,13 +269,6 @@ function runNativeEditorChooser(
         return { consume: true }
       }
 
-      const macOptionIndex = MAC_OPTION_DIGITS.get(data)
-      if (macOptionIndex !== undefined && macOptionIndex < optionCount(config)) {
-        toggleIndex(config, state, macOptionIndex)
-        refresh()
-        return { consume: true }
-      }
-
       for (let index = 0; index < Math.min(9, optionCount(config)); index++) {
         if (matchesKey(data, altKey(String(index + 1)))) {
           toggleIndex(config, state, index)
@@ -380,7 +360,10 @@ function renderChoiceFooter(
   const position = `${state.optionIndex + 1}/${total}`
   const action = currentAction(config, state)
   return truncateToWidth(
-    theme.fg('dim', `  (${position}) ${action} · Enter confirm · Esc cancel · type comment`),
+    theme.fg(
+      'dim',
+      `  (${position}) ${action} · ↑↓ select · Enter confirm · Esc cancel · type 2 + comment`
+    ),
     width
   )
 }
