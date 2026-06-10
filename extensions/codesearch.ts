@@ -367,8 +367,14 @@ export default function (pi: ExtensionAPI) {
           const snippet = r.snippets[j]
           if (!snippet) continue
 
-          lines.push(theme.fg('dim', `Line ${snippet.lineNumber}:`))
-          lines.push(...snippet.code.split('\n').map((line) => primary(line, theme)))
+          const codeLines = snippet.code.split('\n')
+          const lineNumberWidth = String(snippet.lineNumber + codeLines.length - 1).length
+          lines.push(
+            ...codeLines.map((line, offset) => {
+              const lineNumber = String(snippet.lineNumber + offset).padStart(lineNumberWidth, ' ')
+              return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
+            })
+          )
         }
       }
 
