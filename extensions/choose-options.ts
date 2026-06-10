@@ -51,15 +51,15 @@ const ParamsSchema = Type.Object({
   actions: Type.Optional(
     Type.Array(Type.String(), {
       description:
-        'Available intents for the selected options. Defaults to Do selected, Discuss selected, Explain selected.'
+        'End-user action labels for what to do with the selected option. Customize for the situation, e.g. ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"]. Defaults to Proceed, Discuss first, Explain.'
     })
   ),
   defaultAction: Type.Optional(Type.String({ description: 'Initially selected action label' }))
 })
 
-const DEFAULT_ACTIONS = ['Do selected', 'Discuss selected', 'Explain selected']
+const DEFAULT_ACTIONS = ['Proceed', 'Discuss first', 'Explain']
 const SYSTEM_HINT =
-  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers.'
+  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers. Customize action labels to fit the moment, for example ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"].'
 
 export function formatChoiceResult(result: ChooseResult): string {
   if (result.cancelled) return 'User cancelled option selection.'
@@ -83,7 +83,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
     name: 'choose_from_options',
     label: 'Choose Options',
     description:
-      "Ask the user to choose from an option list. Use after presenting numbered options, next steps, alternatives, plans, or actions when you need the user's choice before continuing.",
+      "Ask the user to choose from an option list. Use after presenting options, next steps, alternatives, plans, fixes, or actions when you need the user's choice before continuing. Provide user-facing action labels when useful, e.g. actions: ['Apply fix', 'Show diff first', 'Skip'] or ['Proceed', 'Discuss first', 'Explain'].",
     parameters: ParamsSchema,
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
