@@ -147,8 +147,19 @@ const WIDGET_KEY = 'choose-from-options'
 const MAX_VISIBLE_OPTIONS = 5
 const NONE_OPTION_LABEL = 'None of these'
 const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
+const ACTIVE_CHOOSER_TOKEN_KEY = Symbol.for('dot-pi.choose-options.active-token')
 
-let activeChooserToken: symbol | undefined
+type ChooseGlobalState = typeof globalThis & {
+  [ACTIVE_CHOOSER_TOKEN_KEY]?: symbol
+}
+
+function getActiveChooserToken(): symbol | undefined {
+  return (globalThis as ChooseGlobalState)[ACTIVE_CHOOSER_TOKEN_KEY]
+}
+
+function setActiveChooserToken(token: symbol | undefined): void {
+  ;(globalThis as ChooseGlobalState)[ACTIVE_CHOOSER_TOKEN_KEY] = token
+}
 
 type AltBaseKey = Parameters<typeof Key.alt>[0]
 
@@ -172,13 +183,13 @@ function runNativeEditorChooser(
   let unsubscribeInput: (() => void) | undefined
   let finished = false
   const chooserToken = Symbol('choose-from-options')
-  activeChooserToken = chooserToken
+  setActiveChooserToken(chooserToken)
 
   return new Promise((resolve) => {
     const cleanup = () => {
       signal?.removeEventListener('abort', abort)
       unsubscribeInput?.()
-      if (activeChooserToken === chooserToken) activeChooserToken = undefined
+      if (getActiveChooserToken() === chooserToken) setActiveChooserToken(undefined)
       ctx.ui.setWidget(WIDGET_KEY, undefined)
     }
 
@@ -217,7 +228,7 @@ function runNativeEditorChooser(
     )
 
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
-      if (activeChooserToken !== chooserToken) return undefined
+      if (getActiveChooserToken() !== chooserToken) return undefined
       if (matchesKey(data, Key.enter)) {
         finish(false)
         return { consume: true }
