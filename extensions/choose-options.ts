@@ -69,7 +69,7 @@ export function formatChoiceResult(result: ChooseResult): string {
     .join('\n')
   const comment = result.comment ? `\n\nComment:\n${result.comment}` : ''
 
-  return `User chose action: ${result.action}\n\nSelected options:\n${selected || '(none)'}${comment}\n\nContinue according to the chosen action. Do not act on unselected options.`
+  return `User chose action: ${result.action}\n\nSelected options:\n${selected || NONE_OPTION_LABEL}${comment}\n\nContinue according to the chosen action. Do not act on unselected options.`
 }
 
 export default function chooseOptions(pi: ExtensionAPI) {
