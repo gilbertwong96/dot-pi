@@ -8,6 +8,8 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
 import {
+  appendEntryBlock,
+  appendFooter,
   firstText,
   meta as renderMeta,
   primary,
@@ -338,31 +340,31 @@ export default function (pi: ExtensionAPI) {
         const r = results[i]
         if (!r) continue
 
-        if (lines.length > 0) lines.push('')
-        lines.push(title(r.title, theme))
-
         let metadata = renderMeta(theme.underline(r.url), theme)
         if (r.author) metadata += renderMeta(` · ${r.author}`, theme)
         if (r.publishedDate) metadata += renderMeta(` · ${r.publishedDate.split('T')[0]}`, theme)
-        lines.push(metadata)
 
+        const body: string[] = []
         const previewText = r.summary || r.highlights?.[0]
         if (expanded) {
-          if (r.summary || r.text) lines.push('')
-          if (r.summary) lines.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
-          if (r.text) lines.push(primary(r.text, theme))
+          if (r.summary) body.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
+          if (r.text) body.push(primary(r.text, theme))
         } else if (previewText) {
           textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
-          lines.push('', primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
+          body.push(primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
         } else if (r.text) {
           textHidden = true
         }
+
+        appendEntryBlock(lines, { header: title(r.title, theme), metadata, body })
       }
 
       const hiddenResults = results.length - maxResults
       if (!expanded && (hiddenResults > 0 || textHidden)) {
-        if (hiddenResults > 0) lines.push(renderMeta(`… ${hiddenResults} more results`, theme))
-        lines.push(...renderExpandFooter(theme))
+        appendFooter(lines, [
+          ...(hiddenResults > 0 ? [renderMeta(`… ${hiddenResults} more results`, theme)] : []),
+          ...renderExpandFooter(theme)
+        ])
       }
 
       return renderLines(lines)

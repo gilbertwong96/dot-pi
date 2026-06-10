@@ -8,6 +8,8 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Text } from '@earendil-works/pi-tui'
 import {
+  appendEntryBlock,
+  appendFooter,
   firstText,
   primary,
   renderError,
@@ -352,30 +354,30 @@ export default function (pi: ExtensionAPI) {
         const firstSnippet = r.snippets[0]
         const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
 
-        if (lines.length > 0) lines.push('')
-        lines.push(
+        const header =
           theme.fg('accent', r.repo) +
-            theme.fg('dim', ' · ') +
-            theme.fg('muted', expanded ? r.path : location) +
-            (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
-        )
+          theme.fg('dim', ' · ') +
+          theme.fg('muted', expanded ? r.path : location) +
+          (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
 
+        const body: string[] = []
         const maxSnippets = expanded ? r.snippets.length : 0
-        if (maxSnippets > 0) lines.push('')
         for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
           const snippet = r.snippets[j]
           if (!snippet) continue
-          if (j > 0) lines.push('')
+          if (j > 0) body.push('')
 
           const codeLines = snippet.code.split('\n')
           const lineNumberWidth = String(snippet.lineNumber + codeLines.length - 1).length
-          lines.push(
+          body.push(
             ...codeLines.map((line, offset) => {
               const lineNumber = String(snippet.lineNumber + offset).padStart(lineNumberWidth, ' ')
               return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
             })
           )
         }
+
+        appendEntryBlock(lines, { header, body })
       }
 
       const hiddenResults = results.length - maxResults
@@ -386,7 +388,10 @@ export default function (pi: ExtensionAPI) {
         const pieces = []
         if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
         if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
-        lines.push(theme.fg('dim', `… ${pieces.join(' · ')}`), ...renderExpandFooter(theme))
+        appendFooter(lines, [
+          theme.fg('dim', `… ${pieces.join(' · ')}`),
+          ...renderExpandFooter(theme)
+        ])
       }
 
       return renderLines(lines)

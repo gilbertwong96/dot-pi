@@ -62,6 +62,38 @@ export function renderExpandFooter(theme: Theme): string[] {
   return ['', expandHint(theme)]
 }
 
+export interface ResultEntryBlock {
+  header: string
+  metadata?: string
+  body?: string[]
+}
+
+/**
+ * Append a native-style multi-entry result block:
+ *
+ *   header
+ *   metadata
+ *
+ *   body
+ *
+ * Multiple entries are separated by one blank line. Metadata and body are
+ * separated by one blank line so content does not visually merge with paths.
+ */
+export function appendEntryBlock(lines: string[], entry: ResultEntryBlock): void {
+  if (lines.length > 0) lines.push('')
+  lines.push(entry.header)
+  if (entry.metadata) lines.push(entry.metadata)
+  if (entry.body?.length) lines.push('', ...entry.body)
+}
+
+export function appendFooter(lines: string[], footer: string[]): void {
+  if (footer.length === 0) return
+  const normalized = footer[0] === '' ? footer.slice(1) : footer
+  if (normalized.length === 0) return
+  if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('')
+  lines.push(...normalized)
+}
+
 export function renderError(text: string, theme: Theme): Component {
   return renderLines([theme.fg('error', text || 'Error')])
 }
