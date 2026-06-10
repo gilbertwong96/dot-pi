@@ -1,9 +1,4 @@
-import type {
-  AgentToolUpdateCallback,
-  ExtensionAPI,
-  ExtensionContext,
-  Theme
-} from '@earendil-works/pi-coding-agent'
+import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
 import { Key, matchesKey, Text, truncateToWidth } from '@earendil-works/pi-tui'
 import { renderLines } from './shared/render'
 import { Type } from 'typebox'
@@ -106,8 +101,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
           defaultActionIndex
         },
         ctx,
-        signal,
-        _onUpdate
+        signal
       )
 
       return {
@@ -149,7 +143,6 @@ export default function chooseOptions(pi: ExtensionAPI) {
     renderResult(result, _options, theme) {
       const details = result.details as ChooseResult | undefined
       if (!details) return renderLines([])
-      if (details.active) return renderActiveChooser(details, theme)
       if (details.cancelled) return renderLines([theme.fg('warning', 'Cancelled')])
       const selected = details.selectedIndexes
         .map((index) => details.options[index]?.label)
@@ -170,6 +163,7 @@ type ChooserState = {
   selected: Set<number>
 }
 
+const WIDGET_KEY = 'choose-from-options'
 const MAX_VISIBLE_OPTIONS = 5
 
 type AltBaseKey = Parameters<typeof Key.alt>[0]
@@ -181,8 +175,7 @@ function altKey(key: string) {
 function runNativeEditorChooser(
   config: PickerConfig,
   ctx: ExtensionContext,
-  signal?: AbortSignal,
-  onUpdate?: AgentToolUpdateCallback<ChooseResult>
+  signal?: AbortSignal
 ): Promise<ChooseResult> {
   const state: ChooserState = {
     optionIndex: 0,
@@ -190,6 +183,8 @@ function runNativeEditorChooser(
     selected: new Set([0])
   }
 
+  let requestRender = () => {}
+  let widget: MinimalChooseWidget | undefined
   let unsubscribeInput: (() => void) | undefined
   let finished = false
   let lastNavigation: { key: string; at: number } | undefined
@@ -198,13 +193,12 @@ function runNativeEditorChooser(
     const cleanup = () => {
       signal?.removeEventListener('abort', abort)
       unsubscribeInput?.()
+      ctx.ui.setWidget(WIDGET_KEY, undefined)
     }
 
-    const emitUpdate = () => {
-      onUpdate?.({
-        content: [{ type: 'text', text: '' }],
-        details: currentResult(config, state, false, undefined, true)
-      })
+    const refresh = () => {
+      widget?.invalidate()
+      requestRender()
     }
 
     const finish = (cancelled: boolean) => {
@@ -226,7 +220,15 @@ function runNativeEditorChooser(
     if (signal?.aborted) return abort()
     signal?.addEventListener('abort', abort, { once: true })
 
-    emitUpdate()
+    ctx.ui.setWidget(
+      WIDGET_KEY,
+      (tui, theme) => {
+        widget = new MinimalChooseWidget(config, state, theme)
+        requestRender = () => tui.requestRender()
+        return widget
+      },
+      { placement: 'belowEditor' }
+    )
 
     const shouldHandleNavigation = (key: string) => {
       const now = Date.now()
@@ -247,54 +249,54 @@ function runNativeEditorChooser(
       if (matchesKey(data, Key.up)) {
         if (!shouldHandleNavigation('up')) return { consume: true }
         move(config, state, -1)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.down)) {
         if (!shouldHandleNavigation('down')) return { consume: true }
         move(config, state, 1)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
         if (!shouldHandleNavigation('action-next')) return { consume: true }
         cycleAction(config, state, 1)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.left)) {
         if (!shouldHandleNavigation('action-prev')) return { consume: true }
         cycleAction(config, state, -1)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.alt('a'))) {
         selectAll(config, state)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.alt('n'))) {
         selectOnlyCurrent(state)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.alt(Key.space))) {
         toggleCurrent(config, state)
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
 
       const actionIndex = actionShortcutIndex(config, data)
       if (actionIndex !== undefined) {
         state.actionIndex = actionIndex
-        emitUpdate()
+        refresh()
         return { consume: true }
       }
 
       for (let index = 0; index < Math.min(9, config.options.length); index++) {
         if (matchesKey(data, altKey(String(index + 1)))) {
           toggleIndex(config, state, index)
-          emitUpdate()
+          refresh()
           return { consume: true }
         }
       }
@@ -302,23 +304,6 @@ function runNativeEditorChooser(
       return undefined
     })
   })
-}
-
-function renderActiveChooser(details: ChooseResult, theme: Theme) {
-  const selected = new Set(details.selectedIndexes)
-  const config: PickerConfig = {
-    question: details.question,
-    options: details.options,
-    actions: [details.action || DEFAULT_ACTIONS[0]],
-    allowMultiple: true,
-    defaultActionIndex: 0
-  }
-  const state: ChooserState = {
-    optionIndex: details.optionIndex ?? details.selectedIndexes[0] ?? 0,
-    actionIndex: 0,
-    selected
-  }
-  return new MinimalChooseWidget(config, state, theme)
 }
 
 class MinimalChooseWidget {
