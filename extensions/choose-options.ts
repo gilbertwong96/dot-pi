@@ -1,5 +1,5 @@
-import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
-import { Key, matchesKey, Text, truncateToWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
+import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
+import { Key, matchesKey, Text, truncateToWidth } from '@earendil-works/pi-tui'
 import { renderLines } from './shared/render'
 import { Type } from 'typebox'
 
@@ -13,6 +13,7 @@ type ChooseResult = {
   action: string
   options: Option[]
   selectedIndexes: number[]
+  comment?: string
   cancelled: boolean
 }
 
@@ -57,8 +58,9 @@ export function formatChoiceResult(result: ChooseResult): string {
   const selected = result.selectedIndexes
     .map((index) => `${index + 1}. ${result.options[index]?.label ?? '(missing option)'}`)
     .join('\n')
+  const comment = result.comment ? `\n\nComment:\n${result.comment}` : ''
 
-  return `User chose action: ${result.action}\n\nSelected options:\n${selected}\n\nContinue according to the chosen action. Do not act on unselected options.`
+  return `User chose action: ${result.action}\n\nSelected options:\n${selected}${comment}\n\nContinue according to the chosen action. Do not act on unselected options.`
 }
 
 export default function chooseOptions(pi: ExtensionAPI) {
@@ -75,9 +77,10 @@ export default function chooseOptions(pi: ExtensionAPI) {
       "Ask the user to choose from an option list. Use after presenting numbered options, next steps, alternatives, plans, or actions when you need the user's choice before continuing.",
     parameters: ParamsSchema,
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const options = params.options
-      if (!ctx.hasUI) return errorResult('Error: UI not available', params.question, options)
+      if (ctx.mode !== 'tui')
+        return errorResult('Error: UI not available', params.question, options)
       if (options.length === 0)
         return errorResult('Error: No options provided', params.question, [])
 
@@ -87,20 +90,16 @@ export default function chooseOptions(pi: ExtensionAPI) {
         actions.indexOf(params.defaultAction ?? actions[0] ?? '')
       )
 
-      const result = await ctx.ui.custom<ChooseResult>(
-        (tui, theme, _kb, done) =>
-          new OptionPicker(
-            {
-              question: params.question,
-              options,
-              actions,
-              allowMultiple: params.allowMultiple !== false,
-              defaultActionIndex
-            },
-            theme,
-            () => tui.requestRender(),
-            done
-          )
+      const result = await runNativeEditorChooser(
+        {
+          question: params.question,
+          options,
+          actions,
+          allowMultiple: params.allowMultiple !== false,
+          defaultActionIndex
+        },
+        ctx,
+        signal
       )
 
       return {
@@ -127,87 +126,175 @@ export default function chooseOptions(pi: ExtensionAPI) {
         .map((index) => details.options[index]?.label)
         .filter(Boolean)
         .join(', ')
+      const comment = details.comment ? ` · ${details.comment}` : ''
       return renderLines([
-        theme.fg('toolOutput', details.action) + theme.fg('muted', selected ? ` · ${selected}` : '')
+        theme.fg('toolOutput', details.action) +
+          theme.fg('muted', `${selected ? ` · ${selected}` : ''}${comment}`)
       ])
     }
   })
 }
 
-class OptionPicker {
-  private optionIndex = 0
-  private actionIndex: number
-  private numberMode = false
-  private numberBuffer = ''
-  private selected = new Set<number>([0])
+type ChooserState = {
+  optionIndex: number
+  actionIndex: number
+  selected: Set<number>
+}
+
+const WIDGET_KEY = 'choose-from-options'
+const MAX_VISIBLE_OPTIONS = 5
+
+type AltBaseKey = Parameters<typeof Key.alt>[0]
+
+function altKey(key: string) {
+  return Key.alt(key as AltBaseKey)
+}
+
+function runNativeEditorChooser(
+  config: PickerConfig,
+  ctx: ExtensionContext,
+  signal?: AbortSignal
+): Promise<ChooseResult> {
+  const state: ChooserState = {
+    optionIndex: 0,
+    actionIndex: config.defaultActionIndex,
+    selected: new Set([0])
+  }
+
+  let requestRender = () => {}
+  let widget: MinimalChooseWidget | undefined
+  let unsubscribeInput: (() => void) | undefined
+  let finished = false
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      signal?.removeEventListener('abort', abort)
+      unsubscribeInput?.()
+      ctx.ui.setWidget(WIDGET_KEY, undefined)
+    }
+
+    const refresh = () => {
+      widget?.invalidate()
+      requestRender()
+    }
+
+    const finish = (cancelled: boolean) => {
+      if (finished) return
+      finished = true
+      const editorText = ctx.ui.getEditorText().trim()
+      const parsed = cancelled
+        ? { selectedIndexes: sortedSelection(state.selected), comment: undefined }
+        : parseEditorChoice(editorText, state.selected, config.options.length)
+
+      if (!cancelled) ctx.ui.setEditorText('')
+      cleanup()
+      resolve({
+        question: config.question,
+        action: currentAction(config, state),
+        options: config.options,
+        selectedIndexes: parsed.selectedIndexes,
+        comment: parsed.comment,
+        cancelled
+      })
+    }
+
+    const abort = () => finish(true)
+    if (signal?.aborted) return abort()
+    signal?.addEventListener('abort', abort, { once: true })
+
+    ctx.ui.setWidget(
+      WIDGET_KEY,
+      (tui, theme) => {
+        widget = new MinimalChooseWidget(config, state, theme)
+        requestRender = () => tui.requestRender()
+        return widget
+      },
+      { placement: 'aboveEditor' }
+    )
+
+    unsubscribeInput = ctx.ui.onTerminalInput((data) => {
+      if (matchesKey(data, Key.enter)) {
+        finish(false)
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.escape)) {
+        finish(true)
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.up)) {
+        move(config, state, -1)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.down)) {
+        move(config, state, 1)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
+        cycleAction(config, state, 1)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.left)) {
+        cycleAction(config, state, -1)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.alt('a'))) {
+        selectAll(config, state)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.alt('n'))) {
+        selectOnlyCurrent(state)
+        refresh()
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.alt(Key.space))) {
+        toggleCurrent(config, state)
+        refresh()
+        return { consume: true }
+      }
+
+      const actionIndex = actionShortcutIndex(config, data)
+      if (actionIndex !== undefined) {
+        state.actionIndex = actionIndex
+        refresh()
+        return { consume: true }
+      }
+
+      for (let index = 0; index < Math.min(9, config.options.length); index++) {
+        if (matchesKey(data, altKey(String(index + 1)))) {
+          toggleIndex(config, state, index)
+          refresh()
+          return { consume: true }
+        }
+      }
+
+      return undefined
+    })
+  })
+}
+
+class MinimalChooseWidget {
   private cachedWidth?: number
   private cachedLines?: string[]
 
   constructor(
     private config: PickerConfig,
-    private theme: Theme,
-    private requestRender: () => void,
-    private done: (result: ChooseResult) => void
-  ) {
-    this.actionIndex = config.defaultActionIndex
-  }
-
-  handleInput(data: string): void {
-    if (this.numberMode) {
-      this.handleNumberModeInput(data)
-      return
-    }
-
-    if (matchesKey(data, Key.escape)) return this.finish(true)
-    if (matchesKey(data, Key.enter)) return this.finish(false)
-
-    if (matchesKey(data, Key.up)) return this.move(-1)
-    if (matchesKey(data, Key.down)) return this.move(1)
-    if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) return this.cycleAction(1)
-    if (matchesKey(data, Key.left)) return this.cycleAction(-1)
-
-    if (matchesKey(data, Key.space) || data === ' ') return this.toggleCurrent()
-    if (data === 'a') return this.selectAll()
-    if (data === 'n') return this.selectOnlyCurrent()
-    if (data === 'g') return this.startNumberMode()
-
-    if (/^[1-9]$/.test(data)) {
-      const index = Number(data) - 1
-      if (index < this.config.options.length) this.toggleIndex(index)
-    }
-  }
+    private state: ChooserState,
+    private theme: Theme
+  ) {}
 
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
-    const innerWidth = Math.max(32, Math.min(width, 96))
-    const contentWidth = Math.max(1, innerWidth - 2)
-    const lines: string[] = ['']
-    const add = (line: string) => lines.push('  ' + truncateToWidth(line, contentWidth))
-
-    for (const line of wrapTextWithAnsi(
-      this.theme.fg('toolOutput', this.config.question),
-      contentWidth
-    )) {
-      add(line)
-    }
-
-    const actions = this.config.actions
-      .map((action, index) =>
-        index === this.actionIndex
-          ? this.theme.fg('accent', this.theme.bold(action))
-          : this.theme.fg('muted', action)
-      )
-      .join(this.theme.fg('muted', ' / '))
-    add(actions)
-    lines.push('')
-
-    for (let index = 0; index < this.config.options.length; index++) {
-      this.renderOption(index, contentWidth).forEach(add)
-    }
-
-    lines.push('')
-    this.renderFooter(contentWidth).forEach(add)
+    const contentWidth = Math.max(20, width - 2)
+    const lines = [this.renderQuestion(contentWidth)]
+    const visible = visibleOptionIndexes(this.config, this.state)
+    for (const index of visible) lines.push(this.renderOption(index, contentWidth))
+    lines.push(this.renderFooter(contentWidth))
 
     this.cachedWidth = width
     this.cachedLines = lines
@@ -219,140 +306,118 @@ class OptionPicker {
     this.cachedLines = undefined
   }
 
-  private renderOption(index: number, width: number): string[] {
-    const option = this.config.options[index]
-    const cursor = index === this.optionIndex ? this.theme.fg('accent', '›') : ' '
-    const mark = this.selected.has(index)
-      ? this.theme.fg('accent', '[x]')
-      : this.theme.fg('muted', '[ ]')
-    const label = `${cursor} ${mark} ${index + 1}. ${option.label}`
-    const rendered =
-      index === this.optionIndex
-        ? this.theme.fg('toolOutput', this.theme.bold(label))
-        : this.theme.fg('toolOutput', label)
-    const lines = wrapTextWithAnsi(rendered, width)
-
-    if (option.description) {
-      lines.push(...wrapTextWithAnsi(`      ${this.theme.fg('muted', option.description)}`, width))
-    }
-
-    return lines
-  }
-
-  private renderFooter(width: number): string[] {
-    const footer = this.numberMode
-      ? [
-          this.theme.fg('muted', `Go to option: ${this.numberBuffer || '_'}`),
-          this.theme.fg('dim', 'Enter toggle · Backspace edit · Esc cancel')
-        ]
-      : [this.theme.fg('dim', '↑↓ move · Space toggle · Tab action · Enter confirm · Esc cancel')]
-
-    return footer.flatMap((line) => wrapTextWithAnsi(line, width))
-  }
-
-  private handleNumberModeInput(data: string): void {
-    if (matchesKey(data, Key.escape)) {
-      this.numberMode = false
-      this.numberBuffer = ''
-      this.refresh()
-      return
-    }
-    if (matchesKey(data, Key.enter)) {
-      this.toggleNumberBuffer()
-      return
-    }
-    if (matchesKey(data, Key.backspace) || data === '\x7f') {
-      this.numberBuffer = this.numberBuffer.slice(0, -1)
-      this.refresh()
-      return
-    }
-    if (/^[0-9]$/.test(data)) {
-      this.numberBuffer += data
-      this.refresh()
-    }
-  }
-
-  private move(delta: number): void {
-    this.optionIndex = Math.max(
-      0,
-      Math.min(this.config.options.length - 1, this.optionIndex + delta)
+  private renderQuestion(width: number): string {
+    return truncateToWidth(
+      `${this.theme.fg('toolTitle', this.theme.bold('choose '))}${this.theme.fg('muted', this.config.question)}`,
+      width
     )
-    this.refresh()
   }
 
-  private cycleAction(delta: number): void {
-    this.actionIndex =
-      (this.actionIndex + delta + this.config.actions.length) % this.config.actions.length
-    this.refresh()
+  private renderOption(index: number, width: number): string {
+    const option = this.config.options[index]
+    const current = index === this.state.optionIndex
+    const selected = this.state.selected.has(index)
+    const cursor = current
+      ? this.theme.fg('accent', '→')
+      : selected
+        ? this.theme.fg('accent', '•')
+        : ' '
+    const number = selected
+      ? this.theme.fg('accent', `${index + 1}`)
+      : this.theme.fg('muted', `${index + 1}`)
+    const label = current
+      ? this.theme.fg('accent', option.label)
+      : this.theme.fg('toolOutput', option.label)
+    const selectedText = selected ? this.theme.fg('muted', ' selected') : ''
+    const description = option.description ? this.theme.fg('muted', `  ${option.description}`) : ''
+
+    return truncateToWidth(`${cursor} ${number}  ${label}${selectedText}${description}`, width)
   }
 
-  private toggleCurrent(): void {
-    this.toggle(this.optionIndex)
-    this.refresh()
+  private renderFooter(width: number): string {
+    const total = this.config.options.length
+    const position = `${this.state.optionIndex + 1}/${total}`
+    const action = currentAction(this.config, this.state)
+    return truncateToWidth(
+      this.theme.fg('dim', `(${position}) ${action} · Enter confirm · Esc cancel · type comment`),
+      width
+    )
   }
+}
 
-  private toggleIndex(index: number): void {
-    this.optionIndex = index
-    this.toggle(index)
-    this.refresh()
-  }
+function visibleOptionIndexes(config: PickerConfig, state: ChooserState): number[] {
+  const total = config.options.length
+  if (total <= MAX_VISIBLE_OPTIONS) return [...Array(total).keys()]
+  const half = Math.floor(MAX_VISIBLE_OPTIONS / 2)
+  const start = Math.max(0, Math.min(total - MAX_VISIBLE_OPTIONS, state.optionIndex - half))
+  return [...Array(MAX_VISIBLE_OPTIONS).keys()].map((offset) => start + offset)
+}
 
-  private toggle(index: number): void {
-    if (!this.config.allowMultiple) {
-      this.selected.clear()
-      this.selected.add(index)
-      return
-    }
-    if (this.selected.has(index)) this.selected.delete(index)
-    else this.selected.add(index)
-    if (this.selected.size === 0) this.selected.add(index)
-  }
+function move(config: PickerConfig, state: ChooserState, delta: number): void {
+  state.optionIndex = Math.max(0, Math.min(config.options.length - 1, state.optionIndex + delta))
+}
 
-  private toggleNumberBuffer(): void {
-    const index = Number(this.numberBuffer) - 1
-    if (Number.isInteger(index) && index >= 0 && index < this.config.options.length) {
-      this.toggleIndex(index)
-    }
-    this.numberMode = false
-    this.numberBuffer = ''
-    this.refresh()
-  }
+function cycleAction(config: PickerConfig, state: ChooserState, delta: number): void {
+  state.actionIndex = (state.actionIndex + delta + config.actions.length) % config.actions.length
+}
 
-  private selectAll(): void {
-    this.config.options.forEach((_, index) => this.selected.add(index))
-    this.refresh()
-  }
+function toggleCurrent(config: PickerConfig, state: ChooserState): void {
+  toggleIndex(config, state, state.optionIndex)
+}
 
-  private selectOnlyCurrent(): void {
-    this.selected.clear()
-    this.selected.add(this.optionIndex)
-    this.refresh()
+function toggleIndex(config: PickerConfig, state: ChooserState, index: number): void {
+  state.optionIndex = index
+  if (!config.allowMultiple) {
+    state.selected.clear()
+    state.selected.add(index)
+    return
   }
+  if (state.selected.has(index)) state.selected.delete(index)
+  else state.selected.add(index)
+  if (state.selected.size === 0) state.selected.add(index)
+}
 
-  private startNumberMode(): void {
-    this.numberMode = true
-    this.numberBuffer = ''
-    this.refresh()
-  }
+function selectAll(config: PickerConfig, state: ChooserState): void {
+  if (!config.allowMultiple) return selectOnlyCurrent(state)
+  config.options.forEach((_, index) => state.selected.add(index))
+}
 
-  private finish(cancelled: boolean): void {
-    this.done({
-      question: this.config.question,
-      action: this.currentAction(),
-      options: this.config.options,
-      selectedIndexes: [...this.selected].sort((a, b) => a - b),
-      cancelled
-    })
-  }
+function selectOnlyCurrent(state: ChooserState): void {
+  state.selected.clear()
+  state.selected.add(state.optionIndex)
+}
 
-  private currentAction(): string {
-    return this.config.actions[this.actionIndex] ?? DEFAULT_ACTIONS[0]
-  }
+function sortedSelection(selected: Set<number>): number[] {
+  return [...selected].sort((a, b) => a - b)
+}
 
-  private refresh(): void {
-    this.invalidate()
-    this.requestRender()
+function currentAction(config: PickerConfig, state: ChooserState): string {
+  return config.actions[state.actionIndex] ?? DEFAULT_ACTIONS[0]
+}
+
+function actionShortcutIndex(config: PickerConfig, data: string): number | undefined {
+  const shortcuts = ['d', 's', 'e']
+  for (let index = 0; index < Math.min(shortcuts.length, config.actions.length); index++) {
+    if (matchesKey(data, altKey(shortcuts[index]!))) return index
   }
+  return undefined
+}
+
+function parseEditorChoice(text: string, fallback: Set<number>, optionCount: number) {
+  const trimmed = text.trim()
+  if (!trimmed) return { selectedIndexes: sortedSelection(fallback), comment: undefined }
+
+  const leading = trimmed.match(/^((?:#?\d+\s*(?:(?:,|\+|&|and)\s*)?)+)(.*)$/i)
+  if (!leading) return { selectedIndexes: sortedSelection(fallback), comment: trimmed }
+
+  const parsed = [...leading[1].matchAll(/#?(\d+)/g)]
+    .map((match) => Number(match[1]) - 1)
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < optionCount)
+
+  const selectedIndexes =
+    parsed.length > 0 ? [...new Set(parsed)].sort((a, b) => a - b) : sortedSelection(fallback)
+  const comment = leading[2]?.trim() || undefined
+  return { selectedIndexes, comment }
 }
 
 function errorResult(message: string, question: string, options: Option[]) {
