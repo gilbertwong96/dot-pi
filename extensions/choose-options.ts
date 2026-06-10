@@ -1,5 +1,12 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
-import { Key, matchesKey, SelectList, Text, truncateToWidth } from '@earendil-works/pi-tui'
+import {
+  isKeyRelease,
+  Key,
+  matchesKey,
+  SelectList,
+  Text,
+  truncateToWidth
+} from '@earendil-works/pi-tui'
 import { renderLines } from './shared/render'
 import { Type } from 'typebox'
 
@@ -228,6 +235,7 @@ function runNativeEditorChooser(
     )
 
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
+      if (isKeyRelease(data)) return { consume: true }
       if (getActiveChooserToken() !== chooserToken) return undefined
       if (matchesKey(data, Key.enter)) {
         finish(false)
