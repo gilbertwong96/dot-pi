@@ -165,6 +165,7 @@ function runNativeEditorChooser(
   let widget: MinimalChooseWidget | undefined
   let unsubscribeInput: (() => void) | undefined
   let finished = false
+  let lastNavigation: { key: string; at: number } | undefined
 
   return new Promise((resolve) => {
     const cleanup = () => {
@@ -212,6 +213,13 @@ function runNativeEditorChooser(
       { placement: 'aboveEditor' }
     )
 
+    const shouldHandleNavigation = (key: string) => {
+      const now = Date.now()
+      if (lastNavigation?.key === key && now - lastNavigation.at < 80) return false
+      lastNavigation = { key, at: now }
+      return true
+    }
+
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
       if (matchesKey(data, Key.enter)) {
         finish(false)
@@ -222,21 +230,25 @@ function runNativeEditorChooser(
         return { consume: true }
       }
       if (matchesKey(data, Key.up)) {
+        if (!shouldHandleNavigation('up')) return { consume: true }
         move(config, state, -1)
         refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.down)) {
+        if (!shouldHandleNavigation('down')) return { consume: true }
         move(config, state, 1)
         refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
+        if (!shouldHandleNavigation('action-next')) return { consume: true }
         cycleAction(config, state, 1)
         refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.left)) {
+        if (!shouldHandleNavigation('action-prev')) return { consume: true }
         cycleAction(config, state, -1)
         refresh()
         return { consume: true }
@@ -290,11 +302,11 @@ class MinimalChooseWidget {
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
-    const contentWidth = Math.max(20, width - 2)
-    const lines = [this.renderQuestion(contentWidth)]
+    const contentWidth = Math.max(20, width - 4)
+    const lines = ['']
     const visible = visibleOptionIndexes(this.config, this.state)
-    for (const index of visible) lines.push(this.renderOption(index, contentWidth))
-    lines.push(this.renderFooter(contentWidth))
+    for (const index of visible) lines.push(this.pad(this.renderOption(index, contentWidth)))
+    lines.push(this.pad(this.renderFooter(contentWidth)))
 
     this.cachedWidth = width
     this.cachedLines = lines
@@ -306,11 +318,8 @@ class MinimalChooseWidget {
     this.cachedLines = undefined
   }
 
-  private renderQuestion(width: number): string {
-    return truncateToWidth(
-      `${this.theme.fg('toolTitle', this.theme.bold('choose '))}${this.theme.fg('muted', this.config.question)}`,
-      width
-    )
+  private pad(line: string): string {
+    return `  ${line}`
   }
 
   private renderOption(index: number, width: number): string {
