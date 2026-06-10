@@ -34,6 +34,13 @@ type PickerConfig = {
   defaultActionIndex: number
 }
 
+const DEFAULT_ACTIONS = ['Proceed', 'Discuss first', 'Explain']
+const NONE_OPTION_LABEL = 'None of these'
+const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
+const ACTION_EXAMPLES =
+  'Examples: ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], ["Use this", "Compare options", "None"].'
+const SYSTEM_HINT = `When you need the user to pick from options/next steps, call choose_from_options. Do not ask them to type item numbers. Do not include "${NONE_OPTION_LABEL}"; it is added automatically. Customize action labels. ${ACTION_EXAMPLES}`
+
 const OptionSchema = Type.Object({
   label: Type.String({ description: 'Display label for the option' }),
   description: Type.Optional(Type.String({ description: 'Optional description shown below label' }))
@@ -42,24 +49,18 @@ const OptionSchema = Type.Object({
 const ParamsSchema = Type.Object({
   question: Type.String({ description: 'Question shown above the options' }),
   options: Type.Array(OptionSchema, {
-    description:
-      'Numbered options, next steps, alternatives, plans, fixes, or actions to choose from. Do not include "None of these"; the picker adds that escape hatch automatically.'
+    description: `Options to choose from. Do not include "${NONE_OPTION_LABEL}"; it is automatic.`
   }),
   allowMultiple: Type.Optional(
     Type.Boolean({ description: 'Allow selecting multiple options. Defaults to true.' })
   ),
   actions: Type.Optional(
     Type.Array(Type.String(), {
-      description:
-        'End-user action labels for what to do with the selected option. Customize for the situation, e.g. ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"]. Defaults to Proceed, Discuss first, Explain.'
+      description: `End-user action labels. Defaults to ${DEFAULT_ACTIONS.join(', ')}. ${ACTION_EXAMPLES}`
     })
   ),
   defaultAction: Type.Optional(Type.String({ description: 'Initially selected action label' }))
 })
-
-const DEFAULT_ACTIONS = ['Proceed', 'Discuss first', 'Explain']
-const SYSTEM_HINT =
-  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers. Do not include a "None of these" option; the picker adds that escape hatch automatically. Customize action labels to fit the moment, for example ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"].'
 
 export function formatChoiceResult(result: ChooseResult): string {
   if (result.cancelled) return 'User cancelled option selection.'
@@ -82,8 +83,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
   pi.registerTool({
     name: 'choose_from_options',
     label: 'Choose Options',
-    description:
-      "Ask the user to choose from an option list. Use after presenting options, next steps, alternatives, plans, fixes, or actions when you need the user's choice before continuing. Do not include a 'None of these' option; the picker adds that escape hatch automatically. Provide user-facing action labels when useful, e.g. actions: ['Apply fix', 'Show diff first', 'Skip'] or ['Proceed', 'Discuss first', 'Explain'].",
+    description: `Ask the user to choose from options/next steps. ${NONE_OPTION_LABEL} is automatic. Customize user-facing action labels. ${ACTION_EXAMPLES}`,
     parameters: ParamsSchema,
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -152,8 +152,6 @@ type ChooserState = {
 
 const WIDGET_KEY = 'choose-from-options'
 const MAX_VISIBLE_OPTIONS = 5
-const NONE_OPTION_LABEL = 'None of these'
-const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
 const ACTIVE_CHOOSER_TOKEN_KEY = Symbol.for('dot-pi.choose-options.active-token')
 
 type ChooseGlobalState = typeof globalThis & {
