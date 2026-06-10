@@ -180,7 +180,7 @@ function runNativeEditorChooser(
   const state: ChooserState = {
     optionIndex: 0,
     actionIndex: config.defaultActionIndex,
-    selected: new Set([0])
+    selected: new Set(config.allowMultiple ? [] : [0])
   }
 
   let requestRender = () => {}
@@ -241,6 +241,11 @@ function runNativeEditorChooser(
       }
       if (matchesKey(data, Key.escape)) {
         finish(true)
+        return { consume: true }
+      }
+      if (matchesKey(data, Key.space) && ctx.ui.getEditorText().trim() === '') {
+        toggleCurrent(config, state)
+        refresh()
         return { consume: true }
       }
       if (/^[1-9]$/.test(data) && ctx.ui.getEditorText().trim() === '') {
@@ -354,9 +359,12 @@ function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme
       ? theme.fg('accent', `${index + 1}`)
       : theme.fg('toolOutput', `${index + 1}`)
     const marker = selected ? theme.fg('muted', ' selected') : ''
+    const checkbox = selected ? theme.fg('accent', '[x]') : theme.fg('muted', '[ ]')
     return {
       value: String(index),
-      label: `${number} ${option.label}${marker}`,
+      label: config.allowMultiple
+        ? `${checkbox} ${number} ${option.label}`
+        : `${number} ${option.label}${marker}`,
       description: option.description
     }
   })
@@ -388,13 +396,10 @@ function renderChoiceFooter(
   const total = optionCount(config)
   const position = `${state.optionIndex + 1}/${total}`
   const action = currentAction(config, state)
-  return truncateToWidth(
-    theme.fg(
-      'dim',
-      `  (${position}) ${action} · ↑↓/1-9 select · Enter confirm · Esc cancel · type comment`
-    ),
-    width
-  )
+  const hint = config.allowMultiple
+    ? `  (${position}) ${action} · ↑↓ move · Space/1-9 toggle · Enter confirm · Esc cancel · type comment`
+    : `  (${position}) ${action} · ↑↓/1-9 select · Enter confirm · Esc cancel · type comment`
+  return truncateToWidth(theme.fg('dim', hint), width)
 }
 
 function optionCount(config: PickerConfig): number {
@@ -428,7 +433,7 @@ function isNoneIndex(config: PickerConfig, index: number): boolean {
 }
 
 function isSelectedIndex(config: PickerConfig, state: ChooserState, index: number): boolean {
-  return isNoneIndex(config, index) ? state.selected.size === 0 : state.selected.has(index)
+  return !isNoneIndex(config, index) && state.selected.has(index)
 }
 
 function move(config: PickerConfig, state: ChooserState, delta: number): void {
@@ -447,9 +452,13 @@ function toggleCurrent(config: PickerConfig, state: ChooserState): void {
 
 function toggleIndex(config: PickerConfig, state: ChooserState, index: number): void {
   state.optionIndex = index
-  if (!config.allowMultiple || isNoneIndex(config, index)) {
+  if (isNoneIndex(config, index)) {
     state.selected.clear()
-    if (!isNoneIndex(config, index)) state.selected.add(index)
+    return
+  }
+  if (!config.allowMultiple) {
+    state.selected.clear()
+    state.selected.add(index)
     return
   }
   if (state.selected.has(index)) state.selected.delete(index)
