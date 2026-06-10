@@ -363,7 +363,7 @@ function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme
     return {
       value: String(index),
       label: config.allowMultiple
-        ? `${checkbox} ${number} ${option.label}`
+        ? `${number} ${checkbox} ${option.label}`
         : `${number} ${option.label}${marker}`,
       description: option.description
     }
