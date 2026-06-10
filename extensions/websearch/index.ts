@@ -348,11 +348,12 @@ export default function (pi: ExtensionAPI) {
 
         const previewText = r.summary || r.highlights?.[0]
         if (expanded) {
+          if (r.summary || r.text) lines.push('')
           if (r.summary) lines.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
           if (r.text) lines.push(primary(r.text, theme))
         } else if (previewText) {
           textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
-          lines.push(primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
+          lines.push('', primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
         } else if (r.text) {
           textHidden = true
         }

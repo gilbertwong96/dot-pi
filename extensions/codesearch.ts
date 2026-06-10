@@ -343,9 +343,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       const totalSnippets = results.reduce((sum, r) => sum + r.snippets.length, 0)
-      const lines: string[] = [
-        theme.fg('muted', `${results.length} repos · ${totalSnippets} snippets`)
-      ]
+      const lines: string[] = []
       const maxResults = expanded ? results.length : Math.min(PREVIEW_REPOS, results.length)
 
       for (let i = 0; i < maxResults; i++) {
@@ -354,8 +352,8 @@ export default function (pi: ExtensionAPI) {
         const firstSnippet = r.snippets[0]
         const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
 
+        if (lines.length > 0) lines.push('')
         lines.push(
-          '',
           theme.fg('accent', r.repo) +
             theme.fg('dim', ' · ') +
             theme.fg('muted', expanded ? r.path : location) +
