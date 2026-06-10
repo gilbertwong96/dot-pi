@@ -416,7 +416,8 @@ function isSelectedIndex(state: ChooserState, index: number, optionLength: numbe
 }
 
 function move(config: PickerConfig, state: ChooserState, delta: number): void {
-  state.optionIndex = Math.max(0, Math.min(optionCount(config) - 1, state.optionIndex + delta))
+  const total = optionCount(config)
+  state.optionIndex = (state.optionIndex + delta + total) % total
   if (!config.allowMultiple) selectOnlyCurrent(config, state)
 }
 
