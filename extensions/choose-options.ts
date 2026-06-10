@@ -148,6 +148,8 @@ const MAX_VISIBLE_OPTIONS = 5
 const NONE_OPTION_LABEL = 'None of these'
 const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
 
+let activeChooserToken: symbol | undefined
+
 type AltBaseKey = Parameters<typeof Key.alt>[0]
 
 function altKey(key: string) {
@@ -169,11 +171,14 @@ function runNativeEditorChooser(
   let widget: MinimalChooseWidget | undefined
   let unsubscribeInput: (() => void) | undefined
   let finished = false
+  const chooserToken = Symbol('choose-from-options')
+  activeChooserToken = chooserToken
 
   return new Promise((resolve) => {
     const cleanup = () => {
       signal?.removeEventListener('abort', abort)
       unsubscribeInput?.()
+      if (activeChooserToken === chooserToken) activeChooserToken = undefined
       ctx.ui.setWidget(WIDGET_KEY, undefined)
     }
 
@@ -212,6 +217,7 @@ function runNativeEditorChooser(
     )
 
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
+      if (activeChooserToken !== chooserToken) return undefined
       if (matchesKey(data, Key.enter)) {
         finish(false)
         return { consume: true }
@@ -229,8 +235,7 @@ function runNativeEditorChooser(
         }
       }
       if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
-        widget?.handleSelectInput(data)
-        if (!widget) move(config, state, matchesKey(data, Key.up) ? -1 : 1)
+        move(config, state, matchesKey(data, Key.up) ? -1 : 1)
         refresh()
         return { consume: true }
       }
