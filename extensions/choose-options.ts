@@ -145,6 +145,18 @@ type ChooserState = {
 
 const WIDGET_KEY = 'choose-from-options'
 const MAX_VISIBLE_OPTIONS = 5
+const MAC_OPTION_DIGITS = new Map([
+  ['¡', 0],
+  ['™', 1],
+  ['£', 2],
+  ['¢', 3],
+  ['∞', 4],
+  ['§', 5],
+  ['¶', 6],
+  ['•', 7],
+  ['ª', 8],
+  ['º', 9]
+])
 
 type AltBaseKey = Parameters<typeof Key.alt>[0]
 
@@ -238,15 +250,9 @@ function runNativeEditorChooser(
         refresh()
         return { consume: true }
       }
-      if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
+      if (matchesKey(data, Key.tab)) {
         if (!shouldHandleNavigation('action-next')) return { consume: true }
         cycleAction(config, state, 1)
-        refresh()
-        return { consume: true }
-      }
-      if (matchesKey(data, Key.left)) {
-        if (!shouldHandleNavigation('action-prev')) return { consume: true }
-        cycleAction(config, state, -1)
         refresh()
         return { consume: true }
       }
@@ -269,6 +275,13 @@ function runNativeEditorChooser(
       const actionIndex = actionShortcutIndex(config, data)
       if (actionIndex !== undefined) {
         state.actionIndex = actionIndex
+        refresh()
+        return { consume: true }
+      }
+
+      const macOptionIndex = MAC_OPTION_DIGITS.get(data)
+      if (macOptionIndex !== undefined && macOptionIndex < config.options.length) {
+        toggleIndex(config, state, macOptionIndex)
         refresh()
         return { consume: true }
       }
