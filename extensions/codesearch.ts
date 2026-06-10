@@ -363,6 +363,7 @@ export default function (pi: ExtensionAPI) {
         )
 
         const maxSnippets = expanded ? r.snippets.length : 0
+        if (maxSnippets > 0) lines.push('')
         for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
           const snippet = r.snippets[j]
           if (!snippet) continue
