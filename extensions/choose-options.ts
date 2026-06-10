@@ -108,14 +108,24 @@ export default function chooseOptions(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args, theme) {
-      const count = Array.isArray(args.options) ? args.options.length : 0
-      return new Text(
+    renderCall(args, theme, context) {
+      const options = Array.isArray(args.options) ? (args.options as Option[]) : []
+      let text =
         theme.fg('toolTitle', theme.bold('choose ')) +
-          theme.fg('muted', `${args.question ?? ''} (${count} options)`),
-        0,
-        0
-      )
+        theme.fg(
+          'muted',
+          `${args.question ?? ''}${options.length ? ` (${options.length} options)` : ''}`
+        )
+
+      if (!context.executionStarted && options.length > 0) {
+        const preview = options
+          .slice(0, 5)
+          .map((option, index) => `${index + 1} ${option.label}`)
+          .join(theme.fg('muted', '   '))
+        text += `\n${theme.fg('toolOutput', preview)}`
+      }
+
+      return new Text(text, 0, 0)
     },
 
     renderResult(result, _options, theme) {
@@ -215,7 +225,7 @@ function runNativeEditorChooser(
 
     const shouldHandleNavigation = (key: string) => {
       const now = Date.now()
-      if (lastNavigation?.key === key && now - lastNavigation.at < 80) return false
+      if (lastNavigation?.key === key && now - lastNavigation.at < 300) return false
       lastNavigation = { key, at: now }
       return true
     }
@@ -303,7 +313,7 @@ class MinimalChooseWidget {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
     const contentWidth = Math.max(20, width - 4)
-    const lines = ['']
+    const lines: string[] = []
     const visible = visibleOptionIndexes(this.config, this.state)
     for (const index of visible) lines.push(this.pad(this.renderOption(index, contentWidth)))
     lines.push(this.pad(this.renderFooter(contentWidth)))
