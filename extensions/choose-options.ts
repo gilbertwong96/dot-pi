@@ -228,6 +228,14 @@ function runNativeEditorChooser(
         finish(true)
         return { consume: true }
       }
+      if (/^[1-9]$/.test(data) && ctx.ui.getEditorText().trim() === '') {
+        const index = Number(data) - 1
+        if (index < optionCount(config)) {
+          toggleIndex(config, state, index)
+          refresh()
+          return { consume: true }
+        }
+      }
       if (matchesKey(data, Key.up)) {
         if (!shouldHandleNavigation('up')) return { consume: true }
         move(config, state, -1)
@@ -362,7 +370,7 @@ function renderChoiceFooter(
   return truncateToWidth(
     theme.fg(
       'dim',
-      `  (${position}) ${action} · ↑↓ select · Enter confirm · Esc cancel · type 2 + comment`
+      `  (${position}) ${action} · ↑↓/1-9 select · Enter confirm · Esc cancel · type comment`
     ),
     width
   )
