@@ -118,22 +118,32 @@ export default function chooseOptions(pi: ExtensionAPI) {
 
     renderCall(args, theme, context) {
       const options = Array.isArray(args.options) ? (args.options as Option[]) : []
-      let text =
+      const question = `${args.question ?? ''}`
+      const header =
         theme.fg('toolTitle', theme.bold('choose ')) +
-        theme.fg(
-          'muted',
-          `${args.question ?? ''}${options.length ? ` (${options.length} options)` : ''}`
+        theme.fg('muted', `${question}${options.length ? ` (${options.length} options)` : ''}`)
+
+      if (context.executionStarted || options.length === 0) return new Text(header, 0, 0)
+
+      return renderLines([
+        header,
+        ...renderChoiceRows(
+          {
+            question,
+            options,
+            actions: [],
+            allowMultiple: true,
+            defaultActionIndex: 0
+          },
+          {
+            optionIndex: 0,
+            actionIndex: 0,
+            selected: new Set([0])
+          },
+          theme,
+          { footer: false }
         )
-
-      if (!context.executionStarted && options.length > 0) {
-        const preview = options
-          .slice(0, 5)
-          .map((option, index) => `${index + 1} ${option.label}`)
-          .join(theme.fg('muted', '   '))
-        text += `\n${theme.fg('toolOutput', preview)}`
-      }
-
-      return new Text(text, 0, 0)
+      ])
     },
 
     renderResult(result, _options, theme) {
@@ -324,56 +334,68 @@ class MinimalChooseWidget {
   render(width: number): string[] {
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines
 
-    const contentWidth = Math.max(20, width - 4)
-    const lines: string[] = []
-    const visible = visibleOptionIndexes(this.config, this.state)
-    for (const index of visible) lines.push(this.pad(this.renderOption(index, contentWidth)))
-    lines.push(this.pad(this.renderFooter(contentWidth)))
-
     this.cachedWidth = width
-    this.cachedLines = lines
-    return lines
+    this.cachedLines = renderChoiceRows(this.config, this.state, this.theme, {
+      width,
+      footer: true
+    })
+    return this.cachedLines
   }
 
   invalidate(): void {
     this.cachedWidth = undefined
     this.cachedLines = undefined
   }
+}
 
-  private pad(line: string): string {
-    return `  ${line}`
+function renderChoiceRows(
+  config: PickerConfig,
+  state: ChooserState,
+  theme: Theme,
+  options: { width?: number; footer: boolean }
+): string[] {
+  const contentWidth = Math.max(20, (options.width ?? 100) - 4)
+  const lines: string[] = []
+  const visible = visibleOptionIndexes(config, state)
+  for (const index of visible) {
+    lines.push(`  ${renderChoiceOption(config, state, theme, index, contentWidth)}`)
   }
+  if (options.footer) lines.push(`  ${renderChoiceFooter(config, state, theme, contentWidth)}`)
+  return lines
+}
 
-  private renderOption(index: number, width: number): string {
-    const option = this.config.options[index]
-    const current = index === this.state.optionIndex
-    const selected = this.state.selected.has(index)
-    const cursor = current
-      ? this.theme.fg('accent', '→')
-      : selected
-        ? this.theme.fg('accent', '•')
-        : ' '
-    const number = selected
-      ? this.theme.fg('accent', `${index + 1}`)
-      : this.theme.fg('muted', `${index + 1}`)
-    const label = current
-      ? this.theme.fg('accent', option.label)
-      : this.theme.fg('toolOutput', option.label)
-    const selectedText = selected ? this.theme.fg('muted', ' selected') : ''
-    const description = option.description ? this.theme.fg('muted', `  ${option.description}`) : ''
+function renderChoiceOption(
+  config: PickerConfig,
+  state: ChooserState,
+  theme: Theme,
+  index: number,
+  width: number
+): string {
+  const option = config.options[index]
+  const current = index === state.optionIndex
+  const selected = state.selected.has(index)
+  const cursor = current ? theme.fg('accent', '→') : selected ? theme.fg('accent', '•') : ' '
+  const number = selected ? theme.fg('accent', `${index + 1}`) : theme.fg('muted', `${index + 1}`)
+  const label = current ? theme.fg('accent', option.label) : theme.fg('toolOutput', option.label)
+  const selectedText = selected ? theme.fg('muted', ' selected') : ''
+  const description = option.description ? theme.fg('muted', `  ${option.description}`) : ''
 
-    return truncateToWidth(`${cursor} ${number}  ${label}${selectedText}${description}`, width)
-  }
+  return truncateToWidth(`${cursor} ${number}  ${label}${selectedText}${description}`, width)
+}
 
-  private renderFooter(width: number): string {
-    const total = this.config.options.length
-    const position = `${this.state.optionIndex + 1}/${total}`
-    const action = currentAction(this.config, this.state)
-    return truncateToWidth(
-      this.theme.fg('dim', `(${position}) ${action} · Enter confirm · Esc cancel · type comment`),
-      width
-    )
-  }
+function renderChoiceFooter(
+  config: PickerConfig,
+  state: ChooserState,
+  theme: Theme,
+  width: number
+): string {
+  const total = config.options.length
+  const position = `${state.optionIndex + 1}/${total}`
+  const action = currentAction(config, state)
+  return truncateToWidth(
+    theme.fg('dim', `(${position}) ${action} · Enter confirm · Esc cancel · type comment`),
+    width
+  )
 }
 
 function visibleOptionIndexes(config: PickerConfig, state: ChooserState): number[] {
