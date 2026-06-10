@@ -200,8 +200,8 @@ export default function (pi: ExtensionAPI) {
         params as CodeSearchParams
 
       onUpdate?.({
-        content: [{ type: 'text', text: `Searching: ${query}...` }],
-        details: { query, results: [] } as CodeSearchDetails
+        content: [],
+        details: { query, results: [], loading: true } as CodeSearchDetails & { loading: boolean }
       })
 
       const mcpRequest = {
@@ -338,7 +338,7 @@ export default function (pi: ExtensionAPI) {
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return renderMuted('Searching...', theme)
+        if (isPartial) return renderLines([])
         return renderMuted('No results found.', theme)
       }
 

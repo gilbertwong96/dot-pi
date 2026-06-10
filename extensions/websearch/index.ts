@@ -223,8 +223,8 @@ export default function (pi: ExtensionAPI) {
       } = params
 
       onUpdate?.({
-        content: [{ type: 'text', text: `Searching: ${query}...` }],
-        details: { query, results: [] } as WebSearchDetails
+        content: [],
+        details: { query, results: [], loading: true } as WebSearchDetails & { loading: boolean }
       })
 
       try {
@@ -326,7 +326,7 @@ export default function (pi: ExtensionAPI) {
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return renderMuted('Searching...', theme)
+        if (isPartial) return renderLines([])
         return renderMuted('No results found.', theme)
       }
 
