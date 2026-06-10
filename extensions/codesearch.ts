@@ -367,6 +367,7 @@ export default function (pi: ExtensionAPI) {
         for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
           const snippet = r.snippets[j]
           if (!snippet) continue
+          if (j > 0) lines.push('')
 
           const codeLines = snippet.code.split('\n')
           const lineNumberWidth = String(snippet.lineNumber + codeLines.length - 1).length
