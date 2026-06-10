@@ -62,7 +62,7 @@ export function formatChoiceResult(result: ChooseResult): string {
     .join('\n')
   const comment = result.comment ? `\n\nComment:\n${result.comment}` : ''
 
-  return `User chose action: ${result.action}\n\nSelected options:\n${selected}${comment}\n\nContinue according to the chosen action. Do not act on unselected options.`
+  return `User chose action: ${result.action}\n\nSelected options:\n${selected || '(none)'}${comment}\n\nContinue according to the chosen action. Do not act on unselected options.`
 }
 
 export default function chooseOptions(pi: ExtensionAPI) {
@@ -128,10 +128,10 @@ export default function chooseOptions(pi: ExtensionAPI) {
         .map((index) => details.options[index]?.label)
         .filter(Boolean)
         .join(', ')
+      const selection = selected || NONE_OPTION_LABEL
       const comment = details.comment ? ` · ${details.comment}` : ''
       return renderLines([
-        theme.fg('toolOutput', details.action) +
-          theme.fg('muted', `${selected ? ` · ${selected}` : ''}${comment}`)
+        theme.fg('toolOutput', details.action) + theme.fg('muted', ` · ${selection}${comment}`)
       ])
     }
   })
@@ -145,6 +145,9 @@ type ChooserState = {
 
 const WIDGET_KEY = 'choose-from-options'
 const MAX_VISIBLE_OPTIONS = 5
+const NONE_OPTION_LABEL = 'None of these'
+const NONE_OPTION_DESCRIPTION = 'Type a different direction in the editor.'
+
 const MAC_OPTION_DIGITS = new Map([
   ['¡', 0],
   ['™', 1],
@@ -262,7 +265,7 @@ function runNativeEditorChooser(
         return { consume: true }
       }
       if (matchesKey(data, Key.alt('n'))) {
-        selectOnlyCurrent(state)
+        selectOnlyCurrent(config, state)
         refresh()
         return { consume: true }
       }
@@ -280,13 +283,13 @@ function runNativeEditorChooser(
       }
 
       const macOptionIndex = MAC_OPTION_DIGITS.get(data)
-      if (macOptionIndex !== undefined && macOptionIndex < config.options.length) {
+      if (macOptionIndex !== undefined && macOptionIndex < optionCount(config)) {
         toggleIndex(config, state, macOptionIndex)
         refresh()
         return { consume: true }
       }
 
-      for (let index = 0; index < Math.min(9, config.options.length); index++) {
+      for (let index = 0; index < Math.min(9, optionCount(config)); index++) {
         if (matchesKey(data, altKey(String(index + 1)))) {
           toggleIndex(config, state, index)
           refresh()
@@ -333,8 +336,8 @@ function renderChoiceRows(
   options: { width?: number; footer: boolean }
 ): string[] {
   const width = options.width ?? 100
-  const items = config.options.map((option, index) => {
-    const selected = state.selected.has(index)
+  const items = displayOptions(config).map((option, index) => {
+    const selected = isSelectedIndex(state, index, config.options.length)
     const number = selected
       ? theme.fg('accent', `${index + 1}`)
       : theme.fg('toolOutput', `${index + 1}`)
@@ -373,7 +376,7 @@ function renderChoiceFooter(
   theme: Theme,
   width: number
 ): string {
-  const total = config.options.length
+  const total = optionCount(config)
   const position = `${state.optionIndex + 1}/${total}`
   const action = currentAction(config, state)
   return truncateToWidth(
@@ -382,8 +385,25 @@ function renderChoiceFooter(
   )
 }
 
+function optionCount(config: PickerConfig): number {
+  return config.options.length + 1
+}
+
+function displayOptions(config: PickerConfig): Option[] {
+  return [...config.options, { label: NONE_OPTION_LABEL, description: NONE_OPTION_DESCRIPTION }]
+}
+
+function isNoneIndex(index: number, optionLength: number): boolean {
+  return index === optionLength
+}
+
+function isSelectedIndex(state: ChooserState, index: number, optionLength: number): boolean {
+  return isNoneIndex(index, optionLength) ? state.selected.size === 0 : state.selected.has(index)
+}
+
 function move(config: PickerConfig, state: ChooserState, delta: number): void {
-  state.optionIndex = Math.max(0, Math.min(config.options.length - 1, state.optionIndex + delta))
+  state.optionIndex = Math.max(0, Math.min(optionCount(config) - 1, state.optionIndex + delta))
+  if (!config.allowMultiple) selectOnlyCurrent(config, state)
 }
 
 function cycleAction(config: PickerConfig, state: ChooserState, delta: number): void {
@@ -396,24 +416,24 @@ function toggleCurrent(config: PickerConfig, state: ChooserState): void {
 
 function toggleIndex(config: PickerConfig, state: ChooserState, index: number): void {
   state.optionIndex = index
-  if (!config.allowMultiple) {
+  if (!config.allowMultiple || isNoneIndex(index, config.options.length)) {
     state.selected.clear()
-    state.selected.add(index)
+    if (!isNoneIndex(index, config.options.length)) state.selected.add(index)
     return
   }
   if (state.selected.has(index)) state.selected.delete(index)
   else state.selected.add(index)
-  if (state.selected.size === 0) state.selected.add(index)
 }
 
 function selectAll(config: PickerConfig, state: ChooserState): void {
-  if (!config.allowMultiple) return selectOnlyCurrent(state)
+  if (!config.allowMultiple) return selectOnlyCurrent(config, state)
+  state.selected.clear()
   config.options.forEach((_, index) => state.selected.add(index))
 }
 
-function selectOnlyCurrent(state: ChooserState): void {
+function selectOnlyCurrent(config: PickerConfig, state: ChooserState): void {
   state.selected.clear()
-  state.selected.add(state.optionIndex)
+  if (!isNoneIndex(state.optionIndex, config.options.length)) state.selected.add(state.optionIndex)
 }
 
 function sortedSelection(selected: Set<number>): number[] {
@@ -461,10 +481,14 @@ function parseEditorChoice(text: string, fallback: Set<number>, optionCount: num
 
   const parsed = [...leading[1].matchAll(/#?(\d+)/g)]
     .map((match) => Number(match[1]) - 1)
-    .filter((index) => Number.isInteger(index) && index >= 0 && index < optionCount)
+    .filter((index) => Number.isInteger(index) && index >= 0 && index <= optionCount)
 
-  const selectedIndexes =
-    parsed.length > 0 ? [...new Set(parsed)].sort((a, b) => a - b) : sortedSelection(fallback)
+  const uniqueParsed = [...new Set(parsed)]
+  const selectedIndexes = uniqueParsed.includes(optionCount)
+    ? []
+    : uniqueParsed.length > 0
+      ? uniqueParsed.sort((a, b) => a - b)
+      : sortedSelection(fallback)
   const comment = leading[2]?.trim() || undefined
   return { selectedIndexes, comment }
 }
