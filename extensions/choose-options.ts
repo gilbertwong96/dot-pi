@@ -169,7 +169,6 @@ function runNativeEditorChooser(
   let widget: MinimalChooseWidget | undefined
   let unsubscribeInput: (() => void) | undefined
   let finished = false
-  let lastNavigation: { key: string; at: number } | undefined
 
   return new Promise((resolve) => {
     const cleanup = () => {
@@ -212,13 +211,6 @@ function runNativeEditorChooser(
       { placement: 'belowEditor' }
     )
 
-    const shouldHandleNavigation = (key: string) => {
-      const now = Date.now()
-      if (lastNavigation?.key === key && now - lastNavigation.at < 300) return false
-      lastNavigation = { key, at: now }
-      return true
-    }
-
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
       if (matchesKey(data, Key.enter)) {
         finish(false)
@@ -236,20 +228,13 @@ function runNativeEditorChooser(
           return { consume: true }
         }
       }
-      if (matchesKey(data, Key.up)) {
-        if (!shouldHandleNavigation('up')) return { consume: true }
-        move(config, state, -1)
-        refresh()
-        return { consume: true }
-      }
-      if (matchesKey(data, Key.down)) {
-        if (!shouldHandleNavigation('down')) return { consume: true }
-        move(config, state, 1)
+      if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
+        widget?.handleSelectInput(data)
+        if (!widget) move(config, state, matchesKey(data, Key.up) ? -1 : 1)
         refresh()
         return { consume: true }
       }
       if (matchesKey(data, Key.tab)) {
-        if (!shouldHandleNavigation('action-next')) return { consume: true }
         cycleAction(config, state, 1)
         refresh()
         return { consume: true }
@@ -311,6 +296,15 @@ class MinimalChooseWidget {
     return this.cachedLines
   }
 
+  handleSelectInput(data: string): void {
+    const list = createChoiceSelectList(this.config, this.state, this.theme)
+    list.handleInput(data)
+    const selected = list.getSelectedItem()
+    if (!selected) return
+    this.state.optionIndex = Number(selected.value)
+    if (!this.config.allowMultiple) selectOnlyCurrent(this.config, this.state)
+  }
+
   invalidate(): void {
     this.cachedWidth = undefined
     this.cachedLines = undefined
@@ -324,6 +318,14 @@ function renderChoiceRows(
   options: { width?: number; footer: boolean }
 ): string[] {
   const width = options.width ?? 100
+  const list = createChoiceSelectList(config, state, theme)
+
+  const lines = list.render(width)
+  if (options.footer) lines.push(renderChoiceFooter(config, state, theme, width))
+  return lines
+}
+
+function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme: Theme) {
   const items = displayOptions(config).map((option, index) => {
     const selected = isSelectedIndex(state, index, config.options.length)
     const number = selected
@@ -342,10 +344,7 @@ function renderChoiceRows(
     maxPrimaryColumnWidth: 48
   })
   list.setSelectedIndex(state.optionIndex)
-
-  const lines = list.render(width)
-  if (options.footer) lines.push(renderChoiceFooter(config, state, theme, width))
-  return lines
+  return list
 }
 
 function selectListTheme(theme: Theme) {
