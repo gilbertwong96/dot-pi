@@ -43,7 +43,7 @@ const ParamsSchema = Type.Object({
   question: Type.String({ description: 'Question shown above the options' }),
   options: Type.Array(OptionSchema, {
     description:
-      'Numbered options, next steps, alternatives, plans, fixes, or actions to choose from'
+      'Numbered options, next steps, alternatives, plans, fixes, or actions to choose from. Do not include "None of these"; the picker adds that escape hatch automatically.'
   }),
   allowMultiple: Type.Optional(
     Type.Boolean({ description: 'Allow selecting multiple options. Defaults to true.' })
@@ -59,7 +59,7 @@ const ParamsSchema = Type.Object({
 
 const DEFAULT_ACTIONS = ['Proceed', 'Discuss first', 'Explain']
 const SYSTEM_HINT =
-  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers. Customize action labels to fit the moment, for example ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"].'
+  'When you need the user to pick from options/next steps, call choose_from_options; do not ask them to type item numbers. Do not include a "None of these" option; the picker adds that escape hatch automatically. Customize action labels to fit the moment, for example ["Apply fix", "Show diff first", "Skip"], ["Proceed", "Discuss first", "Explain"], or ["Use this", "Compare options", "None"].'
 
 export function formatChoiceResult(result: ChooseResult): string {
   if (result.cancelled) return 'User cancelled option selection.'
@@ -83,7 +83,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
     name: 'choose_from_options',
     label: 'Choose Options',
     description:
-      "Ask the user to choose from an option list. Use after presenting options, next steps, alternatives, plans, fixes, or actions when you need the user's choice before continuing. Provide user-facing action labels when useful, e.g. actions: ['Apply fix', 'Show diff first', 'Skip'] or ['Proceed', 'Discuss first', 'Explain'].",
+      "Ask the user to choose from an option list. Use after presenting options, next steps, alternatives, plans, fixes, or actions when you need the user's choice before continuing. Do not include a 'None of these' option; the picker adds that escape hatch automatically. Provide user-facing action labels when useful, e.g. actions: ['Apply fix', 'Show diff first', 'Skip'] or ['Proceed', 'Discuss first', 'Explain'].",
     parameters: ParamsSchema,
 
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -211,7 +211,7 @@ function runNativeEditorChooser(
       const editorText = ctx.ui.getEditorText().trim()
       const parsed = cancelled
         ? { selectedIndexes: sortedSelection(state.selected), comment: undefined }
-        : parseEditorChoice(editorText, state.selected, config.options.length)
+        : parseEditorChoice(editorText, state.selected, config)
 
       if (!cancelled) ctx.ui.setEditorText('')
       cleanup()
@@ -351,7 +351,7 @@ function renderChoiceRows(
 
 function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme: Theme) {
   const items = displayOptions(config).map((option, index) => {
-    const selected = isSelectedIndex(state, index, config.options.length)
+    const selected = isSelectedIndex(config, state, index)
     const number = selected
       ? theme.fg('accent', `${index + 1}`)
       : theme.fg('toolOutput', `${index + 1}`)
@@ -400,19 +400,37 @@ function renderChoiceFooter(
 }
 
 function optionCount(config: PickerConfig): number {
-  return config.options.length + 1
+  return displayOptions(config).length
 }
 
 function displayOptions(config: PickerConfig): Option[] {
-  return [...config.options, { label: NONE_OPTION_LABEL, description: NONE_OPTION_DESCRIPTION }]
+  return explicitNoneIndex(config) === undefined
+    ? [...config.options, { label: NONE_OPTION_LABEL, description: NONE_OPTION_DESCRIPTION }]
+    : config.options
 }
 
-function isNoneIndex(index: number, optionLength: number): boolean {
-  return index === optionLength
+function explicitNoneIndex(config: PickerConfig): number | undefined {
+  const normalizedNone = normalizeOptionLabel(NONE_OPTION_LABEL)
+  const index = config.options.findIndex(
+    (option) => normalizeOptionLabel(option.label) === normalizedNone
+  )
+  return index >= 0 ? index : undefined
 }
 
-function isSelectedIndex(state: ChooserState, index: number, optionLength: number): boolean {
-  return isNoneIndex(index, optionLength) ? state.selected.size === 0 : state.selected.has(index)
+function noneIndex(config: PickerConfig): number {
+  return explicitNoneIndex(config) ?? config.options.length
+}
+
+function normalizeOptionLabel(label: string): string {
+  return label.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function isNoneIndex(config: PickerConfig, index: number): boolean {
+  return index === noneIndex(config)
+}
+
+function isSelectedIndex(config: PickerConfig, state: ChooserState, index: number): boolean {
+  return isNoneIndex(config, index) ? state.selected.size === 0 : state.selected.has(index)
 }
 
 function move(config: PickerConfig, state: ChooserState, delta: number): void {
@@ -431,9 +449,9 @@ function toggleCurrent(config: PickerConfig, state: ChooserState): void {
 
 function toggleIndex(config: PickerConfig, state: ChooserState, index: number): void {
   state.optionIndex = index
-  if (!config.allowMultiple || isNoneIndex(index, config.options.length)) {
+  if (!config.allowMultiple || isNoneIndex(config, index)) {
     state.selected.clear()
-    if (!isNoneIndex(index, config.options.length)) state.selected.add(index)
+    if (!isNoneIndex(config, index)) state.selected.add(index)
     return
   }
   if (state.selected.has(index)) state.selected.delete(index)
@@ -448,7 +466,7 @@ function selectAll(config: PickerConfig, state: ChooserState): void {
 
 function selectOnlyCurrent(config: PickerConfig, state: ChooserState): void {
   state.selected.clear()
-  if (!isNoneIndex(state.optionIndex, config.options.length)) state.selected.add(state.optionIndex)
+  if (!isNoneIndex(config, state.optionIndex)) state.selected.add(state.optionIndex)
 }
 
 function sortedSelection(selected: Set<number>): number[] {
@@ -487,7 +505,7 @@ function actionShortcutIndex(config: PickerConfig, data: string): number | undef
   return undefined
 }
 
-function parseEditorChoice(text: string, fallback: Set<number>, optionCount: number) {
+function parseEditorChoice(text: string, fallback: Set<number>, config: PickerConfig) {
   const trimmed = text.trim()
   if (!trimmed) return { selectedIndexes: sortedSelection(fallback), comment: undefined }
 
@@ -496,10 +514,10 @@ function parseEditorChoice(text: string, fallback: Set<number>, optionCount: num
 
   const parsed = [...leading[1].matchAll(/#?(\d+)/g)]
     .map((match) => Number(match[1]) - 1)
-    .filter((index) => Number.isInteger(index) && index >= 0 && index <= optionCount)
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < optionCount(config))
 
   const uniqueParsed = [...new Set(parsed)]
-  const selectedIndexes = uniqueParsed.includes(optionCount)
+  const selectedIndexes = uniqueParsed.includes(noneIndex(config))
     ? []
     : uniqueParsed.length > 0
       ? uniqueParsed.sort((a, b) => a - b)
