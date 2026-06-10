@@ -110,34 +110,14 @@ export default function chooseOptions(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args, theme, context) {
-      const options = Array.isArray(args.options) ? (args.options as Option[]) : []
-      const question = `${args.question ?? ''}`
-      const header =
+    renderCall(args, theme) {
+      const count = Array.isArray(args.options) ? args.options.length : 0
+      return new Text(
         theme.fg('toolTitle', theme.bold('choose ')) +
-        theme.fg('muted', `${question}${options.length ? ` (${options.length} options)` : ''}`)
-
-      if (context.executionStarted || options.length === 0) return new Text(header, 0, 0)
-
-      return renderLines([
-        header,
-        ...renderChoiceRows(
-          {
-            question,
-            options,
-            actions: [],
-            allowMultiple: true,
-            defaultActionIndex: 0
-          },
-          {
-            optionIndex: 0,
-            actionIndex: 0,
-            selected: new Set([0])
-          },
-          theme,
-          { footer: false }
-        )
-      ])
+          theme.fg('muted', `${args.question ?? ''}${count ? ` (${count} options)` : ''}`),
+        0,
+        0
+      )
     },
 
     renderResult(result, _options, theme) {
