@@ -70,6 +70,7 @@
       "extensions/notify.ts",
       "extensions/quote.ts",
       "extensions/question.ts",
+      "extensions/refactor-discipline.ts",
       "extensions/workflow-shortcuts.ts",
       "extensions/webfetch",
       "extensions/websearch",
