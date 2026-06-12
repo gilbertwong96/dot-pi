@@ -5,6 +5,7 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import {
   clampRenderedLines,
   firstText,
+  renderEmpty,
   renderEntryList,
   renderLines,
   renderMarkdownPreview,
@@ -19,6 +20,12 @@ const theme = {
   bold: (text: string) => String(text),
   underline: (text: string) => String(text)
 } as Theme
+
+describe('renderEmpty', () => {
+  test('renders no lines for partial tool output', () => {
+    expect(renderEmpty().render(80)).toEqual([])
+  })
+})
 
 describe('renderLines', () => {
   test('truncates long lines to viewport width', () => {

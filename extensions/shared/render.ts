@@ -51,6 +51,13 @@ export function toolLoading<T>(details: T): AgentToolResult<T> {
  * - Metadata is muted, primary content is toolOutput, titles may be bold/accent.
  * - Expand hints are standalone footers: insert a blank line before expandHint().
  */
+export function renderEmpty(): Component {
+  return {
+    render: () => [],
+    invalidate: () => undefined
+  }
+}
+
 export function renderLines(lines: string[]): Component {
   return {
     render: (width) => ['', ...lines.map((line) => truncateLine(line, width))],

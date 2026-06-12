@@ -12,6 +12,7 @@ import {
   firstText,
   meta as renderMeta,
   primary,
+  renderEmpty,
   renderError,
   renderLines,
   renderMarkdownPreview,
@@ -459,7 +460,7 @@ export default function (pi: ExtensionAPI) {
       const details = result.details as FetchDetails | undefined
 
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
-      if (isPartial) return renderLines([])
+      if (isPartial) return renderEmpty()
 
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''

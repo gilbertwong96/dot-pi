@@ -10,6 +10,7 @@ import { fetchText } from './shared/http'
 import {
   firstText,
   primary,
+  renderEmpty,
   renderEntryList,
   renderError,
   renderLines,
@@ -322,7 +323,7 @@ export default function (pi: ExtensionAPI) {
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return renderLines([])
+        if (isPartial) return renderEmpty()
         return renderMuted('No results found.', theme)
       }
 
