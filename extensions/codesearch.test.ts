@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
+import type { Theme } from '@earendil-works/pi-coding-agent'
 
+import { registeredTool, type RegisteredTool } from './shared/test-utils'
 import codesearch, {
   parseGitHubBlobUrl,
   parseResults,
@@ -8,8 +9,6 @@ import codesearch, {
   resolveCodeFetchTarget,
   sliceLines
 } from './codesearch'
-
-type RegisteredTool = Parameters<ExtensionAPI['registerTool']>[0]
 
 const theme = {
   fg: (_name: string, text: string) => String(text),
@@ -19,13 +18,7 @@ const theme = {
 } as Theme
 
 function codefetchTool(): RegisteredTool {
-  const tools: RegisteredTool[] = []
-  codesearch({
-    registerTool: (tool: RegisteredTool) => tools.push(tool)
-  } as unknown as ExtensionAPI)
-  const tool = tools.find((candidate) => candidate.name === 'codefetch')
-  if (!tool) throw new Error('codefetch tool not registered')
-  return tool
+  return registeredTool(codesearch, 'codefetch')
 }
 
 function renderCodefetch(details: Record<string, unknown>, text: string, expanded = false): string {

@@ -25,6 +25,7 @@ import {
 import { type EditorTheme, Key, matchesKey, type TUI } from '@earendil-works/pi-tui'
 import { spawnSync, spawn, type ChildProcess } from 'child_process'
 import WebSocket from 'ws'
+import { optionalEnv, parseDelimitedEnvList, parseIntegerEnv, parseNumberEnv } from '../shared/env'
 import { formatDuration } from '../shared/format'
 import { requireEnv } from '../shared/http'
 
@@ -39,41 +40,6 @@ interface VoiceInputConfig {
   vadThreshold?: number
   minSpeechDurationMs?: number
   minSilenceDurationMs?: number
-}
-
-function optionalEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim()
-  return value ? value : undefined
-}
-
-function parseNumberEnv(
-  name: string
-): { ok: true; value?: number } | { ok: false; message: string } {
-  const raw = optionalEnv(name)
-  if (!raw) return { ok: true }
-
-  const value = Number(raw)
-  return Number.isFinite(value)
-    ? { ok: true, value }
-    : { ok: false, message: `${name} must be a number` }
-}
-
-function parseIntegerEnv(
-  name: string
-): { ok: true; value?: number } | { ok: false; message: string } {
-  const parsed = parseNumberEnv(name)
-  if (!parsed.ok || parsed.value === undefined) return parsed
-
-  return Number.isInteger(parsed.value)
-    ? parsed
-    : { ok: false, message: `${name} must be an integer` }
-}
-
-function parseKeyterms(raw: string | undefined): string[] {
-  return (raw ?? '')
-    .split(/[\n,]/u)
-    .map((term) => term.trim())
-    .filter((term) => term.length > 0)
 }
 
 export function getVoiceInputConfig():
@@ -105,7 +71,7 @@ export function getVoiceInputConfig():
     config: {
       apiKey: apiKey.value,
       languageCode: optionalEnv('ELEVENLABS_LANGUAGE'),
-      keyterms: parseKeyterms(optionalEnv('ELEVENLABS_KEYTERMS')),
+      keyterms: parseDelimitedEnvList('ELEVENLABS_KEYTERMS'),
       commitStrategy,
       vadSilenceThresholdSecs: vadSilenceThresholdSecs.value,
       vadThreshold: vadThreshold.value,

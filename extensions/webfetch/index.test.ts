@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent'
 
 import { firstText } from '../shared/render'
+import { registeredTool, type RegisteredTool } from '../shared/test-utils'
 import webfetchExtension from './index'
 
 const originalFetch = globalThis.fetch
@@ -11,19 +12,8 @@ afterEach(() => {
   globalThis.fetch = originalFetch
 })
 
-type RegisteredTool = Parameters<ExtensionAPI['registerTool']>[0]
-
 function registeredFetchTool(): RegisteredTool {
-  let tool: RegisteredTool | undefined
-  const pi = {
-    registerTool: (registered: RegisteredTool) => {
-      tool = registered
-    }
-  } as ExtensionAPI
-
-  webfetchExtension(pi)
-  if (!tool) throw new Error('fetch tool was not registered')
-  return tool
+  return registeredTool(webfetchExtension, 'fetch')
 }
 
 function mockFetch(response: Response) {

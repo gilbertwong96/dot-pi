@@ -24,8 +24,12 @@ import {
   type SandboxRuntimeConfig,
   type SandboxAskCallback
 } from '@anthropic-ai/sandbox-runtime'
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
-import { type BashOperations, createBashTool } from '@earendil-works/pi-coding-agent'
+import {
+  type BashOperations,
+  createBashTool,
+  type ExtensionAPI,
+  type ExtensionContext
+} from '@earendil-works/pi-coding-agent'
 
 interface SandboxConfig extends SandboxRuntimeConfig {
   enabled?: boolean

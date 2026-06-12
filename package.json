@@ -12,11 +12,12 @@
   },
   "type": "module",
   "scripts": {
-    "check": "bun run lint && tsc --noEmit",
+    "check": "bun run lint && tsc --noEmit && bun run test:dupes",
     "format": "oxfmt .",
-    "lint": "oxlint . --deny-warnings",
+    "lint": "oxlint -c oxlint.json package.json extensions skills --ignore-pattern 'extensions/critic/tests/**' --deny-warnings",
     "format:check": "bash -lc 'oxfmt --check package.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",
     "test": "bun test",
+    "test:dupes": "jscpd extensions skills --pattern '**/*.ts' --ignore '**/node_modules/**' --min-lines 8 --min-tokens 120 --threshold 0 --reporters console",
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "@types/shell-quote": "^1.7.5",
     "@types/turndown": "^5.0.6",
     "@types/ws": "^8.5.10",
+    "jscpd": "^5.0.8",
     "oxfmt": "^0.24.0",
     "oxlint": "^1.42.0",
     "typebox": "^1.1.38",
