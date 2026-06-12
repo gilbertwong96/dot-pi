@@ -2,9 +2,6 @@
   "name": "websearch",
   "private": true,
   "type": "module",
-  "dependencies": {
-    "exa-js": "^1.4.12"
-  },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "latest",
     "@earendil-works/pi-tui": "latest",
