@@ -19,6 +19,7 @@ import type {
   ThinkingContent,
   ToolCall
 } from '@earendil-works/pi-ai'
+import { Box, Text } from '@earendil-works/pi-tui'
 import { parse } from 'jsonc-parser'
 
 type PrecompactMode = 'pi' | 'custom' | 'off'
@@ -29,6 +30,8 @@ type BashOutputPolicy = 'all' | 'truncate' | 'none'
 type ToolsPolicy = 'none' | 'read-only' | 'current' | 'all'
 type PromptStyle = 'dense' | 'review' | 'architecture'
 type OracleIntent = 'verify' | 'ask' | 'architecture' | 'changes'
+
+const ORACLE_RECEIPT_TYPE = 'oracle-receipt'
 
 export interface OracleConfig {
   model?: string
@@ -535,6 +538,11 @@ function previewText(preview: OraclePreview): string {
   return preview.lines.join('\n')
 }
 
+function receiptText(preview: OraclePreview): string {
+  const tools = preview.lines[2].match(/tools .+$/)?.[0] ?? 'tools none'
+  return `oracle · ${preview.lines[1]} · ${tools}`
+}
+
 function toolNamesForPolicy(
   policy: ToolsPolicy,
   previousTools: string[],
@@ -551,6 +559,13 @@ export default function oracle(pi: ExtensionAPI) {
   let activeRun: OracleRun | undefined
   let nextRunId = 1
 
+  pi.registerMessageRenderer(ORACLE_RECEIPT_TYPE, (message, _options, theme) => {
+    const content = typeof message.content === 'string' ? message.content : ''
+    const box = new Box(1, 0, (text) => theme.bg('customMessageBg', text))
+    box.addChild(new Text(theme.fg('dim', content), 0, 0))
+    return box
+  })
+
   pi.on('session_before_compact', async (event, ctx) => {
     if (!activeRun?.customPrecompact) return
     return runCustomCompaction(event, ctx, activeRun)
@@ -562,8 +577,11 @@ export default function oracle(pi: ExtensionAPI) {
   })
 
   pi.on('context', (event) => {
-    if (!activeRun) return
-    return { messages: buildOracleContext(event.messages, activeRun.config) }
+    const messages = event.messages.filter(
+      (message) => message.role !== 'custom' || message.customType !== ORACLE_RECEIPT_TYPE
+    )
+    if (!activeRun) return { messages }
+    return { messages: buildOracleContext(messages, activeRun.config) }
   })
 
   pi.on('agent_end', async (_event, ctx) => {
@@ -636,9 +654,17 @@ export default function oracle(pi: ExtensionAPI) {
       if (config.confirm) {
         const choice = await ctx.ui.select(`Oracle\n${previewText(preview)}`, ['No', 'Yes'])
         if (choice !== 'Yes') return
-      } else {
-        ctx.ui.notify(`oracle · ${preview.lines[1]}`, 'info')
       }
+
+      pi.sendMessage(
+        {
+          customType: ORACLE_RECEIPT_TYPE,
+          content: receiptText(preview),
+          display: true,
+          details: { timestamp: Date.now() }
+        },
+        { triggerTurn: false }
+      )
 
       activeRun = {
         id: nextRunId++,
