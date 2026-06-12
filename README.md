@@ -374,6 +374,8 @@ Manual workflow smoke test: `docs/smoke-test.md`.
 
 Shared extension helper guide: `extensions/shared/README.md`.
 
+API-backed extension guide: `docs/api-backed-extensions.md`.
+
 ## License
 
 MIT
