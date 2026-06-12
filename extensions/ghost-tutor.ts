@@ -1,6 +1,7 @@
 import { streamSimple, type AssistantMessageEvent, type Message } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Box, Text } from '@earendil-works/pi-tui'
+import { registerDisplayOnlyMessage } from './shared/display-message'
 
 export const GHOST_TUTOR_MESSAGE_TYPE = 'ghost-tutor'
 export const GHOST_TUTOR_WIDGET_KEY = 'ghost-tutor'
@@ -164,7 +165,8 @@ export default function ghostTutor(pi: ExtensionAPI) {
     default: false
   })
 
-  pi.registerMessageRenderer<GhostTutorDetails>(
+  const sendGhostMessage = registerDisplayOnlyMessage<GhostTutorDetails>(
+    pi,
     GHOST_TUTOR_MESSAGE_TYPE,
     (message, _options, theme) => {
       const content = extractText(message.content).trim()
@@ -174,29 +176,12 @@ export default function ghostTutor(pi: ExtensionAPI) {
     }
   )
 
-  pi.on('context', (event) => ({
-    messages: event.messages.filter((message) => {
-      return !(
-        message.role === 'custom' &&
-        (message as { customType?: string }).customType === GHOST_TUTOR_MESSAGE_TYPE
-      )
-    })
-  }))
-
   pi.on('input', () => {
     if (!pendingGhostMessage) return
 
     const text = pendingGhostMessage
     pendingGhostMessage = undefined
-    pi.sendMessage<GhostTutorDetails>(
-      {
-        customType: GHOST_TUTOR_MESSAGE_TYPE,
-        content: text,
-        display: true,
-        details: { timestamp: Date.now() }
-      },
-      { triggerTurn: false }
-    )
+    sendGhostMessage(text, { timestamp: Date.now() })
   })
 
   pi.on('agent_start', (_event, ctx) => {

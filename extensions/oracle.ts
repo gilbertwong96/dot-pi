@@ -21,6 +21,7 @@ import type {
 } from '@earendil-works/pi-ai'
 import { Box, Text } from '@earendil-works/pi-tui'
 import { parse } from 'jsonc-parser'
+import { filterDisplayOnlyMessages, registerDisplayOnlyMessage } from './shared/display-message'
 
 type PrecompactMode = 'pi' | 'custom' | 'off'
 type SummaryMode = 'latest' | 'all' | 'none'
@@ -559,12 +560,16 @@ export default function oracle(pi: ExtensionAPI) {
   let activeRun: OracleRun | undefined
   let nextRunId = 1
 
-  pi.registerMessageRenderer(ORACLE_RECEIPT_TYPE, (message, _options, theme) => {
-    const content = typeof message.content === 'string' ? message.content : ''
-    const box = new Box(1, 0, (text) => theme.bg('customMessageBg', text))
-    box.addChild(new Text(theme.fg('dim', content), 0, 0))
-    return box
-  })
+  const sendOracleReceipt = registerDisplayOnlyMessage(
+    pi,
+    ORACLE_RECEIPT_TYPE,
+    (message, _options, theme) => {
+      const content = typeof message.content === 'string' ? message.content : ''
+      const box = new Box(1, 0, (text) => theme.bg('customMessageBg', text))
+      box.addChild(new Text(theme.fg('dim', content), 0, 0))
+      return box
+    }
+  )
 
   pi.on('session_before_compact', async (event, ctx) => {
     if (!activeRun?.customPrecompact) return
@@ -577,9 +582,7 @@ export default function oracle(pi: ExtensionAPI) {
   })
 
   pi.on('context', (event) => {
-    const messages = event.messages.filter(
-      (message) => message.role !== 'custom' || message.customType !== ORACLE_RECEIPT_TYPE
-    )
+    const messages = filterDisplayOnlyMessages(event.messages, ORACLE_RECEIPT_TYPE)
     if (!activeRun) return { messages }
     return { messages: buildOracleContext(messages, activeRun.config) }
   })
@@ -656,15 +659,7 @@ export default function oracle(pi: ExtensionAPI) {
         if (choice !== 'Yes') return
       }
 
-      pi.sendMessage(
-        {
-          customType: ORACLE_RECEIPT_TYPE,
-          content: receiptText(preview),
-          display: true,
-          details: { timestamp: Date.now() }
-        },
-        { triggerTurn: false }
-      )
+      sendOracleReceipt(receiptText(preview), { timestamp: Date.now() })
 
       activeRun = {
         id: nextRunId++,
