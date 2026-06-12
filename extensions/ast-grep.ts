@@ -15,7 +15,7 @@ import { diffLines } from 'diff'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import pathModule from 'path'
-import { expandHint, firstText, renderLines, renderToolCall } from './shared/render'
+import { expandHint, firstText, renderLines, renderToolCall, toolText } from './shared/render'
 import { Type } from 'typebox'
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
@@ -181,12 +181,12 @@ export default function (pi: ExtensionAPI) {
       const result = await pi.exec('sg', args, { cwd: ctx.cwd })
 
       if (result.killed) {
-        return { content: [{ type: 'text', text: 'Search cancelled' }], details: {} }
+        return toolText('Search cancelled', {})
       }
 
       const output = result.stdout || result.stderr
       if (!output.trim()) {
-        return { content: [{ type: 'text', text: 'No matches found' }], details: {} }
+        return toolText('No matches found', {})
       }
 
       const truncation = truncateTail(output, {
@@ -198,7 +198,7 @@ export default function (pi: ExtensionAPI) {
         text += `\n\n[Truncated: showing last ${truncation.outputLines} of ${truncation.totalLines} lines]`
       }
 
-      return { content: [{ type: 'text', text }], details: {} }
+      return toolText(text, {})
     },
 
     renderCall(params, theme) {
@@ -274,10 +274,10 @@ export default function (pi: ExtensionAPI) {
         try {
           const preview = await dryRunFileRewrite(pi, path, args, ctx.cwd)
           if (preview.cancelled) {
-            return { content: [{ type: 'text', text: 'Rewrite cancelled' }], details: {} }
+            return toolText('Rewrite cancelled', {})
           }
-          if (preview.diff) return { content: [{ type: 'text', text: preview.diff }], details: {} }
-          return { content: [{ type: 'text', text: 'No matches found' }], details: {} }
+          if (preview.diff) return toolText(preview.diff, {})
+          return toolText('No matches found', {})
         } catch {
           // Fall back to ast-grep's own dry-run output for non-file paths or unexpected failures.
         }
@@ -286,20 +286,12 @@ export default function (pi: ExtensionAPI) {
       const result = await pi.exec('sg', args, { cwd: ctx.cwd })
 
       if (result.killed) {
-        return { content: [{ type: 'text', text: 'Rewrite cancelled' }], details: {} }
+        return toolText('Rewrite cancelled', {})
       }
 
       const output = result.stdout || result.stderr
       if (!output.trim()) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: dryRun ? 'No matches found' : 'No matches found (nothing to rewrite)'
-            }
-          ],
-          details: {}
-        }
+        return toolText(dryRun ? 'No matches found' : 'No matches found (nothing to rewrite)', {})
       }
 
       const truncation = truncateTail(output, {
@@ -312,7 +304,7 @@ export default function (pi: ExtensionAPI) {
         text += `\n\n[Truncated: showing last ${truncation.outputLines} of ${truncation.totalLines} lines]`
       }
 
-      return { content: [{ type: 'text', text }], details: {} }
+      return toolText(text, {})
     },
 
     renderCall(params, theme) {
