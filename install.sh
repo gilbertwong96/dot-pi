@@ -226,21 +226,54 @@ install_agent_browser() {
 install_pi_package() {
   source=$1
   label=$2
+  description=$3
+  default=${4:-n}
 
-  if [ "$INSTALL_COMPANIONS" -eq 1 ] || ask_yes_no "Install optional companion $label?" n; then
+  if [ "$INSTALL_COMPANIONS" -eq 1 ]; then
+    run pi install "$source"
+    return 0
+  fi
+
+  log ""
+  log "$label: $description"
+  if ask_yes_no "Install optional companion $label?" "$default"; then
     run pi install "$source"
   else
     log "Skipping $label."
   fi
 }
 
+elixir_default() {
+  if has elixir || has mix; then
+    echo y
+  else
+    echo n
+  fi
+}
+
 install_companions() {
-  install_pi_package "npm:pi-elixir" "pi-elixir"
-  install_pi_package "npm:pi-subagents" "pi-subagents"
-  install_pi_package "npm:pi-context" "pi-context"
+  install_pi_package \
+    "npm:pi-elixir" \
+    "pi-elixir" \
+    "Elixir/Phoenix development tools: BEAM eval, AST search/replace, and runtime introspection." \
+    "$(elixir_default)"
+  install_pi_package \
+    "npm:pi-subagents" \
+    "pi-subagents" \
+    "Subagent delegation for splitting independent work across isolated Pi sessions." \
+    n
+  install_pi_package \
+    "npm:pi-context" \
+    "pi-context" \
+    "Context history tags and checkouts for resuming or navigating long-running work." \
+    n
 
   if [ "$(os_name)" = "macos" ]; then
-    install_pi_package "git:github.com/injaneity/pi-computer-use@v0.2.6" "pi-computer-use"
+    install_pi_package \
+      "git:github.com/injaneity/pi-computer-use@v0.2.6" \
+      "pi-computer-use" \
+      "macOS visible-app automation with screenshot, window, and accessibility tools." \
+      n
   fi
 }
 

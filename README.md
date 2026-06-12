@@ -30,7 +30,7 @@ Convenience one-liner:
 curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and offers optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS). Use non-interactive defaults with:
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no. Use non-interactive defaults with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh -s -- --yes
