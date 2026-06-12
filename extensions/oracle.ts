@@ -481,6 +481,12 @@ interface OraclePreview {
   lines: string[]
 }
 
+function compactCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
+  return value.toLocaleString()
+}
+
 function estimateOraclePreview(
   ctx: ExtensionCommandContext,
   config: OracleConfig,
@@ -500,8 +506,8 @@ function estimateOraclePreview(
   const outputUsd = (outputTokens / 1_000_000) * config.pricing.outputPerMillion
   const totalUsd = inputUsd + outputUsd
   const tools = toolNamesForPolicy(config.tools, previousTools, pi)
-  const summary =
-    config.context.summary === 'none' ? 'no summary' : `${config.context.summary} summary`
+  const summary = config.context.summary === 'none' ? 'none' : config.context.summary
+  const toolLabel = tools.length ? tools.join(', ') : 'none'
 
   return {
     inputTokens,
@@ -510,12 +516,9 @@ function estimateOraclePreview(
     outputUsd,
     totalUsd,
     lines: [
-      `${modelLabel(targetModel)}`,
-      `~${inputTokens.toLocaleString()} input + target ${outputTokens.toLocaleString()} output`,
-      `~$${totalUsd.toFixed(3)} max target (${config.pricing.inputPerMillion}/${config.pricing.outputPerMillion} per 1M in/out)`,
-      `context: ${summary} + ${config.context.keepTailTokens.toLocaleString()} tail tokens`,
-      `drop: thinking, ${config.context.drop.toolResults} tool results, images ${config.context.drop.images ? 'yes' : 'no'}`,
-      `tools: ${tools.length ? tools.join(', ') : 'none'}`
+      modelLabel(targetModel),
+      `~${compactCount(inputTokens)} in · ≤${compactCount(outputTokens)} out · ~$${totalUsd.toFixed(3)}`,
+      `ctx ${summary}+${compactCount(config.context.keepTailTokens)} · results ${config.context.drop.toolResults} · tools ${toolLabel}`
     ]
   }
 }
@@ -626,7 +629,7 @@ export default function oracle(pi: ExtensionAPI) {
         const choice = await ctx.ui.select(`Oracle\n${previewText(preview)}`, ['No', 'Yes'])
         if (choice !== 'Yes') return
       } else {
-        ctx.ui.notify(`Oracle: ${preview.lines[1]} · ${preview.lines[5]}`, 'info')
+        ctx.ui.notify(`oracle · ${preview.lines[1]}`, 'info')
       }
 
       activeRun = {
@@ -640,10 +643,7 @@ export default function oracle(pi: ExtensionAPI) {
       }
 
       try {
-        ctx.ui.setStatus(
-          'oracle',
-          `oracle ${modelLabel(targetModel)} · ${preview.inputTokens.toLocaleString()} in`
-        )
+        ctx.ui.setStatus('oracle', `oracle · ${compactCount(preview.inputTokens)} in`)
         await runCompaction(ctx, config)
         const switched = await pi.setModel(targetModel)
         if (!switched)
