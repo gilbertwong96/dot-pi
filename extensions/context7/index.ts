@@ -99,9 +99,11 @@ function compactDocsPreview(markdown: string): { lines: string[]; hidden: number
 async function searchLibrary(
   apiKey: string,
   query: string,
-  libraryName: string
+  libraryName: string,
+  fast?: boolean
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ query, libraryName })
+  if (fast !== undefined) params.set('fast', String(fast))
   const response = await fetchJson<{ results?: Library[] }>(
     `${getApiBase()}/v2/libs/search?${params}`,
     {
@@ -117,10 +119,14 @@ async function searchLibrary(
   return { libraries: results }
 }
 
-async function getContext(apiKey: string, query: string, libraryId: string): Promise<DocsResult> {
-  // Remove leading slash if present (API expects "org/repo" not "/org/repo")
-  const cleanId = libraryId.startsWith('/') ? libraryId.slice(1) : libraryId
-  const params = new URLSearchParams({ query, libraryId: cleanId, type: 'txt' })
+async function getContext(
+  apiKey: string,
+  query: string,
+  libraryId: string,
+  fast?: boolean
+): Promise<DocsResult> {
+  const params = new URLSearchParams({ query, libraryId, type: 'txt' })
+  if (fast !== undefined) params.set('fast', String(fast))
   const response = await fetchText(`${getApiBase()}/v2/context?${params}`, {
     headers: { Authorization: `Bearer ${apiKey}` }
   })
@@ -166,7 +172,10 @@ export default function (pi: ExtensionAPI) {
       libraryName: Type.String({
         description: "Library/framework name (e.g., 'react', 'next.js', 'vue')"
       }),
-      query: Type.String({ description: "What you're trying to do (helps rank results)" })
+      query: Type.String({ description: "What you're trying to do (helps rank results)" }),
+      fast: Type.Optional(
+        Type.Boolean({ description: 'Use faster, lower-latency Context7 ranking' })
+      )
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -175,7 +184,12 @@ export default function (pi: ExtensionAPI) {
         return toolError(apiKey.message, { error: true } satisfies ResolveDetails)
       }
 
-      const result = await searchLibrary(apiKey.value, params.query, params.libraryName)
+      const result = await searchLibrary(
+        apiKey.value,
+        params.query,
+        params.libraryName,
+        params.fast
+      )
 
       if (result.error) {
         return toolError(result.error, { error: true } satisfies ResolveDetails)
@@ -205,12 +219,14 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { libraryName, query } = (params ?? {}) as Partial<{
+      const { libraryName, query, fast } = (params ?? {}) as Partial<{
         libraryName: string
         query: string
+        fast: boolean
       }>
       return renderToolCall(theme, 'docs find', {
-        segments: [{ text: libraryName }, { text: query ? `"${query}"` : undefined, color: 'dim' }]
+        segments: [{ text: libraryName }, { text: query ? `"${query}"` : undefined, color: 'dim' }],
+        tags: [fast ? 'fast' : undefined]
       })
     },
 
@@ -239,7 +255,10 @@ export default function (pi: ExtensionAPI) {
     description: DOCS_DESCRIPTION,
     parameters: Type.Object({
       libraryId: Type.String({ description: "Context7 library ID (e.g., '/vercel/next.js')" }),
-      query: Type.String({ description: 'What you want to learn about' })
+      query: Type.String({ description: 'What you want to learn about' }),
+      fast: Type.Optional(
+        Type.Boolean({ description: 'Use faster, lower-latency Context7 ranking' })
+      )
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate) {
@@ -248,7 +267,7 @@ export default function (pi: ExtensionAPI) {
         return toolError(apiKey.message, docsErrorDetails(params.libraryId))
       }
 
-      const result = await getContext(apiKey.value, params.query, params.libraryId)
+      const result = await getContext(apiKey.value, params.query, params.libraryId, params.fast)
 
       if (result.error) {
         return toolError(result.error, docsErrorDetails(params.libraryId))
@@ -265,12 +284,14 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { libraryId, query } = (params ?? {}) as Partial<{
+      const { libraryId, query, fast } = (params ?? {}) as Partial<{
         libraryId: string
         query: string
+        fast: boolean
       }>
       return renderToolCall(theme, 'docs', {
-        segments: [{ text: libraryId }, { text: query ? `"${query}"` : undefined, color: 'dim' }]
+        segments: [{ text: libraryId }, { text: query ? `"${query}"` : undefined, color: 'dim' }],
+        tags: [fast ? 'fast' : undefined]
       })
     },
 

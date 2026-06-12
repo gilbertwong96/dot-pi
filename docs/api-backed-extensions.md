@@ -40,18 +40,18 @@ Important details:
 - Search endpoint: `POST https://api.exa.ai/search`.
 - Auth header in REST docs: `x-api-key`; `exa-js` handles this when constructed with the key.
 - Recommended search types: `auto`, `fast`, `instant`, `deep-lite`, `deep`, `deep-reasoning`.
-- Legacy docs may mention `neural`; new code should default to `auto`.
+- Legacy docs may mention `neural`; new code should default to `auto` and not expose `neural`.
 - `numResults` range is `1..100`.
 - Contents should be budgeted. Prefer `highlights: true` for agent workflows, use full `text` only when needed and cap `maxCharacters`.
-- Freshness belongs under contents as `contents.maxAgeHours` in REST docs. `exa-js` currently exposes `livecrawl` / `livecrawlTimeout` in its types, so verify SDK support before exposing new freshness knobs.
+- Freshness belongs under contents as `contents.maxAgeHours` in REST docs. The extension uses direct REST instead of `exa-js` so it can pass current REST-only fields.
 - Categories in current REST docs: `company`, `people`, `research paper`, `news`, `personal site`, `financial report`.
 - Category restrictions from docs:
   - `company`: does not support `startPublishedDate`, `endPublishedDate`, `excludeDomains`.
   - `people`: does not support `startPublishedDate`, `endPublishedDate`, `excludeDomains`; `includeDomains` only accepts LinkedIn domains.
 
 Maintenance notes:
-- Re-check `node_modules/exa-js/dist/index.d.ts` when upgrading `exa-js`; its exposed search types/categories may lag or differ from REST docs.
-- Keep tool descriptions synchronized with the REST docs, not just SDK types.
+- Keep tool descriptions synchronized with the REST docs, not stale SDK types.
+- If switching back to `exa-js`, first verify support for `contents.maxAgeHours`, `deep-lite`, `deep-reasoning`, `systemPrompt`, and `outputSchema`.
 
 ### Context7
 
