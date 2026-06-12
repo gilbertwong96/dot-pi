@@ -196,8 +196,34 @@ interface ThinkingContent {
   thinking: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 function isThinkingContent(c: unknown): c is ThinkingContent {
-  return typeof c === 'object' && c !== null && (c as any).type === 'thinking'
+  return isRecord(c) && c.type === 'thinking'
+}
+
+function textContentFromUnknown(content: unknown): TextContent | undefined {
+  if (!Array.isArray(content)) return undefined
+  return content.find(
+    (candidate): candidate is TextContent => isRecord(candidate) && candidate.type === 'text'
+  )
+}
+
+function numberField(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  return typeof value === 'number' ? value : 0
+}
+
+function usageFromUnknown(usage: unknown) {
+  if (!isRecord(usage)) return undefined
+  const cost = isRecord(usage.cost) ? numberField(usage.cost, 'total') : 0
+  return {
+    input: numberField(usage, 'input'),
+    output: numberField(usage, 'output'),
+    cost
+  }
 }
 
 function formatRecentContext(
@@ -404,21 +430,21 @@ function runCriticSync(
 
     for (const line of lines) {
       try {
-        const event = JSON.parse(line)
-        if (event.type === 'message_end' && event.message?.role === 'assistant') {
+        const event = JSON.parse(line) as unknown
+        if (
+          isRecord(event) &&
+          event.type === 'message_end' &&
+          isRecord(event.message) &&
+          event.message.role === 'assistant'
+        ) {
           const msg = event.message
-          const textContent = msg.content?.find((c: any) => c.type === 'text')
+          const textContent = textContentFromUnknown(msg.content)
           if (textContent?.text) {
             result.critique = textContent.text
           }
-          if (msg.usage) {
-            result.usage = {
-              input: msg.usage.input || 0,
-              output: msg.usage.output || 0,
-              cost: msg.usage.cost?.total || 0
-            }
-          }
-          if (msg.model) result.model = msg.model
+          const usage = usageFromUnknown(msg.usage)
+          if (usage) result.usage = usage
+          if (typeof msg.model === 'string') result.model = msg.model
           log(ctx, debug, 'info', `[sync] Received assistant message`)
         }
       } catch {
@@ -571,14 +597,14 @@ async function runCritic(
 
       const processLine = (line: string) => {
         if (!line.trim()) return
-        let event: any
+        let event: unknown
         try {
           event = JSON.parse(line)
         } catch {
           return
         }
 
-        if (event.type === 'message_end' && event.message) {
+        if (isRecord(event) && event.type === 'message_end' && event.message) {
           const msg = event.message as Message
           messages.push(msg)
           log(ctx, debug, 'info', `Received message: role=${msg.role}`)
@@ -596,9 +622,10 @@ async function runCritic(
           }
         }
 
-        if (event.type === 'error') {
-          log(ctx, debug, 'error', `Critic error event: ${event.message}`)
-          result.error = event.message
+        if (isRecord(event) && event.type === 'error') {
+          const message = String(event.message ?? 'unknown error')
+          log(ctx, debug, 'error', `Critic error event: ${message}`)
+          result.error = message
         }
       }
 

@@ -11,7 +11,7 @@ const DEFAULT_CACHE_DIR = `${AGENT_DIR}/cache/session-reflect`
 const DEFAULT_DB = `${DEFAULT_CACHE_DIR}/pi-sessions.duckdb`
 const DEFAULT_BUILD_LIMIT = 100
 
-type Json = Record<string, any>
+type Json = Record<string, unknown>
 type OutputFormat = 'table' | 'json' | 'markdown'
 
 type Db = {
@@ -642,7 +642,7 @@ async function ingestFiles(conn: DuckDBConnection, files: string[]) {
     }
     if (parsed.length === 0) continue
 
-    const sessionEvent = parsed.find((event) => event.type === 'session') ?? {}
+    const sessionEvent = parsed.find((event) => event.type === 'session') ?? ({} satisfies Json)
     const sessionId = String(sessionEvent.id ?? basename(path).replace(/\.jsonl$/, ''))
     const timestamps = parsed
       .map((event) => event.timestamp)
@@ -674,7 +674,7 @@ async function ingestFiles(conn: DuckDBConnection, files: string[]) {
       ])
 
       if (event.type !== 'message') continue
-      const msg = event.message ?? {}
+      const msg = (event.message ?? {}) as Json
       const role = msg.role ?? null
       const messageKey = `${sessionId}:m:${turn}`
       const messageId = nextMessageId++
@@ -694,7 +694,7 @@ async function ingestFiles(conn: DuckDBConnection, files: string[]) {
       if (Array.isArray(msg.content)) {
         let toolIndex = 0
         for (const part of msg.content) {
-          if (part && typeof part === 'object' && part.type === 'toolCall') {
+          if (part && typeof part === 'object' && 'type' in part && part.type === 'toolCall') {
             appendRow(toolAppender, [
               `${messageKey}:tool:${toolIndex++}`,
               sessionId,
@@ -940,7 +940,14 @@ function contentToText(content: unknown): string {
     .join('\n')
 }
 
-function appendRow(appender: any, values: unknown[]) {
+interface DuckDbAppender {
+  appendNull(): void
+  appendInteger(value: number): void
+  appendVarchar(value: string): void
+  endRow(): void
+}
+
+function appendRow(appender: DuckDbAppender, values: unknown[]) {
   for (const value of values) {
     if (value === null || value === undefined) appender.appendNull()
     else if (typeof value === 'number') appender.appendInteger(value)

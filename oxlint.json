@@ -14,6 +14,7 @@
     "typescript/consistent-type-imports": "off",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
+    "typescript/no-explicit-any": "error",
     "typescript/no-unnecessary-template-expression": "error",
     "typescript/prefer-optional-chain": "error",
     "import/no-cycle": "error",

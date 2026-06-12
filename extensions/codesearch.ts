@@ -8,6 +8,7 @@
 import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { fetchGitHubFile, type GitHubFileTargetParams } from './shared/github'
 import { apiErrorMessage, fetchText } from './shared/http'
+import { parseSseJson } from './shared/sse'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -179,51 +180,6 @@ const CodeSearchParamsSchema = Type.Object({
 const FIELD_PATTERN = /^(Repository|Path|URL|License):\s*(.*)$/
 const SNIPPET_HEADER = /^--- Snippet \d+ \(Line (\d+)\) ---$/
 
-/**
- * Parse grep.app API response into structured results.
- * State machine handles multiline code snippets.
- */
-export function parseSseJson<T>(body: string): T | undefined {
-  if (!body.trim()) return undefined
-
-  const contentTypeLooksJson = body.trimStart().startsWith('{')
-  if (contentTypeLooksJson) return JSON.parse(body) as T
-
-  let eventData: string[] = []
-
-  const flush = () => {
-    if (eventData.length === 0) return undefined
-
-    const payload = eventData.join('\n').trim()
-    eventData = []
-
-    if (!payload || payload === '[DONE]') return undefined
-
-    try {
-      return JSON.parse(payload) as T
-    } catch {
-      return undefined
-    }
-  }
-
-  for (const line of body.replace(/\r\n/gu, '\n').split('\n')) {
-    if (line === '') {
-      const parsed = flush()
-      if (parsed !== undefined) return parsed
-      continue
-    }
-
-    if (line.startsWith(':') || line.startsWith('event:') || line.startsWith('id:')) continue
-
-    if (line.startsWith('data:')) {
-      const value = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
-      eventData.push(value)
-    }
-  }
-
-  return flush()
-}
-
 export function sliceLines(
   text: string,
   startLine?: number,
@@ -331,7 +287,7 @@ export default function (pi: ExtensionAPI) {
     name: 'codesearch',
     label: 'Code Search',
     description: DESCRIPTION,
-    parameters: CodeSearchParamsSchema as any,
+    parameters: CodeSearchParamsSchema as never,
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
       const { query, regex, caseSensitive, wholeWords, repo, path, lang } =
@@ -489,7 +445,7 @@ export default function (pi: ExtensionAPI) {
     name: 'codefetch',
     label: 'Code Fetch',
     description: CODEFETCH_DESCRIPTION,
-    parameters: CodeFetchParamsSchema as any,
+    parameters: CodeFetchParamsSchema as never,
 
     async execute(_toolCallId, params): Promise<AgentToolResult<CodeFetchDetails>> {
       const args = params as CodeFetchParams

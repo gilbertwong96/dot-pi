@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Theme } from '@earendil-works/pi-coding-agent'
 
 import { registeredTool, type RegisteredTool } from './shared/test-utils'
-import codesearch, { parseResults, parseSseJson, sliceLines } from './codesearch'
+import codesearch, { parseResults, sliceLines } from './codesearch'
 
 const theme = {
   fg: (_name: string, text: string) => String(text),
@@ -25,42 +25,6 @@ function renderCodefetch(details: Record<string, unknown>, text: string, expande
   )
   return component?.render(120).join('\n') ?? ''
 }
-
-describe('parseSseJson', () => {
-  test('parses plain JSON responses', () => {
-    expect(parseSseJson<{ ok: boolean }>(JSON.stringify({ ok: true }))).toEqual({ ok: true })
-  })
-
-  test('skips SSE metadata and parses data events', () => {
-    const body = [
-      ': keepalive',
-      'event: message',
-      'id: 1',
-      'data: {"result":{"content":[]}}',
-      '',
-      'data: [DONE]',
-      ''
-    ].join('\n')
-
-    expect(parseSseJson<Record<string, unknown>>(body)).toEqual({ result: { content: [] } })
-  })
-
-  test('joins multi-line SSE data payloads', () => {
-    const body = ['data: {', 'data: "result": {"content": []}', 'data: }', ''].join('\n')
-
-    expect(parseSseJson<Record<string, unknown>>(body)).toEqual({ result: { content: [] } })
-  })
-
-  test('continues past malformed events', () => {
-    const body = ['data: not json', '', 'data: {"error":{"code":-1,"message":"bad"}}', ''].join(
-      '\n'
-    )
-
-    expect(parseSseJson<Record<string, unknown>>(body)).toEqual({
-      error: { code: -1, message: 'bad' }
-    })
-  })
-})
 
 describe('sliceLines', () => {
   test('returns a normalized 1-based line range', () => {

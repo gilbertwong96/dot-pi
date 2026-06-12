@@ -23,6 +23,12 @@ function isAssistantMessage(m: AgentMessage): m is AssistantMessage {
   return m.role === 'assistant' && Array.isArray(m.content)
 }
 
+function messageEntryMessage(entry: unknown): AgentMessage | undefined {
+  if (typeof entry !== 'object' || entry === null) return undefined
+  if (!('type' in entry) || entry.type !== 'message' || !('message' in entry)) return undefined
+  return entry.message as AgentMessage
+}
+
 function getTextContent(message: AssistantMessage): string {
   return message.content
     .filter((block): block is TextContent => block.type === 'text')
@@ -263,12 +269,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
       const messages: AssistantMessage[] = []
       for (let i = executeIndex + 1; i < entries.length; i++) {
         const entry = entries[i]
-        if (
-          entry.type === 'message' &&
-          'message' in entry &&
-          isAssistantMessage((entry as any).message as AgentMessage)
-        ) {
-          messages.push((entry as any).message as AssistantMessage)
+        const message = messageEntryMessage(entry)
+        if (message && isAssistantMessage(message)) {
+          messages.push(message)
         }
       }
       const allText = messages.map(getTextContent).join('\n')

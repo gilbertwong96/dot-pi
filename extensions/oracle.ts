@@ -13,6 +13,7 @@ import {
   type SessionBeforeCompactEvent
 } from '@earendil-works/pi-coding-agent'
 import type {
+  Api,
   ImageContent,
   Model,
   TextContent,
@@ -93,7 +94,7 @@ interface OracleRun {
   id: number
   question: string
   config: OracleConfig
-  previousModel?: Model<any>
+  previousModel?: Model<Api>
   previousThinking: ThinkingLevel
   previousTools: string[]
   customPrecompact: boolean
@@ -198,7 +199,7 @@ function splitModelSpec(spec: string): { provider?: string; modelId: string } {
 function resolveModelFromRegistry(
   ctx: Pick<ExtensionContext, 'modelRegistry'>,
   spec: string
-): Model<any> | undefined {
+): Model<Api> | undefined {
   const { provider, modelId } = splitModelSpec(spec)
   if (provider) return ctx.modelRegistry.find(provider, modelId)
 
@@ -472,7 +473,7 @@ async function runCustomCompaction(
   return { compaction: result satisfies CompactionResult }
 }
 
-function modelLabel(model: Model<any>): string {
+function modelLabel(model: Model<Api>): string {
   return `${model.provider}/${model.id}`
 }
 
@@ -521,7 +522,7 @@ export function buildOraclePreview(
 function estimateOraclePreview(
   ctx: ExtensionCommandContext,
   config: OracleConfig,
-  targetModel: Model<any>,
+  targetModel: Model<Api>,
   question: string,
   previousTools: string[],
   pi: ExtensionAPI

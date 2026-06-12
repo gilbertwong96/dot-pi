@@ -261,7 +261,7 @@ export default function (pi: ExtensionAPI) {
     name: 'fetch',
     label: 'Fetch URL',
     description: DESCRIPTION,
-    parameters: FetchParamsSchema as any,
+    parameters: FetchParamsSchema as never,
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
       const {
