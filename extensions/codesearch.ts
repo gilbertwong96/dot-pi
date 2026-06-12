@@ -6,7 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { fetchText } from './shared/http'
+import { apiErrorMessage, fetchText } from './shared/http'
 import {
   firstText,
   primary,
@@ -129,7 +129,48 @@ const SNIPPET_HEADER = /^--- Snippet \d+ \(Line (\d+)\) ---$/
  * Parse grep.app API response into structured results.
  * State machine handles multiline code snippets.
  */
-function parseResults(rawText: string): SearchResult[] {
+export function parseSseJson<T>(body: string): T | undefined {
+  if (!body.trim()) return undefined
+
+  const contentTypeLooksJson = body.trimStart().startsWith('{')
+  if (contentTypeLooksJson) return JSON.parse(body) as T
+
+  let eventData: string[] = []
+
+  const flush = () => {
+    if (eventData.length === 0) return undefined
+
+    const payload = eventData.join('\n').trim()
+    eventData = []
+
+    if (!payload || payload === '[DONE]') return undefined
+
+    try {
+      return JSON.parse(payload) as T
+    } catch {
+      return undefined
+    }
+  }
+
+  for (const line of body.replace(/\r\n/gu, '\n').split('\n')) {
+    if (line === '') {
+      const parsed = flush()
+      if (parsed !== undefined) return parsed
+      continue
+    }
+
+    if (line.startsWith(':') || line.startsWith('event:') || line.startsWith('id:')) continue
+
+    if (line.startsWith('data:')) {
+      const value = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+      eventData.push(value)
+    }
+  }
+
+  return flush()
+}
+
+export function parseResults(rawText: string): SearchResult[] {
   const results: SearchResult[] = []
 
   let record: Partial<SearchResult> & { snippets: CodeSnippet[] } = { snippets: [] }
@@ -253,26 +294,17 @@ export default function (pi: ExtensionAPI) {
         )
 
         if (!response.ok) {
-          return toolError(`API returned ${response.status}`, codeSearchErrorDetails(query))
+          return toolError(
+            apiErrorMessage(response.status, response.text),
+            codeSearchErrorDetails(query)
+          )
         }
 
-        const text = response.text
+        const data = parseSseJson<McpResponse>(response.text)
 
-        // Parse SSE response - find the data line
-        const lines = text.split('\n')
-        let jsonData = ''
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            jsonData = line.slice(6)
-            break
-          }
-        }
-
-        if (!jsonData) {
+        if (!data) {
           return toolError('No data in response', codeSearchErrorDetails(query))
         }
-
-        const data: McpResponse = JSON.parse(jsonData)
 
         if (data.error) {
           return toolError(data.error.message, codeSearchErrorDetails(query))
