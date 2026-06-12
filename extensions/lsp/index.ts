@@ -11,7 +11,14 @@ import {
   getLanguageFromPath,
   highlightCode
 } from '@earendil-works/pi-coding-agent'
-import { expandHint, firstText, renderError, renderLines, renderToolCall } from '../shared/render'
+import {
+  expandHint,
+  firstText,
+  renderError,
+  renderLines,
+  renderToolCall,
+  toolText
+} from '../shared/render'
 import type {
   CallHierarchyIncomingCall,
   CallHierarchyItem,
@@ -424,6 +431,16 @@ async function runWorkspaceDiagnostics(
 // Extension Entry Point
 // =============================================================================
 
+function lspText(text: string, details: LspToolDetails) {
+  return toolText(text, details)
+}
+
+function lspError(message: string, details: Omit<LspToolDetails, 'success'>) {
+  const text =
+    message.startsWith('Error:') || message.startsWith('LSP error:') ? message : `Error: ${message}`
+  return toolText(text, { ...details, success: false }, { isError: true })
+}
+
 export default function (pi: ExtensionAPI) {
   const cwd = process.cwd()
 
@@ -460,36 +477,26 @@ export default function (pi: ExtensionAPI) {
           servers.length > 0
             ? `Active language servers: ${servers.join(', ')}`
             : 'No language servers configured for this project'
-        return {
-          content: [{ type: 'text', text: output }],
-          details: { action, success: true }
-        }
+        return lspText(output, { action, success: true })
       }
 
       // Workspace diagnostics
       if (action === 'workspace_diagnostics') {
         const result = await runWorkspaceDiagnostics(cwd, config)
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Workspace diagnostics (${result.projectType.description}):\n${result.output}`
-            }
-          ],
-          details: { action, success: true }
-        }
+        return lspText(
+          `Workspace diagnostics (${result.projectType.description}):\n${result.output}`,
+          {
+            action,
+            success: true
+          }
+        )
       }
 
       // Diagnostics (batch or single-file)
       if (action === 'diagnostics') {
         const targets = files?.length ? files : file ? [file] : null
         if (!targets) {
-          return {
-            content: [
-              { type: 'text', text: 'Error: file or files parameter required for diagnostics' }
-            ],
-            details: { action, success: false }
-          }
+          return lspError('file or files parameter required for diagnostics', { action })
         }
 
         const detailed = Boolean(files?.length)
@@ -538,23 +545,21 @@ export default function (pi: ExtensionAPI) {
 
           if (!detailed && targets.length === 1) {
             if (uniqueDiagnostics.length === 0) {
-              return {
-                content: [{ type: 'text', text: 'No diagnostics' }],
-                details: {
-                  action,
-                  serverName: Array.from(allServerNames).join(', '),
-                  success: true
-                }
-              }
+              return lspText('No diagnostics', {
+                action,
+                serverName: Array.from(allServerNames).join(', '),
+                success: true
+              })
             }
 
             const summary = formatDiagnosticsSummary(uniqueDiagnostics)
             const formatted = uniqueDiagnostics.map((d) => formatDiagnostic(d, relPath))
             const output = `${summary}:\n${formatted.map((f) => `  ${f}`).join('\n')}`
-            return {
-              content: [{ type: 'text', text: output }],
-              details: { action, serverName: Array.from(allServerNames).join(', '), success: true }
-            }
+            return lspText(output, {
+              action,
+              serverName: Array.from(allServerNames).join(', '),
+              success: true
+            })
           }
 
           if (uniqueDiagnostics.length === 0) {
@@ -568,10 +573,11 @@ export default function (pi: ExtensionAPI) {
           }
         }
 
-        return {
-          content: [{ type: 'text', text: results.join('\n') }],
-          details: { action, serverName: Array.from(allServerNames).join(', '), success: true }
-        }
+        return lspText(results.join('\n'), {
+          action,
+          serverName: Array.from(allServerNames).join(', '),
+          success: true
+        })
       }
 
       // Check if file is required
@@ -584,10 +590,7 @@ export default function (pi: ExtensionAPI) {
         action !== 'reload_workspace'
 
       if (requiresFile) {
-        return {
-          content: [{ type: 'text', text: 'Error: file parameter required for this action' }],
-          details: { action, success: false }
-        }
+        return lspError('file parameter required for this action', { action })
       }
 
       const resolvedFile = file ? resolveToCwd(file, cwd) : null
@@ -596,10 +599,7 @@ export default function (pi: ExtensionAPI) {
         : getServerForWorkspaceAction(config, action)
 
       if (!serverInfo) {
-        return {
-          content: [{ type: 'text', text: 'No language server found for this action' }],
-          details: { action, success: false }
-        }
+        return lspError('No language server found for this action', { action })
       }
 
       const [serverName, serverConfig] = serverInfo
@@ -610,10 +610,7 @@ export default function (pi: ExtensionAPI) {
         if (action === 'runnables' && !targetFile) {
           targetFile = findFileByExtensions(cwd, serverConfig.fileTypes, FILE_SEARCH_MAX_DEPTH)
           if (!targetFile) {
-            return {
-              content: [{ type: 'text', text: 'Error: no matching files found for runnables' }],
-              details: { action, serverName, success: false }
-            }
+            return lspError('no matching files found for runnables', { action, serverName })
           }
         }
 
@@ -699,10 +696,7 @@ export default function (pi: ExtensionAPI) {
             if (!result || result.length === 0) {
               output = 'No symbols found'
             } else if (!targetFile) {
-              return {
-                content: [{ type: 'text', text: 'Error: file parameter required for symbols' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('file parameter required for symbols', { action, serverName })
             } else {
               const relPath = path.relative(cwd, targetFile)
               if ('selectionRange' in result[0]) {
@@ -722,12 +716,10 @@ export default function (pi: ExtensionAPI) {
 
           case 'workspace_symbols': {
             if (!query) {
-              return {
-                content: [
-                  { type: 'text', text: 'Error: query parameter required for workspace_symbols' }
-                ],
-                details: { action, serverName, success: false }
-              }
+              return lspError('query parameter required for workspace_symbols', {
+                action,
+                serverName
+              })
             }
 
             const result = (await sendRequest(client, 'workspace/symbol', { query })) as
@@ -745,10 +737,7 @@ export default function (pi: ExtensionAPI) {
 
           case 'rename': {
             if (!new_name) {
-              return {
-                content: [{ type: 'text', text: 'Error: new_name parameter required for rename' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('new_name parameter required for rename', { action, serverName })
             }
 
             const result = (await sendRequest(client, 'textDocument/rename', {
@@ -774,10 +763,7 @@ export default function (pi: ExtensionAPI) {
 
           case 'actions': {
             if (!targetFile) {
-              return {
-                content: [{ type: 'text', text: 'Error: file parameter required for actions' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('file parameter required for actions', { action, serverName })
             }
 
             await refreshFile(client, targetFile)
@@ -806,15 +792,13 @@ export default function (pi: ExtensionAPI) {
               output = 'No code actions available'
             } else if (action_index !== undefined) {
               if (action_index < 0 || action_index >= result.length) {
-                return {
-                  content: [
-                    {
-                      type: 'text',
-                      text: `Error: action_index ${action_index} out of range (0-${result.length - 1})`
-                    }
-                  ],
-                  details: { action, serverName, success: false }
-                }
+                return lspError(
+                  `action_index ${action_index} out of range (0-${result.length - 1})`,
+                  {
+                    action,
+                    serverName
+                  }
+                )
               }
 
               const isCommand = (candidate: CodeAction | Command): candidate is Command =>
@@ -933,10 +917,7 @@ export default function (pi: ExtensionAPI) {
           // Rust-analyzer specific
           case 'flycheck': {
             if (!hasCapability(serverConfig, 'flycheck')) {
-              return {
-                content: [{ type: 'text', text: 'Error: flycheck requires rust-analyzer' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('flycheck requires rust-analyzer', { action, serverName })
             }
 
             await rustAnalyzer.flycheck(client, resolvedFile ?? undefined)
@@ -963,19 +944,11 @@ export default function (pi: ExtensionAPI) {
 
           case 'expand_macro': {
             if (!hasCapability(serverConfig, 'expandMacro')) {
-              return {
-                content: [{ type: 'text', text: 'Error: expand_macro requires rust-analyzer' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('expand_macro requires rust-analyzer', { action, serverName })
             }
 
             if (!targetFile) {
-              return {
-                content: [
-                  { type: 'text', text: 'Error: file parameter required for expand_macro' }
-                ],
-                details: { action, serverName, success: false }
-              }
+              return lspError('file parameter required for expand_macro', { action, serverName })
             }
 
             const result = await rustAnalyzer.expandMacro(
@@ -994,26 +967,15 @@ export default function (pi: ExtensionAPI) {
 
           case 'ssr': {
             if (!hasCapability(serverConfig, 'ssr')) {
-              return {
-                content: [{ type: 'text', text: 'Error: ssr requires rust-analyzer' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('ssr requires rust-analyzer', { action, serverName })
             }
 
             if (!query) {
-              return {
-                content: [
-                  { type: 'text', text: 'Error: query parameter (pattern) required for ssr' }
-                ],
-                details: { action, serverName, success: false }
-              }
+              return lspError('query parameter (pattern) required for ssr', { action, serverName })
             }
 
             if (!replacement) {
-              return {
-                content: [{ type: 'text', text: 'Error: replacement parameter required for ssr' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('replacement parameter required for ssr', { action, serverName })
             }
 
             const shouldApply = apply === true
@@ -1037,17 +999,11 @@ export default function (pi: ExtensionAPI) {
 
           case 'runnables': {
             if (!hasCapability(serverConfig, 'runnables')) {
-              return {
-                content: [{ type: 'text', text: 'Error: runnables requires rust-analyzer' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('runnables requires rust-analyzer', { action, serverName })
             }
 
             if (!targetFile) {
-              return {
-                content: [{ type: 'text', text: 'Error: file parameter required for runnables' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('file parameter required for runnables', { action, serverName })
             }
 
             const result = await rustAnalyzer.runnables(client, targetFile, line)
@@ -1065,19 +1021,11 @@ export default function (pi: ExtensionAPI) {
 
           case 'related_tests': {
             if (!hasCapability(serverConfig, 'relatedTests')) {
-              return {
-                content: [{ type: 'text', text: 'Error: related_tests requires rust-analyzer' }],
-                details: { action, serverName, success: false }
-              }
+              return lspError('related_tests requires rust-analyzer', { action, serverName })
             }
 
             if (!targetFile) {
-              return {
-                content: [
-                  { type: 'text', text: 'Error: file parameter required for related_tests' }
-                ],
-                details: { action, serverName, success: false }
-              }
+              return lspError('file parameter required for related_tests', { action, serverName })
             }
 
             const result = await rustAnalyzer.relatedTests(
@@ -1104,16 +1052,14 @@ export default function (pi: ExtensionAPI) {
             output = `Unknown action: ${action}`
         }
 
-        return {
-          content: [{ type: 'text', text: output }],
-          details: { serverName, action, success: true, file: targetFile }
-        }
+        return lspText(output, { serverName, action, success: true, file: targetFile ?? undefined })
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{ type: 'text', text: `LSP error: ${errorMessage}` }],
-          details: { serverName, action, success: false, file: resolvedFile }
-        }
+        return lspError(`LSP error: ${errorMessage}`, {
+          serverName,
+          action,
+          file: resolvedFile ?? undefined
+        })
       }
     },
 

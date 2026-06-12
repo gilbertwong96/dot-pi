@@ -584,7 +584,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(_args, theme) {
-      return new Text(theme.fg('toolTitle', theme.bold('bg list')), 0, 0)
+      return renderToolCall(theme, 'bg list')
     },
 
     renderResult(result, _options, theme) {
