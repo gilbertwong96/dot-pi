@@ -36,32 +36,22 @@ import {
 } from '@earendil-works/pi-tui'
 import { Type } from 'typebox'
 import { toolError, toolText } from '../shared/render'
-
-interface WorktreeInfo {
-  path: string
-  branch: string
-  created: number
-  setupCompleted: boolean
-}
-
-interface WorktreeDetails {
-  name: string
-  path: string
-  branch: string
-}
-
-interface WorktreeListDetails {
-  worktrees: Array<{
-    path: string
-    branch: string
-    head: string
-    bare: boolean
-  }>
-}
+import {
+  formatWorktreeList,
+  formatWorktreeStatus,
+  isDirtyWorktreeRemovalError,
+  parseWorktreePorcelain,
+  validateWorktreeName,
+  worktreePathFor,
+  WORKTREES_DIR,
+  type WorktreeDetails,
+  type WorktreeEntry,
+  type WorktreeInfo,
+  type WorktreeListDetails
+} from './git'
 
 export default function worktreesExtension(pi: ExtensionAPI) {
   const worktrees = new Map<string, WorktreeInfo>()
-  const WORKTREES_DIR = '.worktrees'
 
   function updateStatusWidget(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return
@@ -207,7 +197,15 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
     }),
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const { name, baseBranch } = params
-      const worktreePath = join(ctx.cwd, WORKTREES_DIR, name)
+      const nameError = validateWorktreeName(name)
+      const worktreePath = worktreePathFor(ctx.cwd, name)
+      if (nameError) {
+        return toolError(nameError, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
+      }
 
       // Check if worktree already exists
       if (worktrees.has(name) || existsSync(worktreePath)) {
@@ -322,44 +320,10 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
         } satisfies WorktreeListDetails)
       }
 
-      // Parse porcelain output
-      const worktreeList: WorktreeListDetails['worktrees'] = []
-      const lines = result.stdout.split('\n')
-      let current: Partial<WorktreeListDetails['worktrees'][0]> = {}
-
-      for (const line of lines) {
-        if (line.startsWith('worktree ')) {
-          current.path = line.slice(9)
-        } else if (line.startsWith('HEAD ')) {
-          current.head = line.slice(5)
-        } else if (line.startsWith('branch ')) {
-          current.branch = line.slice(7).replace('refs/heads/', '')
-        } else if (line === 'bare') {
-          current.bare = true
-        } else if (line === 'detached') {
-          current.branch = '(detached)'
-        } else if (line === '' && current.path) {
-          worktreeList.push({
-            path: current.path,
-            branch: current.branch || '(unknown)',
-            head: current.head || '',
-            bare: current.bare || false
-          })
-          current = {}
-        }
-      }
-
-      // Format output
-      let output = `Found ${worktreeList.length} worktree${worktreeList.length !== 1 ? 's' : ''}:\n\n`
-      for (const wt of worktreeList) {
-        const isMain = !wt.path.includes(WORKTREES_DIR)
-        const marker = isMain ? ' (main)' : ''
-        output += `• ${wt.branch}${marker}\n`
-        output += `  Path: ${wt.path}\n`
-        output += `  HEAD: ${wt.head.slice(0, 8)}\n\n`
-      }
-
-      return toolText(output.trim(), { worktrees: worktreeList } satisfies WorktreeListDetails)
+      const worktreeList = parseWorktreePorcelain(result.stdout)
+      return toolText(formatWorktreeList(worktreeList), {
+        worktrees: worktreeList
+      } satisfies WorktreeListDetails)
     }
   })
 
@@ -377,7 +341,15 @@ Use force=true to remove even with uncommitted changes.`,
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const { name, force } = params
-      const worktreePath = join(ctx.cwd, WORKTREES_DIR, name)
+      const nameError = validateWorktreeName(name)
+      const worktreePath = worktreePathFor(ctx.cwd, name)
+      if (nameError) {
+        return toolError(nameError, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
+      }
 
       // Check if worktree exists
       if (!existsSync(worktreePath)) {
@@ -399,8 +371,7 @@ Use force=true to remove even with uncommitted changes.`,
 
       if (result.code !== 0) {
         const error = result.stderr || result.stdout || 'Unknown error'
-        // Check if it's about uncommitted changes
-        if (error.includes('uncommitted changes') || error.includes('untracked files')) {
+        if (isDirtyWorktreeRemovalError(error)) {
           return toolError(
             `Cannot remove worktree "${name}": has uncommitted changes.\nUse force=true to remove anyway, or commit/stash changes first.`,
             { name, path: worktreePath, branch: name } satisfies WorktreeDetails
@@ -432,7 +403,15 @@ Use force=true to remove even with uncommitted changes.`,
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const { name } = params
-      const worktreePath = join(ctx.cwd, WORKTREES_DIR, name)
+      const nameError = validateWorktreeName(name)
+      const worktreePath = worktreePathFor(ctx.cwd, name)
+      if (nameError) {
+        return toolError(nameError, {
+          name,
+          path: worktreePath,
+          branch: ''
+        } satisfies WorktreeDetails)
+      }
 
       if (!existsSync(worktreePath)) {
         return toolError(`Worktree "${name}" not found`, {
@@ -453,21 +432,8 @@ Use force=true to remove even with uncommitted changes.`,
       const status = statusResult.stdout.trim()
       const diff = diffResult.stdout.trim()
 
-      let output = `Worktree: ${name}\n`
-      output += `Branch: ${branch}\n`
-      output += `Path: ${worktreePath}\n\n`
-
-      if (status) {
-        output += `Changes:\n${status}\n\n`
-      } else {
-        output += 'No uncommitted changes\n\n'
-      }
-
-      if (diff) {
-        output += `Diff summary:\n${diff}`
-      }
-
-      return toolText(output.trim(), { name, path: worktreePath, branch } satisfies WorktreeDetails)
+      const output = formatWorktreeStatus({ name, branch, path: worktreePath, status, diff })
+      return toolText(output, { name, path: worktreePath, branch } satisfies WorktreeDetails)
     }
   })
 
@@ -495,38 +461,7 @@ Use force=true to remove even with uncommitted changes.`,
         return
       }
 
-      // Parse worktrees
-      interface WorktreeEntry {
-        path: string
-        branch: string
-        head: string
-        isMain: boolean
-      }
-
-      const worktreeList: WorktreeEntry[] = []
-      const lines = result.stdout.split('\n')
-      let current: Partial<WorktreeEntry> = {}
-
-      for (const line of lines) {
-        if (line.startsWith('worktree ')) {
-          current.path = line.slice(9)
-          current.isMain = !current.path.includes(WORKTREES_DIR)
-        } else if (line.startsWith('HEAD ')) {
-          current.head = line.slice(5)
-        } else if (line.startsWith('branch ')) {
-          current.branch = line.slice(7).replace('refs/heads/', '')
-        } else if (line === 'detached') {
-          current.branch = '(detached)'
-        } else if (line === '' && current.path) {
-          worktreeList.push({
-            path: current.path,
-            branch: current.branch || '(unknown)',
-            head: current.head || '',
-            isMain: current.isMain ?? false
-          })
-          current = {}
-        }
-      }
+      const worktreeList = parseWorktreePorcelain(result.stdout)
 
       if (worktreeList.length === 0) {
         ctx.ui.notify('No worktrees found', 'info')
@@ -659,22 +594,15 @@ Use force=true to remove even with uncommitted changes.`,
             cwd: selectedWorktree.path
           })
 
-          let output = `Branch: ${selectedWorktree.branch}\n`
-          output += `Path: ${selectedWorktree.path}\n\n`
+          const output = formatWorktreeStatus({
+            branch: selectedWorktree.branch,
+            path: selectedWorktree.path,
+            status: statusResult.stdout.trim(),
+            diff: diffResult.stdout.trim(),
+            diffLabel: 'Diff'
+          })
 
-          const status = statusResult.stdout.trim()
-          if (status) {
-            output += `Changes:\n${status}\n\n`
-          } else {
-            output += 'No uncommitted changes\n\n'
-          }
-
-          const diff = diffResult.stdout.trim()
-          if (diff) {
-            output += `Diff:\n${diff}`
-          }
-
-          ctx.ui.notify(output.trim(), 'info')
+          ctx.ui.notify(output, 'info')
           break
         }
         case 'Remove worktree': {
@@ -694,7 +622,7 @@ Use force=true to remove even with uncommitted changes.`,
             ctx.ui.notify(`Removed worktree "${name}"`, 'info')
           } else {
             const error = removeResult.stderr || removeResult.stdout
-            if (error.includes('uncommitted changes') || error.includes('untracked files')) {
+            if (isDirtyWorktreeRemovalError(error)) {
               ctx.ui.notify(`Cannot remove: has uncommitted changes. Commit or use force.`, 'error')
             } else {
               ctx.ui.notify(`Error: ${error}`, 'error')

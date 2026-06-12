@@ -4,15 +4,13 @@ import fg from 'fast-glob'
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
+import { formatResultRows, formatSection, type Json, type OutputFormat } from './output'
 
 const AGENT_DIR = process.env.PI_CODING_AGENT_DIR ?? `${process.env.HOME}/.pi/agent`
 const DEFAULT_ROOT = `${AGENT_DIR}/sessions`
 const DEFAULT_CACHE_DIR = `${AGENT_DIR}/cache/session-reflect`
 const DEFAULT_DB = `${DEFAULT_CACHE_DIR}/pi-sessions.duckdb`
 const DEFAULT_BUILD_LIMIT = 100
-
-type Json = Record<string, unknown>
-type OutputFormat = 'table' | 'json' | 'markdown'
 
 type Db = {
   instance: DuckDBInstance
@@ -965,25 +963,16 @@ async function printRows(conn: DuckDBConnection, sql: string) {
 }
 
 function printResultRows(resultRows: Json[]) {
-  const format = getFormat()
-  if (format === 'json') {
-    console.log(JSON.stringify(resultRows, null, 2))
+  const formatted = formatResultRows(resultRows, getFormat())
+  if (typeof formatted === 'string') {
+    console.log(formatted)
     return
   }
-  if (format === 'markdown') {
-    console.log(markdownTable(resultRows))
-    return
-  }
-  console.table(
-    resultRows.map((row) =>
-      Object.fromEntries(Object.entries(row).map(([k, v]) => [k, truncate(v)]))
-    )
-  )
+  console.table(formatted)
 }
 
 function printSection(title: string) {
-  if (getFormat() === 'markdown') console.log(`\n## ${title}\n`)
-  else console.log(`\n${title}`)
+  console.log(formatSection(title, getFormat()))
 }
 
 function evenSample<T>(items: T[], count: number): T[] {
@@ -1001,23 +990,6 @@ function getFormat(): OutputFormat {
   const value = String(program.opts().format ?? 'table')
   if (value === 'table' || value === 'json' || value === 'markdown') return value
   throw new Error(`Unknown format: ${value}. Expected table, json, or markdown.`)
-}
-
-function markdownTable(resultRows: Json[]) {
-  if (resultRows.length === 0) return '_No rows._'
-  const headers = Object.keys(resultRows[0]!)
-  const escape = (value: unknown) =>
-    String(truncate(value)).replace(/\|/g, '\\|').replace(/\n/g, ' ')
-  return [
-    `| ${headers.map(escape).join(' | ')} |`,
-    `| ${headers.map(() => '---').join(' | ')} |`,
-    ...resultRows.map((row) => `| ${headers.map((header) => escape(row[header])).join(' | ')} |`)
-  ].join('\n')
-}
-
-function truncate(value: unknown) {
-  if (typeof value === 'string' && value.length > 120) return ellipsize(value, 120)
-  return value
 }
 
 function compactLimitForRole(role: string, requested: number) {

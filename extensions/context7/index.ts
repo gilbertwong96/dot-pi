@@ -9,12 +9,12 @@
 
 import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
+import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
-  truncateHeadText,
-  type TruncationResult
+  truncateHeadText
 } from '../shared/truncate'
 import {
   firstText,
@@ -57,15 +57,12 @@ interface DocsResult {
   error?: string
 }
 
-interface ResolveDetails {
+interface ResolveDetails extends ToolStatusDetails {
   libraries?: Library[]
-  error?: boolean
 }
 
-interface DocsDetails {
+interface DocsDetails extends ToolStatusDetails, TruncatedOutputDetails {
   libraryId: string
-  truncation?: TruncationResult
-  error?: boolean
   empty?: boolean
 }
 

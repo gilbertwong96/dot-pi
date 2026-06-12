@@ -7,12 +7,12 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
+import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
-  truncateHeadText,
-  type TruncationResult
+  truncateHeadText
 } from '../shared/truncate'
 import {
   firstText,
@@ -46,12 +46,10 @@ interface SearchResult {
   summary?: string
 }
 
-interface WebSearchDetails {
+interface WebSearchDetails extends ToolStatusDetails, TruncatedOutputDetails {
   query: string
   results: SearchResult[]
   output?: string
-  truncation?: TruncationResult
-  error?: boolean
 }
 
 interface ExaSearchResponse {
@@ -59,7 +57,7 @@ interface ExaSearchResponse {
   output?: { content?: unknown }
 }
 
-type WebSearchLoadingDetails = WebSearchDetails & { loading: boolean }
+type WebSearchLoadingDetails = WebSearchDetails & Required<Pick<ToolStatusDetails, 'loading'>>
 
 function webSearchDetails(
   query: string,

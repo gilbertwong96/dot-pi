@@ -48,6 +48,7 @@ import {
   Spacer,
   Text
 } from '@earendil-works/pi-tui'
+import type { ToolStatusDetails } from '../shared/tool-details'
 import {
   errorMessageFromEvent,
   isRecord,
@@ -55,6 +56,7 @@ import {
   textContentFromUnknown,
   usageFromUnknown
 } from './events'
+import { parseCriticVerdict, type CriticVerdictStatus } from './verdict'
 
 /**
  * Get the command to spawn pi subprocess.
@@ -130,7 +132,7 @@ interface CriticRuntimeState {
 interface CriticResult {
   critique: string
   approved: boolean
-  status?: 'APPROVED' | 'NEEDS_WORK' | 'BLOCKED'
+  status?: CriticVerdictStatus
   model?: string
   usage?: {
     input: number
@@ -142,7 +144,7 @@ interface CriticResult {
   durationMs?: number
 }
 
-interface CriticDetails {
+interface CriticDetails extends ToolStatusDetails {
   result: CriticResult
   context: string
 }
@@ -426,26 +428,18 @@ function runCriticSync(
 
     result.durationMs = Date.now() - startTime
 
-    // Parse verdict
-    const verdictMatch = result.critique.match(
-      /<critic_verdict>\s*status:\s*(APPROVED|NEEDS_WORK|BLOCKED)\s*<\/critic_verdict>/i
-    )
-    if (verdictMatch) {
-      const status = verdictMatch[1].toUpperCase() as 'APPROVED' | 'NEEDS_WORK' | 'BLOCKED'
-      result.status = status
-      result.approved = status === 'APPROVED'
-      result.critique = result.critique
-        .replace(/<critic_verdict>[\s\S]*<\/critic_verdict>/i, '')
-        .trim()
-    } else {
+    const verdict = parseCriticVerdict(result.critique)
+    result.status = verdict.status
+    result.approved = verdict.approved
+    result.critique = verdict.critique
+
+    if (!verdict.hasVerdictBlock) {
       log(ctx, debug, 'warn', '[sync] No verdict block found, defaulting to NEEDS_WORK')
-      result.status = 'NEEDS_WORK'
-      result.approved = false
     }
 
     logToFile('verdict', {
       status: result.status,
-      hasVerdictBlock: !!verdictMatch,
+      hasVerdictBlock: verdict.hasVerdictBlock,
       approved: result.approved,
       critiqueLength: result.critique.length
     })
@@ -691,21 +685,12 @@ async function runCritic(
       result.critique = '(No response from critic)'
     }
 
-    // Parse structured verdict from critic response
-    const verdictMatch = result.critique.match(
-      /<critic_verdict>\s*status:\s*(APPROVED|NEEDS_WORK|BLOCKED)\s*<\/critic_verdict>/i
-    )
+    const verdict = parseCriticVerdict(result.critique)
+    result.critique = verdict.critique
+    result.approved = verdict.approved
+    result.status = verdict.status
 
-    type VerdictStatus = 'APPROVED' | 'NEEDS_WORK' | 'BLOCKED'
-    let status: VerdictStatus = 'NEEDS_WORK'
-    if (verdictMatch) {
-      status = verdictMatch[1].toUpperCase() as VerdictStatus
-      // Remove verdict block from displayed critique
-      result.critique = result.critique
-        .replace(/<critic_verdict>[\s\S]*<\/critic_verdict>/i, '')
-        .trim()
-    } else {
-      // Fallback: if no verdict block, assume NEEDS_WORK (safer default)
+    if (!verdict.hasVerdictBlock) {
       log(
         ctx,
         debug,
@@ -714,12 +699,9 @@ async function runCritic(
       )
     }
 
-    result.approved = (status as VerdictStatus) === 'APPROVED'
-    result.status = status
-
     logToFile('verdict', {
-      status,
-      hasVerdictBlock: !!verdictMatch,
+      status: verdict.status,
+      hasVerdictBlock: verdict.hasVerdictBlock,
       approved: result.approved,
       critiqueLength: result.critique.length
     })
@@ -932,7 +914,7 @@ export default function criticExtension(pi: ExtensionAPI): void {
           customType: 'critic-review',
           content: result.critique,
           display: true,
-          details: { result, context: contextStr } as CriticDetails
+          details: { result, context: contextStr, error: Boolean(result.error) } as CriticDetails
         },
         { triggerTurn: false }
       )
