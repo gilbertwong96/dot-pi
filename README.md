@@ -19,7 +19,7 @@ pi install git:github.com/dannote/dot-pi
 For the recommended end-user setup, run the bootstrap script. Safer review-first flow:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh
+curl -fsSLO https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh
 less install.sh
 sh install.sh
 ```
@@ -27,13 +27,13 @@ sh install.sh
 Convenience one-liner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh
 ```
 
 The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no. Use non-interactive defaults with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh -s -- --yes
 ```
 
 Project-local install for a repo/team:

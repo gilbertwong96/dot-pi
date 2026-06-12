@@ -15,3 +15,5 @@ jobs:
       - run: bun run format:check
       - run: bun run check
       - run: bun test
+      - run: sh -n install.sh
+      - run: ./install.sh --dry-run --yes --no-agent-browser --with-companions
