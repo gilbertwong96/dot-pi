@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import astGrep from './ast-grep'
 import background from './background'
@@ -10,18 +10,9 @@ import lsp from './lsp'
 import question from './question'
 import webfetch from './webfetch'
 import websearch from './websearch'
+import { renderComponentText, testTheme } from './shared/test-utils'
 
 type RegisteredTool = Parameters<ExtensionAPI['registerTool']>[0]
-
-const theme = {
-  fg: (_name: string, text: string) => String(text),
-  bg: (_name: string, text: string) => String(text),
-  bold: (text: string) => String(text)
-} as Theme
-
-function renderText(component: { render(width: number): string[] }): string {
-  return component.render(120).join('\n')
-}
 
 function collectTools(): RegisteredTool[] {
   const tools: RegisteredTool[] = []
@@ -52,9 +43,9 @@ function collectTools(): RegisteredTool[] {
 describe('tool renderCall streaming start', () => {
   test('does not render undefined when args are unavailable', () => {
     const rendered = collectTools().map((tool) => {
-      const component = tool.renderCall?.(undefined as never, theme, {} as never)
+      const component = tool.renderCall?.(undefined as never, testTheme, {} as never)
       if (!component) throw new Error(`${tool.name} missing renderCall`)
-      return [tool.name, renderText(component)]
+      return [tool.name, renderComponentText(component)]
     })
 
     expect(rendered.length).toBeGreaterThan(0)

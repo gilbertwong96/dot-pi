@@ -1,15 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import type { Theme } from '@earendil-works/pi-coding-agent'
-
-import { registeredTool, type RegisteredTool } from './shared/test-utils'
+import {
+  registeredTool,
+  renderComponentText,
+  testTheme,
+  type RegisteredTool
+} from './shared/test-utils'
 import codesearch, { parseResults, sliceLines } from './codesearch'
-
-const theme = {
-  fg: (_name: string, text: string) => String(text),
-  bg: (_name: string, text: string) => String(text),
-  bold: (text: string) => String(text),
-  underline: (text: string) => String(text)
-} as Theme
 
 function codefetchTool(): RegisteredTool {
   return registeredTool(codesearch, 'codefetch')
@@ -20,10 +16,10 @@ function renderCodefetch(details: Record<string, unknown>, text: string, expande
   const component = tool.renderResult?.(
     { content: [{ type: 'text', text }], details },
     { expanded, isPartial: false },
-    theme,
+    testTheme,
     {} as never
   )
-  return component?.render(120).join('\n') ?? ''
+  return renderComponentText(component)
 }
 
 describe('sliceLines', () => {

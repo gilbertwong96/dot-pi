@@ -1,6 +1,18 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
+import type { Component } from '@earendil-works/pi-tui'
 
 export type RegisteredTool = Parameters<ExtensionAPI['registerTool']>[0]
+
+export const testTheme = {
+  fg: (_name: string, text: string) => String(text),
+  bg: (_name: string, text: string) => String(text),
+  bold: (text: string) => String(text),
+  underline: (text: string) => String(text)
+} as Theme
+
+export function renderComponentText(component: Component | undefined, width = 120): string {
+  return component?.render(width).join('\n') ?? ''
+}
 
 export function collectRegisteredTools(extension: (pi: ExtensionAPI) => void): RegisteredTool[] {
   const tools: RegisteredTool[] = []

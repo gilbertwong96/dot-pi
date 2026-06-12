@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/knip/schema-jsonc.json",
+  "entry": ["extensions/**/*.ts", "skills/**/*.ts"],
+  "project": ["extensions/**/*.ts", "skills/**/*.ts"],
+  "ignore": ["extensions/critic/tests/**", "**/node_modules/**"],
+  "ignoreBinaries": [
+    "gh",
+    "tail",
+    "pgrep",
+    "lsof",
+    "osascript",
+    "powershell.exe",
+    "which",
+    "rec",
+    "expect"
+  ],
+  "ignoreDependencies": [
+    "@anthropic-ai/sandbox-runtime",
+    "@duckdb/node-api",
+    "cli-highlight",
+    "commander",
+    "convert-layout",
+    "fast-glob",
+    "minimatch"
+  ],
+  "rules": {
+    "exports": "off",
+    "types": "off"
+  }
+}

@@ -9,13 +9,13 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from '../shared/abort'
 import { formatBytes } from '../shared/format'
+import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import { toolParameters } from '../shared/tool-schema'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize as formatTruncationSize,
-  truncateHeadText,
-  type TruncationResult
+  truncateHeadText
 } from '../shared/truncate'
 import {
   firstText,
@@ -35,17 +35,13 @@ import * as cheerio from 'cheerio'
 import TurndownService from 'turndown'
 import { extractText as extractPdfText } from 'unpdf'
 
-interface FetchDetails {
+interface FetchDetails extends ToolStatusDetails, TruncatedOutputDetails {
   url?: string
   finalUrl?: string
   contentType?: string
   format?: string
   size?: number
   totalChars?: number
-  truncated?: boolean
-  truncation?: TruncationResult
-  error?: boolean
-  loading?: boolean
   status?: number
   redirected?: boolean
   selector?: string
