@@ -10,6 +10,13 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  formatSize,
+  truncateHeadText,
+  type TruncationResult
+} from '../shared/truncate'
+import {
   firstText,
   meta as renderMeta,
   primary,
@@ -58,6 +65,7 @@ interface ResolveDetails {
 
 interface DocsDetails {
   libraryId: string
+  truncation?: TruncationResult
   error?: boolean
   empty?: boolean
 }
@@ -159,7 +167,7 @@ Examples:
 - libraryId: "/vueuse/vueuse", query: "useDark dark mode"
 - libraryId: "/tanstack/query", query: "useQuery cache"
 
-Returns relevant documentation snippets with code examples.`
+Returns relevant documentation snippets with code examples. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
@@ -278,7 +286,19 @@ export default function (pi: ExtensionAPI) {
         )
       }
 
-      return toolText(result.docs, { libraryId: params.libraryId })
+      const truncated = truncateHeadText(result.docs, {
+        notice: (truncation) => {
+          if (truncation.firstLineExceedsLimit) {
+            return `[First documentation line exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Try a narrower query.]`
+          }
+          return `[Documentation truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines. Try a narrower query for more specific snippets.]`
+        }
+      })
+
+      return toolText(truncated.text, {
+        libraryId: params.libraryId,
+        truncation: truncated.truncation
+      } satisfies DocsDetails)
     },
 
     renderCall(params, theme) {
@@ -294,9 +314,9 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderResult(result, { expanded }, theme) {
-      const details = result.details as { libraryId?: string; error?: boolean; empty?: boolean }
-      if (details.error) return renderError(firstText(result, 'Error'), theme)
-      if (details.empty) return renderMuted('No docs found', theme)
+      const details = result.details as DocsDetails | undefined
+      if (details?.error) return renderError(firstText(result, 'Error'), theme)
+      if (details?.empty) return renderMuted('No docs found', theme)
       const text = result.content[0]
       const docs = text?.type === 'text' ? text.text : ''
       return renderMarkdownPreview(docs, theme, {

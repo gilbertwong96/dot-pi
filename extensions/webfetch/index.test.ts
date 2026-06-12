@@ -32,6 +32,30 @@ function mockFetch(response: Response) {
   })
 }
 
+describe('webfetch truncation', () => {
+  test('uses shared native-style output truncation', async () => {
+    const body = Array.from({ length: 2100 }, (_, index) => `line ${index + 1}`).join('\n')
+    mockFetch(
+      new Response(body, {
+        headers: { 'content-type': 'text/plain' }
+      })
+    )
+
+    const result = await registeredFetchTool().execute(
+      'test',
+      { url: 'https://example.com/large.txt', format: 'text' },
+      undefined,
+      undefined,
+      context
+    )
+
+    expect(firstText(result)).toContain('[Output truncated: showing 2000 of 2100 lines')
+    expect((result.details as { truncation?: { truncated: boolean } }).truncation?.truncated).toBe(
+      true
+    )
+  })
+})
+
 describe('webfetch binary handling', () => {
   test('does not decode audio responses as text', async () => {
     mockFetch(

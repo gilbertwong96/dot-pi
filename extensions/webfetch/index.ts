@@ -9,6 +9,13 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from '../shared/abort'
 import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  formatSize as formatTruncationSize,
+  truncateHeadText,
+  type TruncationResult
+} from '../shared/truncate'
+import {
   firstText,
   meta as renderMeta,
   primary,
@@ -35,6 +42,7 @@ interface FetchDetails {
   size?: number
   totalChars?: number
   truncated?: boolean
+  truncation?: TruncationResult
   error?: boolean
   loading?: boolean
   status?: number
@@ -71,7 +79,6 @@ function dedupeRepeatedHeading(line: string): string {
 }
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024
-const MAX_OUTPUT_CHARS = 20000
 const DEFAULT_TIMEOUT = 30 * 1000
 const MAX_TIMEOUT = 120 * 1000
 
@@ -93,7 +100,7 @@ Usage notes:
 - Use 'headers' for custom HTTP headers (e.g. Authorization, Cookie)
 - Shows final URL after redirects
 - Results may be truncated if content is very large (5MB limit)
-- Output is capped at 20,000 characters to keep responses manageable`
+- Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatTruncationSize(DEFAULT_MAX_BYTES)}`
 
 function convertHTMLToMarkdown(html: string): string {
   const turndownService = new TurndownService({
@@ -129,13 +136,11 @@ function applySelector(html: string, selector: string): string {
 }
 
 function truncateOutput(text: string) {
-  if (text.length <= MAX_OUTPUT_CHARS) {
-    return { output: text, truncated: false, totalChars: text.length }
-  }
-
+  const truncated = truncateHeadText(text)
   return {
-    output: `${text.slice(0, MAX_OUTPUT_CHARS)}\n\n[Truncated: ${text.length - MAX_OUTPUT_CHARS} chars omitted]`,
-    truncated: true,
+    output: truncated.text,
+    truncated: Boolean(truncated.truncation?.truncated),
+    truncation: truncated.truncation,
     totalChars: text.length
   }
 }
@@ -340,7 +345,7 @@ export default function (pi: ExtensionAPI) {
             const { text: pdfText } = await extractPdfText(new Uint8Array(arrayBuffer), {
               mergePages: true
             })
-            const { output, truncated, totalChars } = truncateOutput(pdfText)
+            const { output, truncated, truncation, totalChars } = truncateOutput(pdfText)
             return toolText(output, {
               url,
               finalUrl: redirected ? finalUrl : undefined,
@@ -349,6 +354,7 @@ export default function (pi: ExtensionAPI) {
               size: arrayBuffer.byteLength,
               totalChars,
               truncated,
+              truncation,
               redirected
             } satisfies FetchDetails)
           } catch {
@@ -382,7 +388,7 @@ export default function (pi: ExtensionAPI) {
           try {
             const parsed = JSON.parse(content)
             const formatted = JSON.stringify(parsed, null, 2)
-            const { output, truncated, totalChars } = truncateOutput(formatted)
+            const { output, truncated, truncation, totalChars } = truncateOutput(formatted)
             return toolText(output, {
               url,
               finalUrl: redirected ? finalUrl : undefined,
@@ -391,6 +397,7 @@ export default function (pi: ExtensionAPI) {
               size: arrayBuffer.byteLength,
               totalChars,
               truncated,
+              truncation,
               redirected
             } satisfies FetchDetails)
           } catch {
@@ -429,7 +436,7 @@ export default function (pi: ExtensionAPI) {
             break
         }
 
-        const { output: finalOutput, truncated, totalChars } = truncateOutput(output)
+        const { output: finalOutput, truncated, truncation, totalChars } = truncateOutput(output)
 
         return toolText(finalOutput, {
           url,
@@ -439,6 +446,7 @@ export default function (pi: ExtensionAPI) {
           size: arrayBuffer.byteLength,
           totalChars,
           truncated,
+          truncation,
           redirected,
           selector: selector || undefined
         } satisfies FetchDetails)

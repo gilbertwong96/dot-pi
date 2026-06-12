@@ -8,6 +8,13 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  formatSize,
+  truncateHeadText,
+  type TruncationResult
+} from '../shared/truncate'
+import {
   firstText,
   meta as renderMeta,
   primary,
@@ -43,6 +50,7 @@ interface WebSearchDetails {
   query: string
   results: SearchResult[]
   output?: string
+  truncation?: TruncationResult
   error?: boolean
 }
 
@@ -83,6 +91,7 @@ Usage notes:
 - Filter by domains (includeDomains/excludeDomains), text content (includeText/excludeText), and date ranges where supported
 - Control content freshness with maxAgeHours (0=always fresh, 24=accept 24h cache, -1=cache only, omit=default)
 - Prefer highlights for agent workflows; use full text only when needed and cap contextMaxCharacters
+- Tool output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}
 - Use systemPrompt and outputSchema only when you need synthesized/structured output; they can increase latency and cost`
 
 const WebSearchParams = Type.Object({
@@ -369,10 +378,20 @@ export default function (pi: ExtensionAPI) {
           )
         }
 
-        return toolText(
-          formatResultsAsText(results, output),
-          webSearchDetails(query, results, output)
-        )
+        const formatted = formatResultsAsText(results, output)
+        const truncated = truncateHeadText(formatted, {
+          notice: (truncation) => {
+            if (truncation.firstLineExceedsLimit) {
+              return `[First result line exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use highlights or lower contextMaxCharacters.]`
+            }
+            return `[Search output truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines. Use fewer results, highlights, or lower contextMaxCharacters.]`
+          }
+        })
+
+        return toolText(truncated.text, {
+          ...webSearchDetails(query, results, output),
+          truncation: truncated.truncation
+        } satisfies WebSearchDetails)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         return toolError(message, webSearchErrorDetails(query))
