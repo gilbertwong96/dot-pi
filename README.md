@@ -233,6 +233,7 @@ Configure `/oracle` in settings:
       "enabled": true,
       "mode": "pi",
       "keepRecentTokens": 4000,
+      "minTokens": 1000,
       "reserveTokens": 12000
     },
     "context": {

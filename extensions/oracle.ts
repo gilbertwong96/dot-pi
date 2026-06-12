@@ -35,6 +35,7 @@ interface OracleConfig {
     enabled: boolean
     mode: PrecompactMode
     keepRecentTokens: number
+    minTokens: number
     reserveTokens: number
     model?: string
     thinking: ThinkingLevel
@@ -88,6 +89,7 @@ export const DEFAULT_CONFIG: OracleConfig = {
     enabled: true,
     mode: 'pi',
     keepRecentTokens: 4000,
+    minTokens: 1000,
     reserveTokens: 12000,
     thinking: 'off'
   },
@@ -363,6 +365,15 @@ Target retained recent context after compaction: ${config.precompact.keepRecentT
 
 async function runCompaction(ctx: ExtensionCommandContext, config: OracleConfig) {
   if (!config.precompact.enabled || config.precompact.mode === 'off') return
+
+  const usage = ctx.getContextUsage()
+  if (
+    usage?.tokens !== null &&
+    usage?.tokens !== undefined &&
+    usage.tokens < config.precompact.minTokens
+  ) {
+    return
+  }
 
   await new Promise<void>((resolve, reject) => {
     ctx.compact({
