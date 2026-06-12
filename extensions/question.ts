@@ -5,15 +5,8 @@
  */
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import {
-  Editor,
-  type EditorTheme,
-  Key,
-  matchesKey,
-  Text,
-  truncateToWidth
-} from '@earendil-works/pi-tui'
-import { firstText, renderLines } from './shared/render'
+import { Editor, type EditorTheme, Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
+import { firstText, renderLines, renderToolCall } from './shared/render'
 import { Type } from 'typebox'
 
 interface OptionWithDesc {
@@ -248,14 +241,12 @@ export default function question(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      let text = theme.fg('toolTitle', theme.bold('ask ')) + theme.fg('muted', args.question)
-      const opts = Array.isArray(args.options) ? args.options : []
-      if (opts.length) {
-        const labels = opts.map((o: OptionWithDesc) => o.label)
-        const numbered = [...labels, 'Type something.'].map((o, i) => `${i + 1}. ${o}`)
-        text += `\n${theme.fg('dim', `  Options: ${numbered.join(', ')}`)}`
-      }
-      return new Text(text, 0, 0)
+      const safeArgs = args ?? {}
+      const opts = Array.isArray(safeArgs.options) ? safeArgs.options : []
+      return renderToolCall(theme, 'ask', {
+        segments: [{ text: safeArgs.question, color: 'muted' }],
+        suffix: opts.length ? `${opts.length + 1} options` : undefined
+      })
     },
 
     renderResult(result, _options, theme) {

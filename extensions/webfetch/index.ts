@@ -17,7 +17,7 @@ import {
   renderError,
   renderExpandFooter,
   renderLines,
-  renderSingleLine,
+  renderToolCall,
   title
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -487,16 +487,11 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const args = params as FetchParams
-      let text = theme.fg('toolTitle', theme.bold('fetch '))
-      text += theme.fg('accent', args.url || '')
-
-      const tags: string[] = []
-      if (args.format && args.format !== 'markdown') tags.push(args.format)
-      if (args.selector) tags.push(args.selector)
-      if (tags.length) text += theme.fg('dim', ` [${tags.join(', ')}]`)
-
-      return renderSingleLine(text)
+      const args = (params ?? {}) as Partial<FetchParams>
+      return renderToolCall(theme, 'fetch', {
+        segments: [{ text: args.url }],
+        tags: [args.format && args.format !== 'markdown' ? args.format : undefined, args.selector]
+      })
     },
 
     renderResult(result, { expanded, isPartial }, theme) {

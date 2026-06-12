@@ -6,7 +6,6 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
 import {
   appendEntryBlock,
   appendFooter,
@@ -15,7 +14,8 @@ import {
   renderError,
   renderExpandFooter,
   renderLines,
-  renderMuted
+  renderMuted,
+  renderToolCall
 } from './shared/render'
 import { Type } from 'typebox'
 
@@ -317,19 +317,17 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const args = params as CodeSearchParams
-      let text = theme.fg('toolTitle', theme.bold('code search '))
-      text += theme.fg('accent', args.query || '')
-      const filters: string[] = []
-      if (args.repo) filters.push(`repo:${args.repo}`)
-      if (args.path) filters.push(`path:${args.path}`)
-      if (args.lang?.length) filters.push(`lang:${args.lang.join(',')}`)
-      if (args.regex) filters.push('regex')
-      if (args.caseSensitive) filters.push('case')
-      if (filters.length > 0) {
-        text += theme.fg('dim', ` [${filters.join(', ')}]`)
-      }
-      return new Text(text, 0, 0)
+      const args = (params ?? {}) as Partial<CodeSearchParams>
+      return renderToolCall(theme, 'code search', {
+        segments: [{ text: args.query }],
+        tags: [
+          args.repo ? `repo:${args.repo}` : undefined,
+          args.path ? `path:${args.path}` : undefined,
+          args.lang?.length ? `lang:${args.lang.join(',')}` : undefined,
+          args.regex ? 'regex' : undefined,
+          args.caseSensitive ? 'case' : undefined
+        ]
+      })
     },
 
     renderResult(result, { expanded, isPartial }, theme) {

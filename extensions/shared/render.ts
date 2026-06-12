@@ -133,6 +133,44 @@ export function renderSingleLine(text: string): Component {
   }
 }
 
+type ToolCallSegmentColor = 'accent' | 'muted' | 'dim' | 'success'
+
+interface ToolCallSegment {
+  text?: string | number | boolean | null
+  color?: ToolCallSegmentColor
+  prefix?: string
+}
+
+interface ToolCallRenderOptions {
+  segments?: ToolCallSegment[]
+  tags?: Array<string | number | boolean | null | undefined>
+  suffix?: string | number | boolean | null
+}
+
+export function renderToolCall(
+  theme: Theme,
+  titleText: string,
+  options: ToolCallRenderOptions = {}
+): Component {
+  let text = theme.fg('toolTitle', theme.bold(titleText))
+
+  for (const segment of options.segments ?? []) {
+    if (segment.text === undefined || segment.text === null || segment.text === '') continue
+    text += theme.fg(segment.color ?? 'accent', `${segment.prefix ?? ' '}${String(segment.text)}`)
+  }
+
+  const tags = (options.tags ?? [])
+    .filter((tag) => tag !== undefined && tag !== null && tag !== false && tag !== '')
+    .map(String)
+  if (tags.length) text += theme.fg('dim', ` [${tags.join(', ')}]`)
+
+  if (options.suffix !== undefined && options.suffix !== null && options.suffix !== '') {
+    text += theme.fg('dim', ` (${String(options.suffix)})`)
+  }
+
+  return renderSingleLine(text)
+}
+
 export function expandHint(theme: Theme): string {
   return theme.fg('muted', '(') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
 }

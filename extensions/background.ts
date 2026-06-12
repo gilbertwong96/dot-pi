@@ -17,6 +17,7 @@ import {
   renderError,
   renderLines,
   renderMuted,
+  renderToolCall,
   title
 } from './shared/render'
 import { Type } from 'typebox'
@@ -519,13 +520,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      return new Text(
-        theme.fg('toolTitle', theme.bold('bg start ')) +
-          theme.fg('accent', args.name) +
-          theme.fg('dim', ` → ${args.command}`),
-        0,
-        0
-      )
+      const safeArgs = args ?? {}
+      return renderToolCall(theme, 'bg start', {
+        segments: [
+          { text: safeArgs.name },
+          { text: safeArgs.command ? `→ ${safeArgs.command}` : undefined, color: 'dim' }
+        ]
+      })
     },
 
     renderResult(result, _options, theme) {
@@ -570,11 +571,8 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      return new Text(
-        theme.fg('toolTitle', theme.bold('bg stop ')) + theme.fg('accent', args.name),
-        0,
-        0
-      )
+      const safeArgs = args ?? {}
+      return renderToolCall(theme, 'bg stop', { segments: [{ text: safeArgs.name }] })
     },
 
     renderResult(result, _options, theme) {
@@ -668,13 +666,11 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      return new Text(
-        theme.fg('toolTitle', theme.bold('bg logs ')) +
-          theme.fg('accent', args.name) +
-          theme.fg('dim', ` (${args.lines ?? 50} lines)`),
-        0,
-        0
-      )
+      const safeArgs = args ?? {}
+      return renderToolCall(theme, 'bg logs', {
+        segments: [{ text: safeArgs.name }],
+        suffix: safeArgs.lines ? `${safeArgs.lines} lines` : undefined
+      })
     },
 
     renderResult(result, _options, theme) {

@@ -11,8 +11,7 @@ import {
   getLanguageFromPath,
   highlightCode
 } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
-import { expandHint, firstText, renderError, renderLines } from '../shared/render'
+import { expandHint, firstText, renderError, renderLines, renderToolCall } from '../shared/render'
 import type {
   CallHierarchyIncomingCall,
   CallHierarchyItem,
@@ -1119,18 +1118,17 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      const p = args as LspParams & { file?: string; files?: string[] }
+      const p = (args ?? {}) as Partial<LspParams & { file?: string; files?: string[] }>
 
-      let text = theme.fg('toolTitle', theme.bold('lsp '))
-      text += theme.fg('accent', p.action || '?')
-
-      if (p.file) {
-        text += ` ${theme.fg('muted', p.file)}`
-      } else if (p.files?.length) {
-        text += ` ${theme.fg('muted', `${p.files.length} file(s)`)}`
-      }
-
-      return new Text(text, 0, 0)
+      return renderToolCall(theme, 'lsp', {
+        segments: [
+          { text: p.action },
+          {
+            text: p.file ?? (p.files?.length ? `${p.files.length} file(s)` : undefined),
+            color: 'muted'
+          }
+        ]
+      })
     },
 
     renderResult(result, { expanded }, theme) {

@@ -8,7 +8,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Markdown, Text } from '@earendil-works/pi-tui'
+import { Markdown } from '@earendil-works/pi-tui'
 import {
   firstText,
   meta as renderMeta,
@@ -17,6 +17,7 @@ import {
   renderExpandFooter,
   renderLines,
   renderMuted,
+  renderToolCall,
   title,
   nativeMarkdownTheme
 } from '../shared/render'
@@ -203,14 +204,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { libraryName, query } = params as { libraryName: string; query: string }
-      return new Text(
-        theme.fg('toolTitle', theme.bold('docs find ')) +
-          theme.fg('accent', libraryName) +
-          theme.fg('dim', ` "${query}"`),
-        0,
-        0
-      )
+      const { libraryName, query } = (params ?? {}) as Partial<{
+        libraryName: string
+        query: string
+      }>
+      return renderToolCall(theme, 'docs find', {
+        segments: [{ text: libraryName }, { text: query ? `"${query}"` : undefined, color: 'dim' }]
+      })
     },
 
     renderResult(result, { expanded }, theme) {
@@ -283,14 +283,13 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { libraryId, query } = params as { libraryId: string; query: string }
-      return new Text(
-        theme.fg('toolTitle', theme.bold('docs ')) +
-          theme.fg('accent', libraryId) +
-          theme.fg('dim', ` "${query}"`),
-        0,
-        0
-      )
+      const { libraryId, query } = (params ?? {}) as Partial<{
+        libraryId: string
+        query: string
+      }>
+      return renderToolCall(theme, 'docs', {
+        segments: [{ text: libraryId }, { text: query ? `"${query}"` : undefined, color: 'dim' }]
+      })
     },
 
     renderResult(result, { expanded }, theme) {

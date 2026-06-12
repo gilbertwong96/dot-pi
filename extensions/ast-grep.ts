@@ -11,12 +11,11 @@ import {
   DEFAULT_MAX_LINES,
   truncateTail
 } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
 import { diffLines } from 'diff'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import pathModule from 'path'
-import { expandHint, firstText, renderLines } from './shared/render'
+import { expandHint, firstText, renderLines, renderToolCall } from './shared/render'
 import { Type } from 'typebox'
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
@@ -203,12 +202,18 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { pattern, lang, path } = params as { pattern: string; lang?: string; path?: string }
-      let text = theme.fg('toolTitle', theme.bold('ast grep '))
-      text += theme.fg('accent', `'${pattern}'`)
-      if (lang) text += theme.fg('dim', ` -l ${lang}`)
-      if (path) text += theme.fg('muted', ` ${path}`)
-      return new Text(text, 0, 0)
+      const { pattern, lang, path } = (params ?? {}) as Partial<{
+        pattern: string
+        lang?: string
+        path?: string
+      }>
+      return renderToolCall(theme, 'ast grep', {
+        segments: [
+          { text: pattern ? `'${pattern}'` : undefined },
+          { text: lang ? `-l ${lang}` : undefined, color: 'dim' },
+          { text: path, color: 'muted' }
+        ]
+      })
     },
 
     renderResult(result, _options, theme) {
@@ -311,21 +316,23 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      const { pattern, replacement, lang, path, dryRun } = params as {
+      const { pattern, replacement, lang, path, dryRun } = (params ?? {}) as Partial<{
         pattern: string
         replacement: string
         lang?: string
         path?: string
         dryRun?: boolean
-      }
-      let text = theme.fg('toolTitle', theme.bold('ast edit '))
-      text += theme.fg('accent', `'${pattern}'`)
-      text += theme.fg('dim', ' → ')
-      text += theme.fg('success', `'${replacement}'`)
-      if (lang) text += theme.fg('dim', ` -l ${lang}`)
-      if (path) text += theme.fg('muted', ` ${path}`)
-      if (dryRun) text += theme.fg('muted', ' dry-run')
-      return new Text(text, 0, 0)
+      }>
+      return renderToolCall(theme, 'ast edit', {
+        segments: [
+          { text: pattern ? `'${pattern}'` : undefined },
+          { text: replacement ? '→' : undefined, color: 'dim' },
+          { text: replacement ? `'${replacement}'` : undefined, color: 'success' },
+          { text: lang ? `-l ${lang}` : undefined, color: 'dim' },
+          { text: path, color: 'muted' },
+          { text: dryRun ? 'dry-run' : undefined, color: 'muted' }
+        ]
+      })
     },
 
     renderResult(result, { expanded }, theme) {

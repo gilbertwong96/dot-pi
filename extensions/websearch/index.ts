@@ -6,7 +6,6 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Text } from '@earendil-works/pi-tui'
 import {
   appendEntryBlock,
   appendFooter,
@@ -17,6 +16,7 @@ import {
   renderExpandFooter,
   renderLines,
   renderMuted,
+  renderToolCall,
   title,
   truncateText
 } from '../shared/render'
@@ -306,18 +306,12 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(params, theme) {
-      let text = theme.fg('toolTitle', theme.bold('web '))
-      text += theme.fg('accent', params.query || '')
-
-      const tags: string[] = []
-      if (params.type && params.type !== 'auto') tags.push(params.type)
-      if (params.category) tags.push(params.category)
-      if (tags.length) text += theme.fg('dim', ` [${tags.join(', ')}]`)
-
-      if (params.numResults) {
-        text += theme.fg('dim', ` (${params.numResults} results)`)
-      }
-      return new Text(text, 0, 0)
+      const args = params ?? {}
+      return renderToolCall(theme, 'web', {
+        segments: [{ text: args.query }],
+        tags: [args.type && args.type !== 'auto' ? args.type : undefined, args.category],
+        suffix: args.numResults ? `${args.numResults} results` : undefined
+      })
     },
 
     renderResult(result, { expanded, isPartial }, theme) {

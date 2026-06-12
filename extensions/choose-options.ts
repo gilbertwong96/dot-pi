@@ -1,13 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
-import {
-  isKeyRelease,
-  Key,
-  matchesKey,
-  SelectList,
-  Text,
-  truncateToWidth
-} from '@earendil-works/pi-tui'
-import { renderLines } from './shared/render'
+import { isKeyRelease, Key, matchesKey, SelectList, truncateToWidth } from '@earendil-works/pi-tui'
+import { renderLines, renderToolCall } from './shared/render'
 import { Type } from 'typebox'
 
 type Option = {
@@ -118,13 +111,12 @@ export default function chooseOptions(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      const count = Array.isArray(args.options) ? args.options.length : 0
-      return new Text(
-        theme.fg('toolTitle', theme.bold('choose ')) +
-          theme.fg('muted', `${args.question ?? ''}${count ? ` (${count} options)` : ''}`),
-        0,
-        0
-      )
+      const safeArgs = args ?? {}
+      const count = Array.isArray(safeArgs.options) ? safeArgs.options.length : 0
+      return renderToolCall(theme, 'choose', {
+        segments: [{ text: safeArgs.question, color: 'muted' }],
+        suffix: count ? `${count} options` : undefined
+      })
     },
 
     renderResult(result, _options, theme) {
