@@ -6,6 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { withTimeoutSignal } from './shared/abort'
 import {
   appendEntryBlock,
   appendFooter,
@@ -238,25 +239,18 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
-
-      const combinedSignal = signal
-        ? AbortSignal.any([controller.signal, signal])
-        : controller.signal
-
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream'
-          },
-          body: JSON.stringify(mcpRequest),
-          signal: combinedSignal
-        })
-
-        clearTimeout(timeoutId)
+        const response = await withTimeoutSignal(signal, DEFAULT_TIMEOUT, (requestSignal) =>
+          fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json, text/event-stream'
+            },
+            body: JSON.stringify(mcpRequest),
+            signal: requestSignal
+          })
+        )
 
         if (!response.ok) {
           return toolError(`API returned ${response.status}`, codeSearchErrorDetails(query))
@@ -298,8 +292,6 @@ export default function (pi: ExtensionAPI) {
 
         return toolText(formatResultsAsText(results), codeSearchDetails(query, results))
       } catch (err) {
-        clearTimeout(timeoutId)
-
         if (err instanceof Error && err.name === 'AbortError') {
           return toolError('Search request timed out', codeSearchErrorDetails(query))
         }

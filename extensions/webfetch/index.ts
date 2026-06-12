@@ -8,6 +8,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Markdown } from '@earendil-works/pi-tui'
+import { withTimeoutSignal } from '../shared/abort'
 import {
   clampRenderedLines,
   firstText,
@@ -20,6 +21,7 @@ import {
   renderToolCall,
   title,
   toolError,
+  toolLoading,
   toolText
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -279,17 +281,7 @@ export default function (pi: ExtensionAPI) {
 
       const timeout = Math.min((timeoutSec ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
 
-      onUpdate?.({
-        content: [],
-        details: { loading: true }
-      })
-
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-      const combinedSignal = signal
-        ? AbortSignal.any([controller.signal, signal])
-        : controller.signal
+      onUpdate?.(toolLoading({ loading: true } satisfies FetchDetails))
 
       let acceptHeader = '*/*'
       switch (format) {
@@ -309,19 +301,19 @@ export default function (pi: ExtensionAPI) {
       }
 
       try {
-        const response = await fetch(url, {
-          signal: combinedSignal,
-          redirect: 'follow',
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            Accept: acceptHeader,
-            'Accept-Language': 'en-US,en;q=0.9',
-            ...customHeaders
-          }
-        })
-
-        clearTimeout(timeoutId)
+        const response = await withTimeoutSignal(signal, timeout, (requestSignal) =>
+          fetch(url, {
+            signal: requestSignal,
+            redirect: 'follow',
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Accept: acceptHeader,
+              'Accept-Language': 'en-US,en;q=0.9',
+              ...customHeaders
+            }
+          })
+        )
 
         if (!response.ok) {
           return toolError(`Request failed with status ${response.status}`, {
@@ -453,7 +445,6 @@ export default function (pi: ExtensionAPI) {
           selector: selector || undefined
         } satisfies FetchDetails)
       } catch (err) {
-        clearTimeout(timeoutId)
         const message = err instanceof Error ? err.message : String(err)
         return toolError(message, { url, error: true } satisfies FetchDetails)
       }
