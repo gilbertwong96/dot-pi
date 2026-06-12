@@ -6,6 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { env } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
@@ -25,11 +26,11 @@ import { Type } from 'typebox'
 import Exa from 'exa-js'
 
 function getApiKey(): string | undefined {
-  return process.env.EXA_API_KEY
+  return env('EXA_API_KEY')
 }
 
 function getBaseUrl(): string | undefined {
-  return process.env.EXA_ENDPOINT_URL
+  return env('EXA_ENDPOINT_URL')
 }
 
 interface SearchResult {

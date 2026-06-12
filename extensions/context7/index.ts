@@ -9,6 +9,7 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Markdown } from '@earendil-works/pi-tui'
+import { env, fetchJson, fetchText } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
@@ -29,11 +30,11 @@ import { Type } from 'typebox'
 const DEFAULT_API_BASE = 'https://context7.com/api'
 
 function getApiKey(): string | undefined {
-  return process.env.CONTEXT7_API_KEY
+  return env('CONTEXT7_API_KEY')
 }
 
 function getApiBase(): string {
-  return process.env.CONTEXT7_ENDPOINT_URL || DEFAULT_API_BASE
+  return env('CONTEXT7_ENDPOINT_URL') || DEFAULT_API_BASE
 }
 
 interface Library {
@@ -107,17 +108,18 @@ async function searchLibrary(
   libraryName: string
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ query, libraryName })
-  const response = await fetch(`${getApiBase()}/v2/libs/search?${params}`, {
-    headers: { Authorization: `Bearer ${apiKey}` }
-  })
+  const response = await fetchJson<{ results?: Library[] }>(
+    `${getApiBase()}/v2/libs/search?${params}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    }
+  )
 
   if (!response.ok) {
     return { libraries: [], error: `API error: ${response.status}` }
   }
 
-  const data = await response.json()
-  // API returns { results: [...] }
-  const results = (data as { results?: Library[] }).results || []
+  const results = response.data?.results || []
   return { libraries: results }
 }
 
@@ -125,7 +127,7 @@ async function getContext(apiKey: string, query: string, libraryId: string): Pro
   // Remove leading slash if present (API expects "org/repo" not "/org/repo")
   const cleanId = libraryId.startsWith('/') ? libraryId.slice(1) : libraryId
   const params = new URLSearchParams({ query, libraryId: cleanId, type: 'txt' })
-  const response = await fetch(`${getApiBase()}/v2/context?${params}`, {
+  const response = await fetchText(`${getApiBase()}/v2/context?${params}`, {
     headers: { Authorization: `Bearer ${apiKey}` }
   })
 
@@ -133,8 +135,7 @@ async function getContext(apiKey: string, query: string, libraryId: string): Pro
     return { docs: '', error: `API error: ${response.status}` }
   }
 
-  const text = await response.text()
-  return { docs: text }
+  return { docs: response.text }
 }
 
 const RESOLVE_DESCRIPTION = `Find the Context7 library ID for a package/framework.

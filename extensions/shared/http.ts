@@ -1,0 +1,53 @@
+import { withTimeoutSignal } from './abort'
+
+interface HttpOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
+export interface HttpTextResult {
+  ok: boolean
+  status: number
+  text: string
+  response: Response
+}
+
+export function env(name: string): string | undefined {
+  return process.env[name] || undefined
+}
+
+export async function fetchText(
+  url: string,
+  init: RequestInit = {},
+  options: HttpOptions = {}
+): Promise<HttpTextResult> {
+  const request = async (signal?: AbortSignal) => {
+    const response = await fetch(url, { ...init, signal })
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: await response.text(),
+      response
+    }
+  }
+
+  if (options.timeoutMs !== undefined) {
+    return withTimeoutSignal(options.signal, options.timeoutMs, request)
+  }
+
+  return request(options.signal)
+}
+
+export async function fetchJson<T>(
+  url: string,
+  init: RequestInit = {},
+  options: HttpOptions = {}
+): Promise<Omit<HttpTextResult, 'text'> & { data?: T }> {
+  const result = await fetchText(url, init, options)
+  return {
+    ok: result.ok,
+    status: result.status,
+    response: result.response,
+    data: result.ok ? (JSON.parse(result.text) as T) : undefined
+  }
+}

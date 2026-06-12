@@ -6,7 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { withTimeoutSignal } from './shared/abort'
+import { fetchText } from './shared/http'
 import {
   firstText,
   primary,
@@ -238,23 +238,24 @@ export default function (pi: ExtensionAPI) {
       }
 
       try {
-        const response = await withTimeoutSignal(signal, DEFAULT_TIMEOUT, (requestSignal) =>
-          fetch(API_URL, {
+        const response = await fetchText(
+          API_URL,
+          {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               Accept: 'application/json, text/event-stream'
             },
-            body: JSON.stringify(mcpRequest),
-            signal: requestSignal
-          })
+            body: JSON.stringify(mcpRequest)
+          },
+          { signal, timeoutMs: DEFAULT_TIMEOUT }
         )
 
         if (!response.ok) {
           return toolError(`API returned ${response.status}`, codeSearchErrorDetails(query))
         }
 
-        const text = await response.text()
+        const text = response.text
 
         // Parse SSE response - find the data line
         const lines = text.split('\n')
