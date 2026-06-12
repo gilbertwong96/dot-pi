@@ -35,6 +35,7 @@ import {
   truncateToWidth
 } from '@earendil-works/pi-tui'
 import { Type } from 'typebox'
+import { toolError, toolText } from '../shared/render'
 
 interface WorktreeInfo {
   path: string
@@ -210,13 +211,11 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
 
       // Check if worktree already exists
       if (worktrees.has(name) || existsSync(worktreePath)) {
-        return {
-          content: [
-            { type: 'text', text: `Worktree "${name}" already exists at: ${worktreePath}` }
-          ],
-          details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-          isError: true
-        }
+        return toolError(`Worktree "${name}" already exists at: ${worktreePath}`, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
       }
 
       // Ensure .worktrees is in .gitignore
@@ -224,11 +223,11 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       let output = ''
 
       if (gitignoreResult.error) {
-        return {
-          content: [{ type: 'text', text: gitignoreResult.error }],
-          details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-          isError: true
-        }
+        return toolError(gitignoreResult.error, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
       }
 
       if (gitignoreResult.added) {
@@ -236,10 +235,13 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       }
 
       // Create the worktree
-      onUpdate?.({
-        content: [{ type: 'text', text: 'Creating worktree...' }],
-        details: { name, path: worktreePath, branch: name }
-      })
+      onUpdate?.(
+        toolText('Creating worktree...', {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
+      )
 
       const args = ['worktree', 'add', join(WORKTREES_DIR, name), '-b', name]
       if (baseBranch) {
@@ -249,11 +251,11 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       const createResult = await pi.exec('git', args, { cwd: ctx.cwd })
       if (createResult.code !== 0) {
         const error = createResult.stderr || createResult.stdout || 'Unknown error'
-        return {
-          content: [{ type: 'text', text: `Failed to create worktree: ${error}` }],
-          details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-          isError: true
-        }
+        return toolError(`Failed to create worktree: ${error}`, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
       }
 
       output += `Created worktree at: ${worktreePath}\n`
@@ -269,16 +271,22 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       updateStatusWidget(ctx)
 
       // Run project setup
-      onUpdate?.({
-        content: [{ type: 'text', text: `${output}Running project setup...` }],
-        details: { name, path: worktreePath, branch: name }
-      })
+      onUpdate?.(
+        toolText(`${output}Running project setup...`, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
+      )
 
       const setupSteps = await detectAndRunSetup(worktreePath, (text) => {
-        onUpdate?.({
-          content: [{ type: 'text', text: output + text }],
-          details: { name, path: worktreePath, branch: name }
-        })
+        onUpdate?.(
+          toolText(output + text, {
+            name,
+            path: worktreePath,
+            branch: name
+          } satisfies WorktreeDetails)
+        )
       })
 
       if (setupSteps.length > 0) {
@@ -296,10 +304,7 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
 
       output += `\nWorktree "${name}" ready at: ${worktreePath}`
 
-      return {
-        content: [{ type: 'text', text: output }],
-        details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails
-      }
+      return toolText(output, { name, path: worktreePath, branch: name } satisfies WorktreeDetails)
     }
   })
 
@@ -312,13 +317,9 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       const result = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd: ctx.cwd })
 
       if (result.code !== 0) {
-        return {
-          content: [
-            { type: 'text', text: `Failed to list worktrees: ${result.stderr || result.stdout}` }
-          ],
-          details: { worktrees: [] } satisfies WorktreeListDetails,
-          isError: true
-        }
+        return toolError(`Failed to list worktrees: ${result.stderr || result.stdout}`, {
+          worktrees: []
+        } satisfies WorktreeListDetails)
       }
 
       // Parse porcelain output
@@ -358,10 +359,7 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
         output += `  HEAD: ${wt.head.slice(0, 8)}\n\n`
       }
 
-      return {
-        content: [{ type: 'text', text: output.trim() }],
-        details: { worktrees: worktreeList } satisfies WorktreeListDetails
-      }
+      return toolText(output.trim(), { worktrees: worktreeList } satisfies WorktreeListDetails)
     }
   })
 
@@ -385,11 +383,11 @@ Use force=true to remove even with uncommitted changes.`,
       if (!existsSync(worktreePath)) {
         worktrees.delete(name)
         updateStatusWidget(ctx)
-        return {
-          content: [{ type: 'text', text: `Worktree "${name}" not found at: ${worktreePath}` }],
-          details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-          isError: true
-        }
+        return toolError(`Worktree "${name}" not found at: ${worktreePath}`, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
       }
 
       const args = ['worktree', 'remove', worktreePath]
@@ -403,36 +401,25 @@ Use force=true to remove even with uncommitted changes.`,
         const error = result.stderr || result.stdout || 'Unknown error'
         // Check if it's about uncommitted changes
         if (error.includes('uncommitted changes') || error.includes('untracked files')) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Cannot remove worktree "${name}": has uncommitted changes.\nUse force=true to remove anyway, or commit/stash changes first.`
-              }
-            ],
-            details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-            isError: true
-          }
+          return toolError(
+            `Cannot remove worktree "${name}": has uncommitted changes.\nUse force=true to remove anyway, or commit/stash changes first.`,
+            { name, path: worktreePath, branch: name } satisfies WorktreeDetails
+          )
         }
-        return {
-          content: [{ type: 'text', text: `Failed to remove worktree: ${error}` }],
-          details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails,
-          isError: true
-        }
+        return toolError(`Failed to remove worktree: ${error}`, {
+          name,
+          path: worktreePath,
+          branch: name
+        } satisfies WorktreeDetails)
       }
 
       worktrees.delete(name)
       updateStatusWidget(ctx)
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Removed worktree "${name}".\nBranch "${name}" is preserved and can still be merged.`
-          }
-        ],
-        details: { name, path: worktreePath, branch: name } satisfies WorktreeDetails
-      }
+      return toolText(
+        `Removed worktree "${name}".\nBranch "${name}" is preserved and can still be merged.`,
+        { name, path: worktreePath, branch: name } satisfies WorktreeDetails
+      )
     }
   })
 
@@ -448,11 +435,11 @@ Use force=true to remove even with uncommitted changes.`,
       const worktreePath = join(ctx.cwd, WORKTREES_DIR, name)
 
       if (!existsSync(worktreePath)) {
-        return {
-          content: [{ type: 'text', text: `Worktree "${name}" not found` }],
-          details: { name, path: worktreePath, branch: '' },
-          isError: true
-        }
+        return toolError(`Worktree "${name}" not found`, {
+          name,
+          path: worktreePath,
+          branch: ''
+        } satisfies WorktreeDetails)
       }
 
       // Get status
@@ -480,10 +467,7 @@ Use force=true to remove even with uncommitted changes.`,
         output += `Diff summary:\n${diff}`
       }
 
-      return {
-        content: [{ type: 'text', text: output.trim() }],
-        details: { name, path: worktreePath, branch }
-      }
+      return toolText(output.trim(), { name, path: worktreePath, branch } satisfies WorktreeDetails)
     }
   })
 
