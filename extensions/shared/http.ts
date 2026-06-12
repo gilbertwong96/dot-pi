@@ -23,6 +23,23 @@ export function requireEnv(
   return value ? { ok: true, value } : { ok: false, message: `${name} not set` }
 }
 
+export function apiErrorMessage(status: number, body?: string): string {
+  if (!body?.trim()) return `API returned ${status}`
+
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>
+    const message = [parsed.error, parsed.message]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+      .join(': ')
+    if (message) return `API returned ${status}: ${message}`
+  } catch {
+    const singleLine = body.replace(/\s+/gu, ' ').trim()
+    if (singleLine) return `API returned ${status}: ${singleLine.slice(0, 240)}`
+  }
+
+  return `API returned ${status}`
+}
+
 export async function fetchText(
   url: string,
   init: RequestInit = {},

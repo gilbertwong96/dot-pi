@@ -8,7 +8,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { env, fetchJson, fetchText, requireEnv } from '../shared/http'
+import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
@@ -104,18 +104,16 @@ async function searchLibrary(
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ query, libraryName })
   if (fast !== undefined) params.set('fast', String(fast))
-  const response = await fetchJson<{ results?: Library[] }>(
-    `${getApiBase()}/v2/libs/search?${params}`,
-    {
-      headers: { Authorization: `Bearer ${apiKey}` }
-    }
-  )
+  const response = await fetchText(`${getApiBase()}/v2/libs/search?${params}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }
+  })
 
   if (!response.ok) {
-    return { libraries: [], error: `API error: ${response.status}` }
+    return { libraries: [], error: apiErrorMessage(response.status, response.text) }
   }
 
-  const results = response.data?.results || []
+  const data = JSON.parse(response.text) as { results?: Library[] }
+  const results = data.results || []
   return { libraries: results }
 }
 
@@ -132,7 +130,7 @@ async function getContext(
   })
 
   if (!response.ok) {
-    return { docs: '', error: `API error: ${response.status}` }
+    return { docs: '', error: apiErrorMessage(response.status, response.text) }
   }
 
   return { docs: response.text }

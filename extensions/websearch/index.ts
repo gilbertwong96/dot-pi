@@ -6,7 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { env, fetchJson, requireEnv } from '../shared/http'
+import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
@@ -326,7 +326,7 @@ export default function (pi: ExtensionAPI) {
       onUpdate?.(toolLoading(webSearchLoadingDetails(query)))
 
       try {
-        const response = await fetchJson<ExaSearchResponse>(
+        const response = await fetchText(
           `${getBaseUrl()}/search`,
           {
             method: 'POST',
@@ -340,15 +340,19 @@ export default function (pi: ExtensionAPI) {
         )
 
         if (!response.ok) {
-          return toolError(`API returned ${response.status}`, webSearchErrorDetails(query))
+          return toolError(
+            apiErrorMessage(response.status, response.text),
+            webSearchErrorDetails(query)
+          )
         }
 
         if (signal?.aborted) {
           return toolText('Search cancelled', webSearchDetails(query))
         }
 
-        const output = formatSynthesis(response.data?.output?.content)
-        const results: SearchResult[] = (response.data?.results ?? []).map((r) => ({
+        const data = JSON.parse(response.text) as ExaSearchResponse
+        const output = formatSynthesis(data.output?.content)
+        const results: SearchResult[] = (data.results ?? []).map((r) => ({
           title: (r.title as string) || 'Untitled',
           url: r.url as string,
           author: (r.author as string) || undefined,

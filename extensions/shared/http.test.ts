@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { env, fetchJson, fetchText, requireEnv } from './http'
+import { apiErrorMessage, env, fetchJson, fetchText, requireEnv } from './http'
 
 const originalFetch = globalThis.fetch
 const originalEnv = process.env.DOT_PI_HTTP_TEST_KEY
@@ -24,6 +24,20 @@ describe('env', () => {
 
     process.env.DOT_PI_HTTP_TEST_KEY = ''
     expect(env('DOT_PI_HTTP_TEST_KEY')).toBeUndefined()
+  })
+})
+
+describe('apiErrorMessage', () => {
+  test('extracts structured API error messages', () => {
+    expect(
+      apiErrorMessage(429, JSON.stringify({ error: 'rate_limited', message: 'Slow down' }))
+    ).toBe('API returned 429: rate_limited: Slow down')
+  })
+
+  test('falls back to compact text body', () => {
+    expect(apiErrorMessage(500, 'Internal\nServer\tError')).toBe(
+      'API returned 500: Internal Server Error'
+    )
   })
 })
 
