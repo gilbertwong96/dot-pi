@@ -13,6 +13,30 @@ export function firstText(result: AgentToolResult<unknown>, fallback = ''): stri
   return first?.type === 'text' ? first.text : fallback
 }
 
+type TextToolResult<T> = AgentToolResult<T> & { isError?: boolean }
+
+export function toolText<T>(
+  text: string,
+  details: T,
+  options: { isError?: boolean } = {}
+): TextToolResult<T> {
+  return {
+    content: [{ type: 'text', text }],
+    details,
+    ...(options.isError ? { isError: true } : {})
+  }
+}
+
+export function toolError<T>(message: string, details: T): TextToolResult<T> {
+  return toolText(message.startsWith('Error:') ? message : `Error: ${message}`, details, {
+    isError: true
+  })
+}
+
+export function toolLoading<T>(details: T): AgentToolResult<T> {
+  return { content: [], details }
+}
+
 /**
  * Native pi-style tool result block.
  *

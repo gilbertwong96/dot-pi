@@ -15,7 +15,10 @@ import {
   renderExpandFooter,
   renderLines,
   renderMuted,
-  renderToolCall
+  renderToolCall,
+  toolError,
+  toolLoading,
+  toolText
 } from './shared/render'
 import { Type } from 'typebox'
 
@@ -50,6 +53,20 @@ interface CodeSearchDetails {
   query: string
   results: SearchResult[]
   error?: boolean
+}
+
+type CodeSearchLoadingDetails = CodeSearchDetails & { loading: boolean }
+
+function codeSearchDetails(query: string, results: SearchResult[] = []): CodeSearchDetails {
+  return { query, results }
+}
+
+function codeSearchErrorDetails(query: string): CodeSearchDetails {
+  return { query, results: [], error: true }
+}
+
+function codeSearchLoadingDetails(query: string): CodeSearchLoadingDetails {
+  return { query, results: [], loading: true }
 }
 
 interface CodeSearchParams {
@@ -201,10 +218,7 @@ export default function (pi: ExtensionAPI) {
       const { query, regex, caseSensitive, wholeWords, repo, path, lang } =
         params as CodeSearchParams
 
-      onUpdate?.({
-        content: [],
-        details: { query, results: [], loading: true } as CodeSearchDetails & { loading: boolean }
-      })
+      onUpdate?.(toolLoading(codeSearchLoadingDetails(query)))
 
       const mcpRequest = {
         jsonrpc: '2.0',
@@ -245,10 +259,7 @@ export default function (pi: ExtensionAPI) {
         clearTimeout(timeoutId)
 
         if (!response.ok) {
-          return {
-            content: [{ type: 'text', text: `Error: API returned ${response.status}` }],
-            details: { query, results: [], error: true } as CodeSearchDetails
-          }
+          return toolError(`API returned ${response.status}`, codeSearchErrorDetails(query))
         }
 
         const text = await response.text()
@@ -264,26 +275,17 @@ export default function (pi: ExtensionAPI) {
         }
 
         if (!jsonData) {
-          return {
-            content: [{ type: 'text', text: 'Error: No data in response' }],
-            details: { query, results: [], error: true } as CodeSearchDetails
-          }
+          return toolError('No data in response', codeSearchErrorDetails(query))
         }
 
         const data: McpResponse = JSON.parse(jsonData)
 
         if (data.error) {
-          return {
-            content: [{ type: 'text', text: `Error: ${data.error.message}` }],
-            details: { query, results: [], error: true } as CodeSearchDetails
-          }
+          return toolError(data.error.message, codeSearchErrorDetails(query))
         }
 
         if (!data.result?.content?.length) {
-          return {
-            content: [{ type: 'text', text: 'No results found.' }],
-            details: { query, results: [] } as CodeSearchDetails
-          }
+          return toolText('No results found.', codeSearchDetails(query))
         }
 
         // Combine all text content and parse
@@ -294,25 +296,16 @@ export default function (pi: ExtensionAPI) {
 
         const results = parseResults(rawOutput)
 
-        return {
-          content: [{ type: 'text', text: formatResultsAsText(results) }],
-          details: { query, results } as CodeSearchDetails
-        }
+        return toolText(formatResultsAsText(results), codeSearchDetails(query, results))
       } catch (err) {
         clearTimeout(timeoutId)
 
         if (err instanceof Error && err.name === 'AbortError') {
-          return {
-            content: [{ type: 'text', text: 'Search request timed out' }],
-            details: { query, results: [], error: true } as CodeSearchDetails
-          }
+          return toolError('Search request timed out', codeSearchErrorDetails(query))
         }
 
         const message = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{ type: 'text', text: `Error: ${message}` }],
-          details: { query, results: [], error: true } as CodeSearchDetails
-        }
+        return toolError(message, codeSearchErrorDetails(query))
       }
     },
 

@@ -19,6 +19,8 @@ import {
   renderMuted,
   renderToolCall,
   title,
+  toolError,
+  toolText,
   nativeMarkdownTheme
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -53,10 +55,23 @@ interface DocsResult {
   error?: string
 }
 
+interface ResolveDetails {
+  libraries?: Library[]
+  error?: boolean
+}
+
 interface DocsDetails {
   libraryId: string
   error?: boolean
   empty?: boolean
+}
+
+function docsErrorDetails(libraryId: string): DocsDetails {
+  return { libraryId, error: true }
+}
+
+function docsEmptyDetails(libraryId: string): DocsDetails {
+  return { libraryId, empty: true }
 }
 
 function compactDocsPreview(markdown: string): { lines: string[]; hidden: number } {
@@ -161,28 +176,19 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const apiKey = getApiKey()
       if (!apiKey) {
-        return {
-          content: [{ type: 'text' as const, text: 'Error: CONTEXT7_API_KEY not set' }],
-          details: { error: true }
-        }
+        return toolError('CONTEXT7_API_KEY not set', { error: true } satisfies ResolveDetails)
       }
 
       const result = await searchLibrary(apiKey, params.query, params.libraryName)
 
       if (result.error) {
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-          details: { error: true }
-        }
+        return toolError(result.error, { error: true } satisfies ResolveDetails)
       }
 
       if (result.libraries.length === 0) {
-        return {
-          content: [
-            { type: 'text' as const, text: `No libraries found for "${params.libraryName}"` }
-          ],
-          details: { libraries: [] }
-        }
+        return toolText(`No libraries found for "${params.libraryName}"`, {
+          libraries: []
+        } satisfies ResolveDetails)
       }
 
       const lines = result.libraries.slice(0, 5).map((lib) => {
@@ -197,10 +203,9 @@ export default function (pi: ExtensionAPI) {
         return parts.join('\n')
       })
 
-      return {
-        content: [{ type: 'text' as const, text: lines.join('\n\n') }],
-        details: { libraries: result.libraries.slice(0, 5) }
-      }
+      return toolText(lines.join('\n\n'), {
+        libraries: result.libraries.slice(0, 5)
+      } satisfies ResolveDetails)
     },
 
     renderCall(params, theme) {
@@ -252,34 +257,23 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate) {
       const apiKey = getApiKey()
       if (!apiKey) {
-        return {
-          content: [{ type: 'text' as const, text: 'Error: CONTEXT7_API_KEY not set' }],
-          details: { libraryId: params.libraryId, error: true } as DocsDetails
-        }
+        return toolError('CONTEXT7_API_KEY not set', docsErrorDetails(params.libraryId))
       }
 
       const result = await getContext(apiKey, params.query, params.libraryId)
 
       if (result.error) {
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-          details: { libraryId: params.libraryId, error: true } as DocsDetails
-        }
+        return toolError(result.error, docsErrorDetails(params.libraryId))
       }
 
       if (!result.docs.trim()) {
-        return {
-          content: [
-            { type: 'text' as const, text: `No documentation found for "${params.libraryId}"` }
-          ],
-          details: { libraryId: params.libraryId, empty: true } as DocsDetails
-        }
+        return toolText(
+          `No documentation found for "${params.libraryId}"`,
+          docsEmptyDetails(params.libraryId)
+        )
       }
 
-      return {
-        content: [{ type: 'text' as const, text: result.docs }],
-        details: { libraryId: params.libraryId } as DocsDetails
-      }
+      return toolText(result.docs, { libraryId: params.libraryId })
     },
 
     renderCall(params, theme) {

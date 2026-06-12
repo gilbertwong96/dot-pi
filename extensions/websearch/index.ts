@@ -18,6 +18,9 @@ import {
   renderMuted,
   renderToolCall,
   title,
+  toolError,
+  toolLoading,
+  toolText,
   truncateText
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -45,6 +48,20 @@ interface WebSearchDetails {
   query: string
   results: SearchResult[]
   error?: boolean
+}
+
+type WebSearchLoadingDetails = WebSearchDetails & { loading: boolean }
+
+function webSearchDetails(query: string, results: SearchResult[] = []): WebSearchDetails {
+  return { query, results }
+}
+
+function webSearchErrorDetails(query: string): WebSearchDetails {
+  return { query, results: [], error: true }
+}
+
+function webSearchLoadingDetails(query: string): WebSearchLoadingDetails {
+  return { query, results: [], loading: true }
 }
 
 const RESTRICTED_CATEGORIES = new Set([
@@ -199,10 +216,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
       const apiKey = getApiKey()
       if (!apiKey) {
-        return {
-          content: [{ type: 'text' as const, text: 'Error: EXA_API_KEY not set' }],
-          details: { query: params.query, results: [], error: true } as WebSearchDetails
-        }
+        return toolError('EXA_API_KEY not set', webSearchErrorDetails(params.query))
       }
 
       const {
@@ -224,10 +238,7 @@ export default function (pi: ExtensionAPI) {
         userLocation
       } = params
 
-      onUpdate?.({
-        content: [],
-        details: { query, results: [], loading: true } as WebSearchDetails & { loading: boolean }
-      })
+      onUpdate?.(toolLoading(webSearchLoadingDetails(query)))
 
       try {
         const baseUrl = getBaseUrl()
@@ -267,10 +278,7 @@ export default function (pi: ExtensionAPI) {
         const response = await exa.searchAndContents(query, searchOptions)
 
         if (signal?.aborted) {
-          return {
-            content: [{ type: 'text' as const, text: 'Search cancelled' }],
-            details: { query, results: [] } as WebSearchDetails
-          }
+          return toolText('Search cancelled', webSearchDetails(query))
         }
 
         const results: SearchResult[] = response.results.map((r: Record<string, unknown>) => ({
@@ -284,24 +292,16 @@ export default function (pi: ExtensionAPI) {
         }))
 
         if (results.length === 0) {
-          return {
-            content: [
-              { type: 'text' as const, text: 'No search results found. Try a different query.' }
-            ],
-            details: { query, results: [] } as WebSearchDetails
-          }
+          return toolText(
+            'No search results found. Try a different query.',
+            webSearchDetails(query)
+          )
         }
 
-        return {
-          content: [{ type: 'text' as const, text: formatResultsAsText(results) }],
-          details: { query, results } as WebSearchDetails
-        }
+        return toolText(formatResultsAsText(results), webSearchDetails(query, results))
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{ type: 'text' as const, text: `Error: ${message}` }],
-          details: { query, results: [], error: true } as WebSearchDetails
-        }
+        return toolError(message, webSearchErrorDetails(query))
       }
     },
 
