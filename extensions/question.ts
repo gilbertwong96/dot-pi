@@ -6,7 +6,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { Editor, type EditorTheme, Key, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
-import { firstText, renderLines, renderToolCall } from './shared/render'
+import { firstText, renderLines, renderToolCall, toolError, toolText } from './shared/render'
 import { Type } from 'typebox'
 
 interface OptionWithDesc {
@@ -21,6 +21,15 @@ interface QuestionDetails {
   options: string[]
   answer: string | null
   wasCustom?: boolean
+}
+
+function questionDetails(
+  question: string,
+  options: string[],
+  answer: string | null,
+  wasCustom?: boolean
+): QuestionDetails {
+  return { question, options, answer, ...(wasCustom === undefined ? {} : { wasCustom }) }
 }
 
 // Options with labels and optional descriptions
@@ -44,23 +53,18 @@ export default function question(pi: ExtensionAPI) {
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!ctx.hasUI) {
-        return {
-          content: [
-            { type: 'text', text: 'Error: UI not available (running in non-interactive mode)' }
-          ],
-          details: {
-            question: params.question,
-            options: params.options.map((o) => o.label),
-            answer: null
-          } as QuestionDetails
-        }
+        return toolError(
+          'UI not available (running in non-interactive mode)',
+          questionDetails(
+            params.question,
+            params.options.map((option) => option.label),
+            null
+          )
+        )
       }
 
       if (params.options.length === 0) {
-        return {
-          content: [{ type: 'text', text: 'Error: No options provided' }],
-          details: { question: params.question, options: [], answer: null } as QuestionDetails
-        }
+        return toolError('No options provided', questionDetails(params.question, [], null))
       }
 
       const allOptions: DisplayOption[] = [
@@ -208,36 +212,22 @@ export default function question(pi: ExtensionAPI) {
       const simpleOptions = params.options.map((o) => o.label)
 
       if (!result) {
-        return {
-          content: [{ type: 'text', text: 'User cancelled the selection' }],
-          details: {
-            question: params.question,
-            options: simpleOptions,
-            answer: null
-          } as QuestionDetails
-        }
+        return toolText(
+          'User cancelled the selection',
+          questionDetails(params.question, simpleOptions, null)
+        )
       }
 
       if (result.wasCustom) {
-        return {
-          content: [{ type: 'text', text: `User wrote: ${result.answer}` }],
-          details: {
-            question: params.question,
-            options: simpleOptions,
-            answer: result.answer,
-            wasCustom: true
-          } as QuestionDetails
-        }
+        return toolText(
+          `User wrote: ${result.answer}`,
+          questionDetails(params.question, simpleOptions, result.answer, true)
+        )
       }
-      return {
-        content: [{ type: 'text', text: `User selected: ${result.index}. ${result.answer}` }],
-        details: {
-          question: params.question,
-          options: simpleOptions,
-          answer: result.answer,
-          wasCustom: false
-        } as QuestionDetails
-      }
+      return toolText(
+        `User selected: ${result.index}. ${result.answer}`,
+        questionDetails(params.question, simpleOptions, result.answer, false)
+      )
     },
 
     renderCall(args, theme) {

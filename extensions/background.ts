@@ -18,7 +18,9 @@ import {
   renderLines,
   renderMuted,
   renderToolCall,
-  title
+  title,
+  toolError,
+  toolText
 } from './shared/render'
 import { Type } from 'typebox'
 import { spawn, spawnSync } from 'child_process'
@@ -491,31 +493,15 @@ export default function (pi: ExtensionAPI) {
       try {
         const info = startProcess(ctx.cwd, params.name, params.command, params.cwd)
         updateStatus(ctx)
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Started "${info.name}" (PID ${info.pid})\nLogs: ${info.logFile}`
-            }
-          ],
-          details: info
-        }
+        return toolText(`Started "${info.name}" (PID ${info.pid})\nLogs: ${info.logFile}`, info)
       } catch (err) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`
-            }
-          ],
-          details: {
-            name: params.name,
-            pid: 0,
-            running: false,
-            logFile: '',
-            error: true
-          } satisfies ProcessInfo
-        }
+        return toolError(err instanceof Error ? err.message : String(err), {
+          name: params.name,
+          pid: 0,
+          running: false,
+          logFile: '',
+          error: true
+        } satisfies ProcessInfo)
       }
     },
 
@@ -553,20 +539,12 @@ export default function (pi: ExtensionAPI) {
       try {
         stopProcess(ctx.cwd, params.name)
         updateStatus(ctx)
-        return {
-          content: [{ type: 'text' as const, text: `Stopped "${params.name}"` }],
-          details: { name: params.name } as StopDetails
-        }
+        return toolText(`Stopped "${params.name}"`, { name: params.name } satisfies StopDetails)
       } catch (err) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`
-            }
-          ],
-          details: { name: params.name, error: true } as StopDetails
-        }
+        return toolError(err instanceof Error ? err.message : String(err), {
+          name: params.name,
+          error: true
+        } satisfies StopDetails)
       }
     },
 
@@ -593,10 +571,7 @@ export default function (pi: ExtensionAPI) {
       const processes = listProcesses(ctx.cwd)
 
       if (processes.length === 0) {
-        return {
-          content: [{ type: 'text' as const, text: 'No background processes' }],
-          details: { processes: [] as ProcessInfo[] }
-        }
+        return toolText('No background processes', { processes: [] as ProcessInfo[] })
       }
 
       const lines = processes.map((p) => {
@@ -605,10 +580,7 @@ export default function (pi: ExtensionAPI) {
         return `${displayName}: ${status}`
       })
 
-      return {
-        content: [{ type: 'text' as const, text: lines.join('\n') }],
-        details: { processes }
-      }
+      return toolText(lines.join('\n'), { processes })
     },
 
     renderCall(_args, theme) {
@@ -648,20 +620,13 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {
         const logs = readLogs(ctx.cwd, params.name, params.lines ?? 50)
-        return {
-          content: [{ type: 'text' as const, text: logs }],
-          details: { name: params.name, logs } as LogsDetails
-        }
+        return toolText(logs, { name: params.name, logs } satisfies LogsDetails)
       } catch (err) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: `Error: ${err instanceof Error ? err.message : String(err)}`
-            }
-          ],
-          details: { name: params.name, logs: '', error: true } as LogsDetails
-        }
+        return toolError(err instanceof Error ? err.message : String(err), {
+          name: params.name,
+          logs: '',
+          error: true
+        } satisfies LogsDetails)
       }
     },
 

@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
 import { isKeyRelease, Key, matchesKey, SelectList, truncateToWidth } from '@earendil-works/pi-tui'
-import { renderLines, renderToolCall } from './shared/render'
+import { renderLines, renderToolCall, toolText } from './shared/render'
 import { Type } from 'typebox'
 
 type Option = {
@@ -104,10 +104,7 @@ export default function chooseOptions(pi: ExtensionAPI) {
         signal
       )
 
-      return {
-        content: [{ type: 'text', text: formatChoiceResult(result) }],
-        details: result
-      }
+      return toolText(formatChoiceResult(result), result)
     },
 
     renderCall(args, theme) {
@@ -533,5 +530,5 @@ function errorResult(message: string, question: string, options: Option[]) {
     selectedIndexes: [],
     cancelled: true
   }
-  return { content: [{ type: 'text' as const, text: message }], details }
+  return toolText(message, details)
 }
