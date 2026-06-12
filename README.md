@@ -301,6 +301,8 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
 | `voice-input/`         | Requires ElevenLabs key and audio setup                                           |
 
+`voice-input/` uses `ELEVENLABS_API_KEY` and `rec` from sox. Optional environment variables: `ELEVENLABS_LANGUAGE`, `ELEVENLABS_KEYTERMS` (comma/newline-separated), `ELEVENLABS_COMMIT_STRATEGY` (`manual` or `vad`), `ELEVENLABS_VAD_SILENCE_THRESHOLD_SECS`, `ELEVENLABS_VAD_THRESHOLD`, `ELEVENLABS_MIN_SPEECH_DURATION_MS`, and `ELEVENLABS_MIN_SILENCE_DURATION_MS`.
+
 ### Optional skills
 
 Regular optional skills live under `skills/`. Extra/meta skills live under `skills/extra/` so they do not look like core setup features.
