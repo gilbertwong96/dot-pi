@@ -112,7 +112,7 @@ Pass either:
 - repo and path: e.g. repo:'facebook/react', path:'packages/react/index.js'
 
 Optionally pass ref, startLine, and endLine to fetch a specific branch/tag/SHA or line range.
-Requires the GitHub CLI (gh) to be installed and authenticated enough for the target repository.`
+Prefers the GitHub CLI (gh). Falls back to GitHub's public contents API for public files when gh is unavailable or fails.`
 
 const DESCRIPTION = `Find real-world code examples from over a million public GitHub repositories.
 
@@ -297,14 +297,15 @@ export function sliceLines(
   }
 }
 
-function fetchGitHubFile(
-  params: CodeFetchParams
-):
+type GitHubFileResult =
   | { ok: true; text: string; repo: string; path: string; ref?: string }
-  | { ok: false; message: string; repo?: string; path?: string; ref?: string } {
-  const target = resolveCodeFetchTarget(params)
-  if (!target.ok) return target
+  | { ok: false; message: string; repo?: string; path?: string; ref?: string }
 
+function fetchGitHubFileWithGh(target: {
+  repo: string
+  path: string
+  ref?: string
+}): GitHubFileResult {
   const endpointPath = encodePathForEndpoint(target.path)
   const endpoint = `repos/${target.repo}/contents/${endpointPath}${target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ''}`
   const result = spawnSync('gh', ['api', endpoint, '-H', 'Accept: application/vnd.github.raw'], {
@@ -312,22 +313,64 @@ function fetchGitHubFile(
     maxBuffer: 10 * 1024 * 1024
   })
 
-  if (result.error) {
+  if (result.status === 0) {
+    return { ok: true, text: result.stdout, repo: target.repo, path: target.path, ref: target.ref }
+  }
+
+  const message =
+    result.error?.message ??
+    (result.stderr || result.stdout || `gh api exited ${result.status}`).trim()
+  return { ok: false, message, repo: target.repo, path: target.path, ref: target.ref }
+}
+
+async function fetchGitHubFileWithPublicApi(target: {
+  repo: string
+  path: string
+  ref?: string
+}): Promise<GitHubFileResult> {
+  const endpointPath = encodePathForEndpoint(target.path)
+  const ref = target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ''
+  const response = await fetchText(
+    `https://api.github.com/repos/${target.repo}/contents/${endpointPath}${ref}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github.raw',
+        'User-Agent': 'dot-pi-codefetch'
+      }
+    },
+    { timeoutMs: DEFAULT_TIMEOUT }
+  )
+
+  if (!response.ok) {
     return {
       ok: false,
-      message: result.error.message,
+      message: apiErrorMessage(response.status, response.text),
       repo: target.repo,
       path: target.path,
       ref: target.ref
     }
   }
 
-  if (result.status !== 0) {
-    const message = (result.stderr || result.stdout || `gh api exited ${result.status}`).trim()
-    return { ok: false, message, repo: target.repo, path: target.path, ref: target.ref }
-  }
+  return { ok: true, text: response.text, repo: target.repo, path: target.path, ref: target.ref }
+}
 
-  return { ok: true, text: result.stdout, repo: target.repo, path: target.path, ref: target.ref }
+async function fetchGitHubFile(params: CodeFetchParams): Promise<GitHubFileResult> {
+  const target = resolveCodeFetchTarget(params)
+  if (!target.ok) return target
+
+  const ghResult = fetchGitHubFileWithGh(target)
+  if (ghResult.ok) return ghResult
+
+  const publicResult = await fetchGitHubFileWithPublicApi(target)
+  if (publicResult.ok) return publicResult
+
+  return {
+    ok: false,
+    message: `${ghResult.message}; fallback failed: ${publicResult.message}`,
+    repo: target.repo,
+    path: target.path,
+    ref: target.ref
+  }
 }
 
 export function parseResults(rawText: string): SearchResult[] {
@@ -575,7 +618,7 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, params): Promise<AgentToolResult<CodeFetchDetails>> {
       const args = params as CodeFetchParams
-      const fetched = fetchGitHubFile(args)
+      const fetched = await fetchGitHubFile(args)
 
       if (!fetched.ok) {
         return toolError(fetched.message, {

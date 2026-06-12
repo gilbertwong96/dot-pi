@@ -1,12 +1,43 @@
 import { describe, expect, test } from 'bun:test'
+import type { ExtensionAPI, Theme } from '@earendil-works/pi-coding-agent'
 
-import {
+import codesearch, {
   parseGitHubBlobUrl,
   parseResults,
   parseSseJson,
   resolveCodeFetchTarget,
   sliceLines
 } from './codesearch'
+
+type RegisteredTool = Parameters<ExtensionAPI['registerTool']>[0]
+
+const theme = {
+  fg: (_name: string, text: string) => String(text),
+  bg: (_name: string, text: string) => String(text),
+  bold: (text: string) => String(text),
+  underline: (text: string) => String(text)
+} as Theme
+
+function codefetchTool(): RegisteredTool {
+  const tools: RegisteredTool[] = []
+  codesearch({
+    registerTool: (tool: RegisteredTool) => tools.push(tool)
+  } as unknown as ExtensionAPI)
+  const tool = tools.find((candidate) => candidate.name === 'codefetch')
+  if (!tool) throw new Error('codefetch tool not registered')
+  return tool
+}
+
+function renderCodefetch(details: Record<string, unknown>, text: string, expanded = false): string {
+  const tool = codefetchTool()
+  const component = tool.renderResult?.(
+    { content: [{ type: 'text', text }], details },
+    { expanded, isPartial: false },
+    theme,
+    {} as never
+  )
+  return component?.render(120).join('\n') ?? ''
+}
 
 describe('parseSseJson', () => {
   test('parses plain JSON responses', () => {
@@ -101,6 +132,43 @@ describe('sliceLines', () => {
       endLine: 8,
       totalLines: 2
     })
+  })
+})
+
+describe('codefetch renderer', () => {
+  test('shows an expand footer only when compact output hides lines', () => {
+    const text = Array.from({ length: 45 }, (_, index) => `line ${index + 1}`).join('\n')
+    const rendered = renderCodefetch(
+      {
+        repo: 'owner/repo',
+        path: 'src/index.ts',
+        startLine: 1,
+        endLine: 45,
+        lineCount: 45,
+        totalLines: 45
+      },
+      text
+    )
+
+    expect(rendered).toContain('… 5 more lines')
+    expect(rendered).toContain('(ctrl+o to expand)')
+  })
+
+  test('omits expand footer for compact line ranges that fit', () => {
+    const rendered = renderCodefetch(
+      {
+        repo: 'owner/repo',
+        path: 'src/index.ts',
+        startLine: 10,
+        endLine: 12,
+        lineCount: 3,
+        totalLines: 100
+      },
+      'alpha\nbeta\ngamma'
+    )
+
+    expect(rendered).toContain('lines:10-12')
+    expect(rendered).not.toContain('(ctrl+o to expand)')
   })
 })
 
