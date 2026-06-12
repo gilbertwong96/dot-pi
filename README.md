@@ -40,6 +40,21 @@ Update Pi and installed packages later with:
 pi update
 ```
 
+If prompt shortcuts such as `/ga` or `/verify` do not appear, check that `dot-pi` is enabled in `~/.pi/agent/settings.json`:
+
+```json
+{
+  "packages": ["git:github.com/dannote/dot-pi"]
+}
+```
+
+Global prompt templates are discovered from `~/.pi/agent/prompts/*.md`; project prompt templates are discovered from `.pi/prompts/*.md` after the project is trusted. For a manual checkout instead of `pi install`, symlink the prompt files:
+
+```bash
+mkdir -p ~/.pi/agent/prompts
+ln -s /path/to/dot-pi/prompts/*.md ~/.pi/agent/prompts/
+```
+
 Useful companion packages, installed separately when you want them:
 
 ```bash
@@ -76,24 +91,25 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Extensions
 
-| Extension               | Description                                                                | Extra setup                                                                                            |
-| ----------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ast-grep.ts`           | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
-| `background.ts`         | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
-| `codesearch.ts`         | Search public GitHub code via grep.app                                     | None                                                                                                   |
-| `choose-options.ts`     | `choose_from_options` tool: TUI picker for LLM-proposed options/lists      | None                                                                                                   |
-| `command-priority.ts`   | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
-| `confirm-actions.ts`    | Ask before publish/mutate commands and high-risk local actions             | None                                                                                                   |
-| `context7/`             | Fetch current library docs from Context7                                   | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
-| `env-json/`             | Load `~/.pi/agent/env.jsonc` into `process.env` for API-backed extensions  | `~/.pi/agent/env.jsonc`                                                                                |
-| `lsp/`                  | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
-| `notify.ts`             | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
-| `quote.ts`              | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
-| `question.ts`           | Let the agent ask selectable questions                                     | None                                                                                                   |
-| `workflow-shortcuts.ts` | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
-| `webfetch/`             | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
-| `websearch/`            | Web search via Exa                                                         | `EXA_API_KEY`, often via `env-json`                                                                    |
-| `worktrees/`            | Git worktree helpers for isolated work                                     | None                                                                                                   |
+| Extension                | Description                                                                | Extra setup                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ast-grep.ts`            | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
+| `background.ts`          | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
+| `choose-options.ts`      | `choose_from_options` tool: TUI picker for LLM-proposed options/lists      | None                                                                                                   |
+| `codesearch.ts`          | Search public GitHub code via grep.app                                     | None                                                                                                   |
+| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
+| `confirm-actions.ts`     | Ask before publish/mutate commands and high-risk local actions             | None                                                                                                   |
+| `context7/`              | Fetch current library docs from Context7                                   | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
+| `env-json/`              | Load `~/.pi/agent/env.jsonc` into `process.env` for API-backed extensions  | `~/.pi/agent/env.jsonc`                                                                                |
+| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
+| `notify.ts`              | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
+| `question.ts`            | Let the agent ask selectable questions                                     | None                                                                                                   |
+| `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
+| `refactor-discipline.ts` | Add semantic refactoring discipline to the system prompt                   | None                                                                                                   |
+| `webfetch/`              | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
+| `websearch/`             | Web search via Exa                                                         | `EXA_API_KEY`, often via `env-json`                                                                    |
+| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
+| `worktrees/`             | Git worktree helpers for isolated work                                     | None                                                                                                   |
 
 Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
@@ -202,13 +218,14 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `bash-completion/`     | Advanced terminal completion; can be noisy while editing prompts                  |
 | `coach.ts`             | Recommended for newcomers copying this setup; explains habits and first workflows |
 | `critic/`              | Experimental shadow-review loop                                                   |
-| `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
 | `decision-guidance.ts` | Experimental trajectory guidance                                                  |
+| `ghost-tutor.ts`       | Quiet model-generated workflow nudge after the agent stops                        |
 | `permission-gate.ts`   | Opinionated command blocking                                                      |
 | `plan-mode/`           | Experimental read-only planning mode                                              |
 | `provider/`            | Experimental dynamic provider registration                                        |
 | `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
 | `sandbox/`             | Experimental OS-level sandboxing                                                  |
+| `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
 | `voice-input/`         | Requires ElevenLabs key and audio setup                                           |
 
 ### Optional skills
