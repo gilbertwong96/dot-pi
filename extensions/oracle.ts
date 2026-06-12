@@ -623,8 +623,8 @@ export default function oracle(pi: ExtensionAPI) {
       }
 
       if (config.confirm) {
-        const ok = await ctx.ui.confirm('Oracle', previewText(preview))
-        if (!ok) return
+        const choice = await ctx.ui.select(`Oracle\n${previewText(preview)}`, ['No', 'Yes'])
+        if (choice !== 'Yes') return
       } else {
         ctx.ui.notify(`Oracle: ${preview.lines[1]} · ${preview.lines[5]}`, 'info')
       }
