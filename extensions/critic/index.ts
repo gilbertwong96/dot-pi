@@ -48,6 +48,13 @@ import {
   Spacer,
   Text
 } from '@earendil-works/pi-tui'
+import {
+  errorMessageFromEvent,
+  isRecord,
+  isThinkingContent,
+  textContentFromUnknown,
+  usageFromUnknown
+} from './events'
 
 /**
  * Get the command to spawn pi subprocess.
@@ -190,41 +197,6 @@ function getTextContent(message: AssistantMessage): string {
 }
 
 type ContextMode = 'full' | 'messages' | 'results_only'
-
-interface ThinkingContent {
-  type: 'thinking'
-  thinking: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function isThinkingContent(c: unknown): c is ThinkingContent {
-  return isRecord(c) && c.type === 'thinking'
-}
-
-function textContentFromUnknown(content: unknown): TextContent | undefined {
-  if (!Array.isArray(content)) return undefined
-  return content.find(
-    (candidate): candidate is TextContent => isRecord(candidate) && candidate.type === 'text'
-  )
-}
-
-function numberField(record: Record<string, unknown>, key: string): number {
-  const value = record[key]
-  return typeof value === 'number' ? value : 0
-}
-
-function usageFromUnknown(usage: unknown) {
-  if (!isRecord(usage)) return undefined
-  const cost = isRecord(usage.cost) ? numberField(usage.cost, 'total') : 0
-  return {
-    input: numberField(usage, 'input'),
-    output: numberField(usage, 'output'),
-    cost
-  }
-}
 
 function formatRecentContext(
   messages: AgentMessage[],
@@ -623,7 +595,7 @@ async function runCritic(
         }
 
         if (isRecord(event) && event.type === 'error') {
-          const message = String(event.message ?? 'unknown error')
+          const message = errorMessageFromEvent(event)
           log(ctx, debug, 'error', `Critic error event: ${message}`)
           result.error = message
         }

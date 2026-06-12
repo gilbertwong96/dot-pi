@@ -9,6 +9,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from '../shared/abort'
 import { formatBytes } from '../shared/format'
+import { toolParameters } from '../shared/tool-schema'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -261,7 +262,7 @@ export default function (pi: ExtensionAPI) {
     name: 'fetch',
     label: 'Fetch URL',
     description: DESCRIPTION,
-    parameters: FetchParamsSchema as never,
+    parameters: toolParameters(FetchParamsSchema),
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
       const {

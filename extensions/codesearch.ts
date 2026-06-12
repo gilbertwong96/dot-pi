@@ -9,6 +9,7 @@ import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-codi
 import { fetchGitHubFile, type GitHubFileTargetParams } from './shared/github'
 import { apiErrorMessage, fetchText } from './shared/http'
 import { parseSseJson } from './shared/sse'
+import { toolParameters } from './shared/tool-schema'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -287,7 +288,7 @@ export default function (pi: ExtensionAPI) {
     name: 'codesearch',
     label: 'Code Search',
     description: DESCRIPTION,
-    parameters: CodeSearchParamsSchema as never,
+    parameters: toolParameters(CodeSearchParamsSchema),
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
       const { query, regex, caseSensitive, wholeWords, repo, path, lang } =
@@ -445,7 +446,7 @@ export default function (pi: ExtensionAPI) {
     name: 'codefetch',
     label: 'Code Fetch',
     description: CODEFETCH_DESCRIPTION,
-    parameters: CodeFetchParamsSchema as never,
+    parameters: toolParameters(CodeFetchParamsSchema),
 
     async execute(_toolCallId, params): Promise<AgentToolResult<CodeFetchDetails>> {
       const args = params as CodeFetchParams
