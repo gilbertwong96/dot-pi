@@ -16,16 +16,30 @@ Then install this package:
 pi install git:github.com/dannote/dot-pi
 ```
 
+For the recommended end-user setup, run the bootstrap script. Safer review-first flow:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh
+less install.sh
+sh install.sh
+```
+
+Convenience one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh
+```
+
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and offers optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS). Use non-interactive defaults with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/main/install.sh | sh -s -- --yes
+```
+
 Project-local install for a repo/team:
 
 ```bash
-pi install -l git:github.com/dannote/dot-pi
-```
-
-If Pi is already installed, you can also let Pi do the setup for you. Start `pi` and paste:
-
-```text
-Read https://github.com/dannote/dot-pi and set up dot-pi for me. Install the package, install agent-browser if missing, and offer the optional companion packages pi-computer-use, pi-subagents, and pi-context before installing them.
+pi install git:github.com/dannote/dot-pi -l
 ```
 
 Start Pi and use `pi config` to review or change what is enabled:
