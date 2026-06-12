@@ -119,25 +119,26 @@ The default install focuses on broadly useful, low-surprise tools.
 
 ### Extensions
 
-| Extension                | Description                                                                | Extra setup                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ast-grep.ts`            | AST-based code search and rewrite                                          | `brew install ast-grep`                                                                                |
-| `background.ts`          | Start/stop long-running dev servers and watchers                           | None                                                                                                   |
-| `choose-options.ts`      | `choose_from_options` tool: TUI picker for LLM-proposed options/lists      | None                                                                                                   |
-| `codesearch.ts`          | Search public GitHub code via grep.app                                     | None                                                                                                   |
-| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting    | Optional settings entry                                                                                |
-| `confirm-actions.ts`     | Ask before publish/mutate commands and high-risk local actions             | None                                                                                                   |
-| `context7/`              | Fetch current library docs from Context7                                   | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
-| `env-json/`              | Load `~/.pi/agent/env.jsonc` into `process.env` for API-backed extensions  | `~/.pi/agent/env.jsonc`                                                                                |
-| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                    | Install language servers as needed                                                                     |
-| `notify.ts`              | Desktop notification when work completes                                   | macOS notifications enabled                                                                            |
-| `question.ts`            | Let the agent ask selectable questions                                     | None                                                                                                   |
-| `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
-| `refactor-discipline.ts` | Add semantic refactoring discipline to the system prompt                   | None                                                                                                   |
-| `webfetch/`              | Fetch URL content as markdown/text/html/json                               | None                                                                                                   |
-| `websearch/`             | Web search via Exa                                                         | `EXA_API_KEY`, often via `env-json`                                                                    |
-| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling        | None                                                                                                   |
-| `worktrees/`             | Git worktree helpers for isolated work                                     | None                                                                                                   |
+| Extension                | Description                                                                            | Extra setup                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ast-grep.ts`            | AST-based code search and rewrite                                                      | `brew install ast-grep`                                                                                |
+| `background.ts`          | Start/stop long-running dev servers and watchers                                       | None                                                                                                   |
+| `choose-options.ts`      | `choose_from_options` tool: TUI picker for LLM-proposed options/lists                  | None                                                                                                   |
+| `codesearch.ts`          | Search public GitHub code via grep.app                                                 | None                                                                                                   |
+| `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting                | Optional settings entry                                                                                |
+| `confirm-actions.ts`     | Ask before publish/mutate commands and high-risk local actions                         | None                                                                                                   |
+| `context7/`              | Fetch current library docs from Context7                                               | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
+| `env-json/`              | Load `~/.pi/agent/env.jsonc` into `process.env` for API-backed extensions              | `~/.pi/agent/env.jsonc`                                                                                |
+| `lsp/`                   | LSP tools: definitions, references, diagnostics, rename                                | Install language servers as needed                                                                     |
+| `notify.ts`              | Desktop notification when work completes                                               | macOS notifications enabled                                                                            |
+| `oracle.ts`              | `/oracle`: ask an expensive model with pre-compaction and aggressive context reduction | Configure `oracle.model` in settings                                                                   |
+| `question.ts`            | Let the agent ask selectable questions                                                 | None                                                                                                   |
+| `quote.ts`               | `/quote` or `ctrl+/`: insert selected/copied text as `>` email-style quote             | Optional native `selection-hook`; clipboard fallback commands (`pbpaste`, `wl-paste`, `xclip`, `xsel`) |
+| `refactor-discipline.ts` | Add semantic refactoring discipline to the system prompt                               | None                                                                                                   |
+| `webfetch/`              | Fetch URL content as markdown/text/html/json                                           | None                                                                                                   |
+| `websearch/`             | Web search via Exa                                                                     | `EXA_API_KEY`, often via `env-json`                                                                    |
+| `workflow-shortcuts.ts`  | `/next` and `/recap` commands with clean optional argument handling                    | None                                                                                                   |
+| `worktrees/`             | Git worktree helpers for isolated work                                                 | None                                                                                                   |
 
 Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/settings.json`:
 
@@ -149,6 +150,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
     "lgtm",
     "quote",
     "next",
+    "oracle",
     "recap",
     "all",
     "nobc",
@@ -195,12 +197,13 @@ My usual coding flow:
 2. Use `/ga` for a simple approval of the current path. This is the direct replacement for my very frequent “go ahead”.
 3. Select assistant text, press `ctrl+/`, then comment below the inserted email-style quote.
 4. Use `/lgtm` when I want more autonomy than `/ga`: proceed, implement the next slice, verify, and summarize.
-5. Use `/recap` when `/next` is too local and I need the original plan vs current drift.
-6. Use `/all` after reviews/plans when I do not want piecemeal fixes.
-7. Use `/verify` when I suspect the agent skipped tests, browser checks, CI, or manual validation.
-8. Use `/retry` after a failed/flaky attempt, usually with a tighter diagnosis.
-9. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
-10. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
+5. Use `/oracle` when I want an expensive model to answer from a compressed context instead of dumping the full session into it.
+6. Use `/recap` when `/next` is too local and I need the original plan vs current drift.
+7. Use `/all` after reviews/plans when I do not want piecemeal fixes.
+8. Use `/verify` when I suspect the agent skipped tests, browser checks, CI, or manual validation.
+9. Use `/retry` after a failed/flaky attempt, usually with a tighter diagnosis.
+10. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
+11. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
 
 | Command          | Use when I would normally type...           | Meaning                                                                                                                        |
 | ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -210,6 +213,7 @@ My usual coding flow:
 | `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
 | `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                    |
 | `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
+| `/oracle [q]`    | `ask the expensive model`                   | Pre-compact, aggressively reduce one-turn context, switch to configured expensive model, answer, then restore.                 |
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
 | `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                       |
 | `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                 |
@@ -217,6 +221,41 @@ My usual coding flow:
 | `/push`          | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                                                                                     |
 | `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                         |
 | `/retry`         | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                                                                              |
+
+Configure `/oracle` in settings:
+
+```jsonc
+{
+  "oracle": {
+    "model": "anthropic/claude-opus-4-5",
+    "thinking": "high",
+    "precompact": {
+      "enabled": true,
+      "mode": "pi",
+      "keepRecentTokens": 4000,
+      "reserveTokens": 12000
+    },
+    "context": {
+      "maxTokens": 12000,
+      "summary": "latest",
+      "keepTailTokens": 3000,
+      "keepUserTurns": 3,
+      "keepAssistantTurns": 2,
+      "drop": {
+        "thinking": true,
+        "toolResults": "all",
+        "toolCalls": "names-only",
+        "bashOutput": "truncate",
+        "images": true,
+        "customMessages": true
+      }
+    },
+    "tools": "none"
+  }
+}
+```
+
+`precompact.mode` can be `"pi"`, `"custom"`, or `"off"`. Custom mode uses `precompact.model` when set and `precompact.thinking`; the final one-turn context is still reduced by the `context` policy without deleting session history.
 
 ### Skills
 
