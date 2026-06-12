@@ -18,7 +18,9 @@ import {
   renderExpandFooter,
   renderLines,
   renderToolCall,
-  title
+  title,
+  toolError,
+  toolText
 } from '../shared/render'
 import { Type } from 'typebox'
 import * as cheerio from 'cheerio'
@@ -272,10 +274,7 @@ export default function (pi: ExtensionAPI) {
       } = params as FetchParams
 
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        return {
-          content: [{ type: 'text', text: 'Error: URL must start with http:// or https://' }],
-          details: { error: true }
-        }
+        return toolError('URL must start with http:// or https://', { error: true })
       }
 
       const timeout = Math.min((timeoutSec ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
@@ -325,28 +324,20 @@ export default function (pi: ExtensionAPI) {
         clearTimeout(timeoutId)
 
         if (!response.ok) {
-          return {
-            content: [
-              { type: 'text', text: `Error: Request failed with status ${response.status}` }
-            ],
-            details: { error: true, status: response.status }
-          }
+          return toolError(`Request failed with status ${response.status}`, {
+            error: true,
+            status: response.status
+          } satisfies FetchDetails)
         }
 
         const contentLength = response.headers.get('content-length')
         if (contentLength && parseInt(contentLength) > MAX_RESPONSE_SIZE) {
-          return {
-            content: [{ type: 'text', text: 'Error: Response too large (exceeds 5MB limit)' }],
-            details: { error: true }
-          }
+          return toolError('Response too large (exceeds 5MB limit)', { error: true })
         }
 
         const arrayBuffer = await response.arrayBuffer()
         if (arrayBuffer.byteLength > MAX_RESPONSE_SIZE) {
-          return {
-            content: [{ type: 'text', text: 'Error: Response too large (exceeds 5MB limit)' }],
-            details: { error: true }
-          }
+          return toolError('Response too large (exceeds 5MB limit)', { error: true })
         }
 
         const contentType = response.headers.get('content-type') || ''
@@ -360,24 +351,22 @@ export default function (pi: ExtensionAPI) {
               mergePages: true
             })
             const { output, truncated, totalChars } = truncateOutput(pdfText)
-            return {
-              content: [{ type: 'text', text: output }],
-              details: {
-                url,
-                finalUrl: redirected ? finalUrl : undefined,
-                contentType,
-                format: 'pdf→text',
-                size: arrayBuffer.byteLength,
-                totalChars,
-                truncated,
-                redirected
-              } as FetchDetails
-            }
+            return toolText(output, {
+              url,
+              finalUrl: redirected ? finalUrl : undefined,
+              contentType,
+              format: 'pdf→text',
+              size: arrayBuffer.byteLength,
+              totalChars,
+              truncated,
+              redirected
+            } satisfies FetchDetails)
           } catch {
-            return {
-              content: [{ type: 'text', text: 'Error: Failed to extract text from PDF' }],
-              details: { url, error: true, contentType } as FetchDetails
-            }
+            return toolError('Failed to extract text from PDF', {
+              url,
+              error: true,
+              contentType
+            } satisfies FetchDetails)
           }
         }
 
@@ -386,17 +375,14 @@ export default function (pi: ExtensionAPI) {
           (!isTextualContentType(contentType) && looksBinary(arrayBuffer))
         ) {
           const message = binaryContentMessage(contentType, arrayBuffer.byteLength)
-          return {
-            content: [{ type: 'text', text: message }],
-            details: {
-              url,
-              finalUrl: redirected ? finalUrl : undefined,
-              contentType,
-              format: 'binary',
-              size: arrayBuffer.byteLength,
-              redirected
-            } as FetchDetails
-          }
+          return toolText(message, {
+            url,
+            finalUrl: redirected ? finalUrl : undefined,
+            contentType,
+            format: 'binary',
+            size: arrayBuffer.byteLength,
+            redirected
+          } satisfies FetchDetails)
         }
 
         const content = new TextDecoder().decode(arrayBuffer)
@@ -407,19 +393,16 @@ export default function (pi: ExtensionAPI) {
             const parsed = JSON.parse(content)
             const formatted = JSON.stringify(parsed, null, 2)
             const { output, truncated, totalChars } = truncateOutput(formatted)
-            return {
-              content: [{ type: 'text', text: output }],
-              details: {
-                url,
-                finalUrl: redirected ? finalUrl : undefined,
-                contentType,
-                format: 'json',
-                size: arrayBuffer.byteLength,
-                totalChars,
-                truncated,
-                redirected
-              } as FetchDetails
-            }
+            return toolText(output, {
+              url,
+              finalUrl: redirected ? finalUrl : undefined,
+              contentType,
+              format: 'json',
+              size: arrayBuffer.byteLength,
+              totalChars,
+              truncated,
+              redirected
+            } satisfies FetchDetails)
           } catch {
             // Not valid JSON, fall through to regular handling
           }
@@ -431,15 +414,11 @@ export default function (pi: ExtensionAPI) {
         if (selector && contentType.includes('text/html')) {
           const extracted = applySelector(html, selector)
           if (!extracted) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: `No content found matching selector: ${selector}`
-                }
-              ],
-              details: { url, selector, error: true } as FetchDetails
-            }
+            return toolError(`No content found matching selector: ${selector}`, {
+              url,
+              selector,
+              error: true
+            } satisfies FetchDetails)
           }
           html = extracted
         }
@@ -462,27 +441,21 @@ export default function (pi: ExtensionAPI) {
 
         const { output: finalOutput, truncated, totalChars } = truncateOutput(output)
 
-        return {
-          content: [{ type: 'text', text: finalOutput }],
-          details: {
-            url,
-            finalUrl: redirected ? finalUrl : undefined,
-            contentType,
-            format,
-            size: arrayBuffer.byteLength,
-            totalChars,
-            truncated,
-            redirected,
-            selector: selector || undefined
-          } as FetchDetails
-        }
+        return toolText(finalOutput, {
+          url,
+          finalUrl: redirected ? finalUrl : undefined,
+          contentType,
+          format,
+          size: arrayBuffer.byteLength,
+          totalChars,
+          truncated,
+          redirected,
+          selector: selector || undefined
+        } satisfies FetchDetails)
       } catch (err) {
         clearTimeout(timeoutId)
         const message = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{ type: 'text', text: `Error: ${message}` }],
-          details: { url, error: true } as FetchDetails
-        }
+        return toolError(message, { url, error: true } satisfies FetchDetails)
       }
     },
 
