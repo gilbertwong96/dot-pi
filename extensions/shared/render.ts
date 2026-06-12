@@ -1,5 +1,10 @@
 import { rawKeyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
-import { truncateToWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
+import {
+  Markdown,
+  truncateToWidth,
+  type Component,
+  type MarkdownTheme
+} from '@earendil-works/pi-tui'
 
 export function resultText(result: AgentToolResult<unknown>): string {
   return result.content
@@ -155,6 +160,64 @@ export function renderEntryList<T>(
   if (!options.expanded) {
     const hidden = options.hiddenLines?.(entries.length - visibleCount, visibleCount) ?? []
     if (hidden.length > 0) appendFooter(lines, [...hidden, ...renderExpandFooter(theme)])
+  }
+
+  return renderLines(lines)
+}
+
+interface MarkdownPreviewOptions {
+  expanded: boolean
+  compactLines?: number
+  expandedY?: number
+  metadata?: string[]
+  preview?: (markdown: string) => { lines: string[]; hidden: number }
+  styleLine?: (line: string, theme: Theme) => string
+}
+
+function defaultMarkdownPreview(
+  markdown: string,
+  compactLines: number
+): { lines: string[]; hidden: number } {
+  const lines = markdown.split('\n').filter(Boolean)
+  return { lines: lines.slice(0, compactLines), hidden: Math.max(0, lines.length - compactLines) }
+}
+
+export function renderMarkdownPreview(
+  markdown: string,
+  theme: Theme,
+  options: MarkdownPreviewOptions
+): Component {
+  if (options.expanded) {
+    const rendered = new Markdown(
+      markdown.trim(),
+      0,
+      options.expandedY ?? 1,
+      nativeMarkdownTheme(theme),
+      {
+        color: (text) => theme.fg('toolOutput', text)
+      }
+    )
+    return clampRenderedLines({
+      render: (width) => [
+        '',
+        ...(options.metadata ?? []),
+        ...(options.metadata?.length ? [''] : []),
+        ...rendered.render(width)
+      ],
+      invalidate: () => rendered.invalidate()
+    })
+  }
+
+  const preview =
+    options.preview?.(markdown) ?? defaultMarkdownPreview(markdown, options.compactLines ?? 4)
+  const styleLine = options.styleLine ?? ((line: string) => primary(line, theme))
+  const lines = [
+    ...(options.metadata ?? []),
+    ...preview.lines.map((line) => styleLine(line, theme))
+  ]
+
+  if (preview.hidden > 0) {
+    lines.push(meta(`… ${preview.hidden} more lines`, theme), ...renderExpandFooter(theme))
   }
 
   return renderLines(lines)

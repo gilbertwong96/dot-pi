@@ -6,7 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { env } from '../shared/http'
+import { env, requireEnv } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
@@ -24,10 +24,6 @@ import {
 } from '../shared/render'
 import { Type } from 'typebox'
 import Exa from 'exa-js'
-
-function getApiKey(): string | undefined {
-  return env('EXA_API_KEY')
-}
 
 function getBaseUrl(): string | undefined {
   return env('EXA_ENDPOINT_URL')
@@ -213,9 +209,9 @@ export default function (pi: ExtensionAPI) {
     parameters: WebSearchParams,
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
-      const apiKey = getApiKey()
-      if (!apiKey) {
-        return toolError('EXA_API_KEY not set', webSearchErrorDetails(params.query))
+      const apiKey = requireEnv('EXA_API_KEY')
+      if (!apiKey.ok) {
+        return toolError(apiKey.message, webSearchErrorDetails(params.query))
       }
 
       const {
@@ -241,7 +237,7 @@ export default function (pi: ExtensionAPI) {
 
       try {
         const baseUrl = getBaseUrl()
-        const exa = baseUrl ? new Exa(apiKey, baseUrl) : new Exa(apiKey)
+        const exa = baseUrl ? new Exa(apiKey.value, baseUrl) : new Exa(apiKey.value)
 
         // Build contents options
         const contentsOptions: Record<string, unknown> = {

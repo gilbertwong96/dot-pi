@@ -8,30 +8,24 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Markdown } from '@earendil-works/pi-tui'
-import { env, fetchJson, fetchText } from '../shared/http'
+import { env, fetchJson, fetchText, requireEnv } from '../shared/http'
 import {
   firstText,
   meta as renderMeta,
   primary,
   renderEntryList,
   renderError,
-  renderExpandFooter,
   renderLines,
+  renderMarkdownPreview,
   renderMuted,
   renderToolCall,
   title,
   toolError,
-  toolText,
-  nativeMarkdownTheme
+  toolText
 } from '../shared/render'
 import { Type } from 'typebox'
 
 const DEFAULT_API_BASE = 'https://context7.com/api'
-
-function getApiKey(): string | undefined {
-  return env('CONTEXT7_API_KEY')
-}
 
 function getApiBase(): string {
   return env('CONTEXT7_ENDPOINT_URL') || DEFAULT_API_BASE
@@ -176,12 +170,12 @@ export default function (pi: ExtensionAPI) {
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const apiKey = getApiKey()
-      if (!apiKey) {
-        return toolError('CONTEXT7_API_KEY not set', { error: true } satisfies ResolveDetails)
+      const apiKey = requireEnv('CONTEXT7_API_KEY')
+      if (!apiKey.ok) {
+        return toolError(apiKey.message, { error: true } satisfies ResolveDetails)
       }
 
-      const result = await searchLibrary(apiKey, params.query, params.libraryName)
+      const result = await searchLibrary(apiKey.value, params.query, params.libraryName)
 
       if (result.error) {
         return toolError(result.error, { error: true } satisfies ResolveDetails)
@@ -249,12 +243,12 @@ export default function (pi: ExtensionAPI) {
     }),
 
     async execute(_toolCallId, params, _signal, _onUpdate) {
-      const apiKey = getApiKey()
-      if (!apiKey) {
-        return toolError('CONTEXT7_API_KEY not set', docsErrorDetails(params.libraryId))
+      const apiKey = requireEnv('CONTEXT7_API_KEY')
+      if (!apiKey.ok) {
+        return toolError(apiKey.message, docsErrorDetails(params.libraryId))
       }
 
-      const result = await getContext(apiKey, params.query, params.libraryId)
+      const result = await getContext(apiKey.value, params.query, params.libraryId)
 
       if (result.error) {
         return toolError(result.error, docsErrorDetails(params.libraryId))
@@ -286,24 +280,12 @@ export default function (pi: ExtensionAPI) {
       if (details.empty) return renderMuted('No docs found', theme)
       const text = result.content[0]
       const docs = text?.type === 'text' ? text.text : ''
-      if (expanded) {
-        return new Markdown(docs.trim(), 0, 1, nativeMarkdownTheme(theme), {
-          color: (text) => theme.fg('toolOutput', text)
-        })
-      }
-
-      const preview = compactDocsPreview(docs)
-      const lines = preview.lines.map((line) => {
-        if (line.startsWith('Source: ')) return renderMeta(line, theme)
-        return primary(line, theme)
+      return renderMarkdownPreview(docs, theme, {
+        expanded,
+        preview: compactDocsPreview,
+        styleLine: (line, theme) =>
+          line.startsWith('Source: ') ? renderMeta(line, theme) : primary(line, theme)
       })
-      if (preview.hidden > 0) {
-        lines.push(
-          renderMeta(`… ${preview.hidden} more lines`, theme),
-          ...renderExpandFooter(theme)
-        )
-      }
-      return renderLines(lines)
     }
   })
 }

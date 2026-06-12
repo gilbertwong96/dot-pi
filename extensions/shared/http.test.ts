@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { env, fetchJson, fetchText } from './http'
+import { env, fetchJson, fetchText, requireEnv } from './http'
 
 const originalFetch = globalThis.fetch
 const originalEnv = process.env.DOT_PI_HTTP_TEST_KEY
@@ -24,6 +24,19 @@ describe('env', () => {
 
     process.env.DOT_PI_HTTP_TEST_KEY = ''
     expect(env('DOT_PI_HTTP_TEST_KEY')).toBeUndefined()
+  })
+})
+
+describe('requireEnv', () => {
+  test('returns a discriminated result for missing and present keys', () => {
+    delete process.env.DOT_PI_HTTP_TEST_KEY
+    expect(requireEnv('DOT_PI_HTTP_TEST_KEY')).toEqual({
+      ok: false,
+      message: 'DOT_PI_HTTP_TEST_KEY not set'
+    })
+
+    process.env.DOT_PI_HTTP_TEST_KEY = 'value'
+    expect(requireEnv('DOT_PI_HTTP_TEST_KEY')).toEqual({ ok: true, value: 'value' })
   })
 })
 

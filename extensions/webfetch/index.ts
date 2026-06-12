@@ -7,17 +7,14 @@
  */
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Markdown } from '@earendil-works/pi-tui'
 import { withTimeoutSignal } from '../shared/abort'
 import {
-  clampRenderedLines,
   firstText,
   meta as renderMeta,
-  nativeMarkdownTheme,
   primary,
   renderError,
-  renderExpandFooter,
   renderLines,
+  renderMarkdownPreview,
   renderToolCall,
   title,
   toolError,
@@ -467,7 +464,6 @@ export default function (pi: ExtensionAPI) {
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''
 
-      const lines = fullText.split('\n').filter(Boolean)
       const finalUrl = details?.finalUrl ?? details?.url
       const meta = [
         finalUrl,
@@ -478,32 +474,18 @@ export default function (pi: ExtensionAPI) {
         .filter(Boolean)
         .join(' · ')
 
-      if (!expanded) {
-        const preview = lines.slice(0, 4).map(dedupeRepeatedHeading)
-        const hiddenCount = lines.length - preview.length
-        const previewChanged = preview.join('\n') !== lines.slice(0, 4).join('\n')
-        return renderLines([
-          renderMeta(meta, theme),
-          ...preview.map((line) => stylePreviewLine(line, theme)),
-          ...(hiddenCount > 0 || previewChanged
-            ? [
-                ...(hiddenCount > 0 ? [renderMeta(`… ${hiddenCount} more lines`, theme)] : []),
-                ...renderExpandFooter(theme)
-              ]
-            : [])
-        ])
-      }
-
-      const markdown = new Markdown(fullText.trim(), 0, 0, nativeMarkdownTheme(theme), {
-        color: (text) => theme.fg('toolOutput', text)
-      })
-      return clampRenderedLines({
-        render: (width) => [
-          '',
-          ...(meta ? [renderMeta(meta, theme), ''] : []),
-          ...markdown.render(width)
-        ],
-        invalidate: () => markdown.invalidate()
+      return renderMarkdownPreview(fullText, theme, {
+        expanded,
+        expandedY: 0,
+        metadata: meta ? [renderMeta(meta, theme)] : [],
+        preview: (markdown) => {
+          const lines = markdown.split('\n').filter(Boolean)
+          return {
+            lines: lines.slice(0, 4).map(dedupeRepeatedHeading),
+            hidden: Math.max(0, lines.length - 4)
+          }
+        },
+        styleLine: stylePreviewLine
       })
     }
   })

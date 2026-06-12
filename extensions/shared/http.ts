@@ -16,6 +16,13 @@ export function env(name: string): string | undefined {
   return process.env[name] || undefined
 }
 
+export function requireEnv(
+  name: string
+): { ok: true; value: string } | { ok: false; message: string } {
+  const value = env(name)
+  return value ? { ok: true, value } : { ok: false, message: `${name} not set` }
+}
+
 export async function fetchText(
   url: string,
   init: RequestInit = {},

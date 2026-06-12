@@ -7,6 +7,7 @@ import {
   firstText,
   renderEntryList,
   renderLines,
+  renderMarkdownPreview,
   renderToolCall,
   toolError,
   toolLoading
@@ -65,6 +66,21 @@ describe('renderToolCall', () => {
 
     expect(visibleWidth(line)).toBeLessThanOrEqual(12)
     expect(line).toContain('…')
+  })
+})
+
+describe('renderMarkdownPreview', () => {
+  test('renders compact markdown preview with metadata', () => {
+    const lines = renderMarkdownPreview('one\ntwo\nthree', theme, {
+      expanded: false,
+      compactLines: 2,
+      metadata: ['meta']
+    }).render(120)
+
+    expect(lines).toContain('meta')
+    expect(lines).toContain('one')
+    expect(lines).toContain('two')
+    expect(lines).toContain('… 1 more lines')
   })
 })
 
