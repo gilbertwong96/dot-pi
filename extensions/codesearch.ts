@@ -5,17 +5,21 @@
  * Returns formatted code snippets with repository info.
  */
 
-import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { spawnSync } from 'child_process'
 import { apiErrorMessage, fetchText } from './shared/http'
 import {
   firstText,
+  meta as renderMeta,
   primary,
   renderEmpty,
+  renderExpandFooter,
   renderEntryList,
   renderError,
   renderLines,
   renderMuted,
   renderToolCall,
+  title,
   toolError,
   toolLoading,
   toolText
@@ -25,6 +29,7 @@ import { Type } from 'typebox'
 const API_URL = 'https://mcp.grep.app/'
 const DEFAULT_TIMEOUT = 30000
 const PREVIEW_REPOS = 2
+const CODEFETCH_PREVIEW_LINES = 40
 
 interface McpResponse {
   result?: {
@@ -47,6 +52,26 @@ interface SearchResult {
   url: string
   license: string
   snippets: CodeSnippet[]
+}
+
+interface CodeFetchParams {
+  repo?: string
+  path?: string
+  ref?: string
+  url?: string
+  startLine?: number
+  endLine?: number
+}
+
+interface CodeFetchDetails {
+  repo: string
+  path: string
+  ref?: string
+  startLine?: number
+  endLine?: number
+  lineCount: number
+  totalLines: number
+  error?: boolean
 }
 
 interface CodeSearchDetails {
@@ -79,6 +104,16 @@ interface CodeSearchParams {
   lang?: string[]
 }
 
+const CODEFETCH_DESCRIPTION = `Fetch full file contents from GitHub after finding a result with codesearch.
+
+Use this when a codesearch snippet is too small and you need surrounding context or the full file.
+Pass either:
+- url: a GitHub blob URL from codesearch output
+- repo and path: e.g. repo:'facebook/react', path:'packages/react/index.js'
+
+Optionally pass ref, startLine, and endLine to fetch a specific branch/tag/SHA or line range.
+Requires the GitHub CLI (gh) to be installed and authenticated enough for the target repository.`
+
 const DESCRIPTION = `Find real-world code examples from over a million public GitHub repositories.
 
 **IMPORTANT: This tool searches for literal code patterns (like grep), not keywords.**
@@ -99,6 +134,19 @@ const DESCRIPTION = `Find real-world code examples from over a million public Gi
 
 Use regex:true for flexible patterns. Prefix with '(?s)' to match across multiple lines.
 Filter by lang (array), repo (string), or path (string) to narrow results.`
+
+const CodeFetchParamsSchema = Type.Object({
+  repo: Type.Optional(Type.String({ description: "Repository name, e.g. 'facebook/react'" })),
+  path: Type.Optional(Type.String({ description: "File path, e.g. 'src/index.ts'" })),
+  ref: Type.Optional(
+    Type.String({ description: "Branch, tag, or commit SHA. Defaults to GitHub's default branch" })
+  ),
+  url: Type.Optional(
+    Type.String({ description: 'GitHub blob URL from codesearch output. Overrides repo/path/ref.' })
+  ),
+  startLine: Type.Optional(Type.Number({ description: '1-based first line to return' })),
+  endLine: Type.Optional(Type.Number({ description: '1-based last line to return' }))
+})
 
 const CodeSearchParamsSchema = Type.Object({
   query: Type.String({
@@ -168,6 +216,118 @@ export function parseSseJson<T>(body: string): T | undefined {
   }
 
   return flush()
+}
+
+export function parseGitHubBlobUrl(
+  url: string
+): { repo: string; path: string; ref: string } | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+
+  if (parsed.hostname !== 'github.com') return undefined
+
+  const parts = parsed.pathname.split('/').filter(Boolean)
+  const blobIndex = parts.indexOf('blob')
+  if (blobIndex !== 2 || parts.length < 5) return undefined
+
+  const [owner, repoName] = parts
+  const ref = parts[3]
+  const fileParts = parts.slice(4)
+  if (!owner || !repoName || !ref || fileParts.length === 0) return undefined
+
+  return {
+    repo: `${owner}/${repoName}`,
+    ref,
+    path: fileParts.map((part) => decodeURIComponent(part)).join('/')
+  }
+}
+
+function encodePathForEndpoint(path: string): string {
+  return path
+    .split('/')
+    .filter((part) => part.length > 0)
+    .map((part) => encodeURIComponent(part))
+    .join('/')
+}
+
+export function resolveCodeFetchTarget(
+  params: CodeFetchParams
+): { ok: true; repo: string; path: string; ref?: string } | { ok: false; message: string } {
+  const fromUrl = params.url ? parseGitHubBlobUrl(params.url) : undefined
+  const repo = fromUrl?.repo ?? params.repo
+  const path = fromUrl?.path ?? params.path
+  const ref = fromUrl?.ref ?? params.ref
+
+  if (!repo || !path) {
+    return { ok: false, message: 'Provide either url or both repo and path' }
+  }
+
+  if (!/^[^\s/]+\/[^\s/]+$/u.test(repo)) {
+    return { ok: false, message: "repo must look like 'owner/name'" }
+  }
+
+  return { ok: true, repo, path, ref }
+}
+
+export function sliceLines(
+  text: string,
+  startLine?: number,
+  endLine?: number
+): { text: string; startLine: number; endLine: number; totalLines: number } {
+  const lines = text.split('\n')
+  const totalLines = lines.length
+  const start = Math.max(1, Math.floor(startLine ?? 1))
+
+  if (start > totalLines) {
+    return { text: '', startLine: start, endLine: start - 1, totalLines }
+  }
+
+  const end = Math.min(totalLines, Math.floor(endLine ?? totalLines))
+  const normalizedEnd = Math.max(start, end)
+
+  return {
+    text: lines.slice(start - 1, normalizedEnd).join('\n'),
+    startLine: start,
+    endLine: normalizedEnd,
+    totalLines
+  }
+}
+
+function fetchGitHubFile(
+  params: CodeFetchParams
+):
+  | { ok: true; text: string; repo: string; path: string; ref?: string }
+  | { ok: false; message: string; repo?: string; path?: string; ref?: string } {
+  const target = resolveCodeFetchTarget(params)
+  if (!target.ok) return target
+
+  const endpointPath = encodePathForEndpoint(target.path)
+  const endpoint = `repos/${target.repo}/contents/${endpointPath}${target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ''}`
+  const result = spawnSync('gh', ['api', endpoint, '-H', 'Accept: application/vnd.github.raw'], {
+    encoding: 'utf-8',
+    maxBuffer: 10 * 1024 * 1024
+  })
+
+  if (result.error) {
+    return {
+      ok: false,
+      message: result.error.message,
+      repo: target.repo,
+      path: target.path,
+      ref: target.ref
+    }
+  }
+
+  if (result.status !== 0) {
+    const message = (result.stderr || result.stdout || `gh api exited ${result.status}`).trim()
+    return { ok: false, message, repo: target.repo, path: target.path, ref: target.ref }
+  }
+
+  return { ok: true, text: result.stdout, repo: target.repo, path: target.path, ref: target.ref }
 }
 
 export function parseResults(rawText: string): SearchResult[] {
@@ -404,6 +564,90 @@ export default function (pi: ExtensionAPI) {
           return [theme.fg('dim', `… ${pieces.join(' · ')}`)]
         }
       })
+    }
+  })
+
+  pi.registerTool({
+    name: 'codefetch',
+    label: 'Code Fetch',
+    description: CODEFETCH_DESCRIPTION,
+    parameters: CodeFetchParamsSchema as any,
+
+    async execute(_toolCallId, params): Promise<AgentToolResult<CodeFetchDetails>> {
+      const args = params as CodeFetchParams
+      const fetched = fetchGitHubFile(args)
+
+      if (!fetched.ok) {
+        return toolError(fetched.message, {
+          repo: fetched.repo ?? args.repo ?? '',
+          path: fetched.path ?? args.path ?? '',
+          ref: fetched.ref ?? args.ref,
+          lineCount: 0,
+          totalLines: 0,
+          error: true
+        } satisfies CodeFetchDetails)
+      }
+
+      const sliced = sliceLines(fetched.text, args.startLine, args.endLine)
+      const lineCount = Math.max(0, sliced.endLine - sliced.startLine + 1)
+      return toolText(sliced.text, {
+        repo: fetched.repo,
+        path: fetched.path,
+        ref: fetched.ref,
+        startLine: sliced.startLine,
+        endLine: sliced.endLine,
+        lineCount,
+        totalLines: sliced.totalLines
+      } satisfies CodeFetchDetails)
+    },
+
+    renderCall(params, theme) {
+      const args = (params ?? {}) as Partial<CodeFetchParams>
+      const target = args.url ?? [args.repo, args.path].filter(Boolean).join(' · ')
+      const range =
+        args.startLine || args.endLine ? `${args.startLine ?? 1}-${args.endLine ?? ''}` : undefined
+      return renderToolCall(theme, 'code fetch', {
+        segments: [{ text: target }],
+        tags: [args.ref ? `ref:${args.ref}` : undefined, range ? `lines:${range}` : undefined]
+      })
+    },
+
+    renderResult(result, { expanded }, theme) {
+      const details = result.details as CodeFetchDetails | undefined
+      if (details?.error) return renderError(firstText(result, 'Error'), theme)
+
+      const text = firstText(result)
+      const startLine = details?.startLine ?? 1
+      const codeLines = text.split('\n')
+      const visibleLines = expanded ? codeLines : codeLines.slice(0, CODEFETCH_PREVIEW_LINES)
+      const lineNumberWidth = String(startLine + visibleLines.length - 1).length
+      const renderedCode = visibleLines.map((line, offset) => {
+        const lineNumber = String(startLine + offset).padStart(lineNumberWidth, ' ')
+        return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
+      })
+
+      const header = details
+        ? title(details.repo, theme) + renderMeta(` · ${details.path}`, theme)
+        : title('Fetched code', theme)
+      const metaParts: string[] = []
+      if (details?.ref) metaParts.push(`ref:${details.ref}`)
+      if (details?.startLine && details?.endLine) {
+        metaParts.push(`lines:${details.startLine}-${details.endLine}`)
+      }
+      if (details) metaParts.push(`${details.lineCount}/${details.totalLines} lines`)
+
+      const lines = [
+        header,
+        ...(metaParts.length ? [renderMeta(metaParts.join(' · '), theme)] : []),
+        '',
+        ...renderedCode
+      ]
+      const hidden = codeLines.length - visibleLines.length
+      if (!expanded && hidden > 0) {
+        lines.push('', renderMeta(`… ${hidden} more lines`, theme), ...renderExpandFooter(theme))
+      }
+
+      return renderLines(lines)
     }
   })
 }

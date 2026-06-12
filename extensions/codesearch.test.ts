@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
-import { parseResults, parseSseJson } from './codesearch'
+import {
+  parseGitHubBlobUrl,
+  parseResults,
+  parseSseJson,
+  resolveCodeFetchTarget,
+  sliceLines
+} from './codesearch'
 
 describe('parseSseJson', () => {
   test('parses plain JSON responses', () => {
@@ -34,6 +40,66 @@ describe('parseSseJson', () => {
 
     expect(parseSseJson<Record<string, unknown>>(body)).toEqual({
       error: { code: -1, message: 'bad' }
+    })
+  })
+})
+
+describe('parseGitHubBlobUrl', () => {
+  test('parses GitHub blob URLs from codesearch output', () => {
+    expect(
+      parseGitHubBlobUrl('https://github.com/facebook/react/blob/main/packages/react/index.js')
+    ).toEqual({
+      repo: 'facebook/react',
+      ref: 'main',
+      path: 'packages/react/index.js'
+    })
+  })
+
+  test('rejects non-blob URLs', () => {
+    expect(parseGitHubBlobUrl('https://github.com/facebook/react')).toBeUndefined()
+  })
+})
+
+describe('resolveCodeFetchTarget', () => {
+  test('prefers GitHub URL target over explicit fields', () => {
+    expect(
+      resolveCodeFetchTarget({
+        repo: 'wrong/repo',
+        path: 'wrong.ts',
+        url: 'https://github.com/facebook/react/blob/main/packages/react/index.js'
+      })
+    ).toEqual({
+      ok: true,
+      repo: 'facebook/react',
+      ref: 'main',
+      path: 'packages/react/index.js'
+    })
+  })
+
+  test('requires a URL or repo and path', () => {
+    expect(resolveCodeFetchTarget({ repo: 'facebook/react' })).toEqual({
+      ok: false,
+      message: 'Provide either url or both repo and path'
+    })
+  })
+})
+
+describe('sliceLines', () => {
+  test('returns a normalized 1-based line range', () => {
+    expect(sliceLines('one\ntwo\nthree', 2, 3)).toEqual({
+      text: 'two\nthree',
+      startLine: 2,
+      endLine: 3,
+      totalLines: 3
+    })
+  })
+
+  test('returns an empty range when start is past EOF', () => {
+    expect(sliceLines('one\ntwo', 9)).toEqual({
+      text: '',
+      startLine: 9,
+      endLine: 8,
+      totalLines: 2
     })
   })
 })
