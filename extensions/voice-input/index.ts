@@ -10,6 +10,10 @@
  *
  * Optional:
  * - ELEVENLABS_LANGUAGE - ISO-639-1/3 language code (e.g., "en", "ru", "de")
+ * - ELEVENLABS_KEYTERMS - comma/newline-separated keyterm prompting list
+ * - ELEVENLABS_COMMIT_STRATEGY - "manual" or "vad"
+ * - ELEVENLABS_VAD_SILENCE_THRESHOLD_SECS, ELEVENLABS_VAD_THRESHOLD
+ * - ELEVENLABS_MIN_SPEECH_DURATION_MS, ELEVENLABS_MIN_SILENCE_DURATION_MS
  */
 
 import {
@@ -21,13 +25,117 @@ import {
 import { type EditorTheme, Key, matchesKey, type TUI } from '@earendil-works/pi-tui'
 import { spawnSync, spawn, type ChildProcess } from 'child_process'
 import WebSocket from 'ws'
+import { requireEnv } from '../shared/http'
 
-function getApiKey(): string | undefined {
-  return process.env.ELEVENLABS_API_KEY
+type CommitStrategy = 'manual' | 'vad'
+
+interface VoiceInputConfig {
+  apiKey: string
+  languageCode?: string
+  keyterms: string[]
+  commitStrategy?: CommitStrategy
+  vadSilenceThresholdSecs?: number
+  vadThreshold?: number
+  minSpeechDurationMs?: number
+  minSilenceDurationMs?: number
 }
 
-function getLanguageCode(): string | undefined {
-  return process.env.ELEVENLABS_LANGUAGE
+function optionalEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim()
+  return value ? value : undefined
+}
+
+function parseNumberEnv(
+  name: string
+): { ok: true; value?: number } | { ok: false; message: string } {
+  const raw = optionalEnv(name)
+  if (!raw) return { ok: true }
+
+  const value = Number(raw)
+  return Number.isFinite(value)
+    ? { ok: true, value }
+    : { ok: false, message: `${name} must be a number` }
+}
+
+function parseIntegerEnv(
+  name: string
+): { ok: true; value?: number } | { ok: false; message: string } {
+  const parsed = parseNumberEnv(name)
+  if (!parsed.ok || parsed.value === undefined) return parsed
+
+  return Number.isInteger(parsed.value)
+    ? parsed
+    : { ok: false, message: `${name} must be an integer` }
+}
+
+function parseKeyterms(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(/[\n,]/u)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 0)
+}
+
+export function getVoiceInputConfig():
+  | { ok: true; config: VoiceInputConfig }
+  | { ok: false; message: string } {
+  const apiKey = requireEnv('ELEVENLABS_API_KEY')
+  if (!apiKey.ok) return apiKey
+
+  const rawCommitStrategy = optionalEnv('ELEVENLABS_COMMIT_STRATEGY')
+  if (rawCommitStrategy && rawCommitStrategy !== 'manual' && rawCommitStrategy !== 'vad') {
+    return { ok: false, message: 'ELEVENLABS_COMMIT_STRATEGY must be manual or vad' }
+  }
+  const commitStrategy = rawCommitStrategy as CommitStrategy | undefined
+
+  const vadSilenceThresholdSecs = parseNumberEnv('ELEVENLABS_VAD_SILENCE_THRESHOLD_SECS')
+  if (!vadSilenceThresholdSecs.ok) return vadSilenceThresholdSecs
+
+  const vadThreshold = parseNumberEnv('ELEVENLABS_VAD_THRESHOLD')
+  if (!vadThreshold.ok) return vadThreshold
+
+  const minSpeechDurationMs = parseIntegerEnv('ELEVENLABS_MIN_SPEECH_DURATION_MS')
+  if (!minSpeechDurationMs.ok) return minSpeechDurationMs
+
+  const minSilenceDurationMs = parseIntegerEnv('ELEVENLABS_MIN_SILENCE_DURATION_MS')
+  if (!minSilenceDurationMs.ok) return minSilenceDurationMs
+
+  return {
+    ok: true,
+    config: {
+      apiKey: apiKey.value,
+      languageCode: optionalEnv('ELEVENLABS_LANGUAGE'),
+      keyterms: parseKeyterms(optionalEnv('ELEVENLABS_KEYTERMS')),
+      commitStrategy,
+      vadSilenceThresholdSecs: vadSilenceThresholdSecs.value,
+      vadThreshold: vadThreshold.value,
+      minSpeechDurationMs: minSpeechDurationMs.value,
+      minSilenceDurationMs: minSilenceDurationMs.value
+    }
+  }
+}
+
+export function buildRealtimeParams(config: VoiceInputConfig): URLSearchParams {
+  const params = new URLSearchParams({
+    model_id: 'scribe_v2_realtime',
+    sample_rate: '16000',
+    audio_format: 'pcm_16000'
+  })
+
+  if (config.languageCode) params.set('language_code', config.languageCode)
+  if (config.commitStrategy) params.set('commit_strategy', config.commitStrategy)
+  if (config.vadSilenceThresholdSecs !== undefined) {
+    params.set('vad_silence_threshold_secs', String(config.vadSilenceThresholdSecs))
+  }
+  if (config.vadThreshold !== undefined) params.set('vad_threshold', String(config.vadThreshold))
+  if (config.minSpeechDurationMs !== undefined) {
+    params.set('min_speech_duration_ms', String(config.minSpeechDurationMs))
+  }
+  if (config.minSilenceDurationMs !== undefined) {
+    params.set('min_silence_duration_ms', String(config.minSilenceDurationMs))
+  }
+  for (const keyterm of config.keyterms) params.append('keyterms', keyterm)
+
+  return params
 }
 
 function checkRecAvailable(): boolean {
@@ -137,35 +245,45 @@ interface RealtimeMessage {
   error?: string
 }
 
+const REALTIME_ERROR_LABELS: Record<string, string> = {
+  auth_error: 'Authentication error',
+  quota_exceeded: 'Quota exceeded',
+  commit_throttled: 'Commit throttled',
+  unaccepted_terms: 'Unaccepted terms',
+  rate_limited: 'Rate limited',
+  queue_overflow: 'Queue overflow',
+  resource_exhausted: 'Resource exhausted',
+  session_time_limit_exceeded: 'Session time limit exceeded',
+  input_error: 'Input error',
+  chunk_size_exceeded: 'Chunk size exceeded',
+  insufficient_audio_activity: 'Insufficient audio activity',
+  transcriber_error: 'Transcriber error',
+  error: 'ElevenLabs error'
+}
+
+export function formatRealtimeError(messageType: string, error: string): string {
+  const label = REALTIME_ERROR_LABELS[messageType] ?? messageType.replace(/_/gu, ' ')
+  return `${label}: ${error}`
+}
+
 function startRealtimeRecording(
   onTranscript: (text: string, isFinal: boolean) => void,
   onError: (error: string) => void
 ): void {
-  const apiKey = getApiKey()
-  if (!apiKey) {
-    onError('ELEVENLABS_API_KEY not set')
+  const config = getVoiceInputConfig()
+  if (!config.ok) {
+    onError(config.message)
     return
   }
 
   currentTranscript = ''
 
-  // Build WebSocket URL with query params
-  const params = new URLSearchParams({
-    model_id: 'scribe_v2_realtime',
-    sample_rate: '16000',
-    audio_format: 'pcm_16000'
-  })
-
-  const languageCode = getLanguageCode()
-  if (languageCode) {
-    params.set('language_code', languageCode)
-  }
-
+  const params = buildRealtimeParams(config.config)
   const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params.toString()}`
 
   ws = new WebSocket(wsUrl, {
     headers: {
-      'xi-api-key': apiKey
+      'xi-api-key': config.config.apiKey
     }
   })
 
@@ -233,8 +351,8 @@ function startRealtimeRecording(
         currentTranscript = msg.text.trim()
         onTranscript(currentTranscript, true)
         updateEditorText()
-      } else if (msg.message_type === 'error' && msg.error) {
-        onError(msg.error)
+      } else if (msg.error) {
+        onError(formatRealtimeError(msg.message_type, msg.error))
       }
     } catch {
       // Ignore parse errors
@@ -331,8 +449,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on('session_start', (_event, ctx) => {
-    if (!getApiKey()) {
-      ctx.ui.notify('Voice input disabled: missing ELEVENLABS_API_KEY', 'warning')
+    const apiKey = requireEnv('ELEVENLABS_API_KEY')
+    if (!apiKey.ok) {
+      ctx.ui.notify(`Voice input disabled: ${apiKey.message}`, 'warning')
     }
 
     // Install custom editor
@@ -378,8 +497,9 @@ export default function (pi: ExtensionAPI) {
     description: 'Record voice input',
     handler: async (ctx) => {
       if (!ctx.hasUI) return
-      if (!getApiKey()) {
-        ctx.ui.notify('ELEVENLABS_API_KEY not set', 'error')
+      const config = getVoiceInputConfig()
+      if (!config.ok) {
+        ctx.ui.notify(config.message, 'error')
         return
       }
 
