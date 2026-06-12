@@ -6,7 +6,7 @@
  */
 
 import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { spawnSync } from 'child_process'
+import { fetchGitHubFile, type GitHubFileTargetParams } from './shared/github'
 import { apiErrorMessage, fetchText } from './shared/http'
 import {
   DEFAULT_MAX_BYTES,
@@ -61,11 +61,7 @@ interface SearchResult {
   snippets: CodeSnippet[]
 }
 
-interface CodeFetchParams {
-  repo?: string
-  path?: string
-  ref?: string
-  url?: string
+interface CodeFetchParams extends GitHubFileTargetParams {
   startLine?: number
   endLine?: number
 }
@@ -228,61 +224,6 @@ export function parseSseJson<T>(body: string): T | undefined {
   return flush()
 }
 
-export function parseGitHubBlobUrl(
-  url: string
-): { repo: string; path: string; ref: string } | undefined {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return undefined
-  }
-
-  if (parsed.hostname !== 'github.com') return undefined
-
-  const parts = parsed.pathname.split('/').filter(Boolean)
-  const blobIndex = parts.indexOf('blob')
-  if (blobIndex !== 2 || parts.length < 5) return undefined
-
-  const [owner, repoName] = parts
-  const ref = parts[3]
-  const fileParts = parts.slice(4)
-  if (!owner || !repoName || !ref || fileParts.length === 0) return undefined
-
-  return {
-    repo: `${owner}/${repoName}`,
-    ref,
-    path: fileParts.map((part) => decodeURIComponent(part)).join('/')
-  }
-}
-
-function encodePathForEndpoint(path: string): string {
-  return path
-    .split('/')
-    .filter((part) => part.length > 0)
-    .map((part) => encodeURIComponent(part))
-    .join('/')
-}
-
-export function resolveCodeFetchTarget(
-  params: CodeFetchParams
-): { ok: true; repo: string; path: string; ref?: string } | { ok: false; message: string } {
-  const fromUrl = params.url ? parseGitHubBlobUrl(params.url) : undefined
-  const repo = fromUrl?.repo ?? params.repo
-  const path = fromUrl?.path ?? params.path
-  const ref = fromUrl?.ref ?? params.ref
-
-  if (!repo || !path) {
-    return { ok: false, message: 'Provide either url or both repo and path' }
-  }
-
-  if (!/^[^\s/]+\/[^\s/]+$/u.test(repo)) {
-    return { ok: false, message: "repo must look like 'owner/name'" }
-  }
-
-  return { ok: true, repo, path, ref }
-}
-
 export function sliceLines(
   text: string,
   startLine?: number,
@@ -304,82 +245,6 @@ export function sliceLines(
     startLine: start,
     endLine: normalizedEnd,
     totalLines
-  }
-}
-
-type GitHubFileResult =
-  | { ok: true; text: string; repo: string; path: string; ref?: string }
-  | { ok: false; message: string; repo?: string; path?: string; ref?: string }
-
-function fetchGitHubFileWithGh(target: {
-  repo: string
-  path: string
-  ref?: string
-}): GitHubFileResult {
-  const endpointPath = encodePathForEndpoint(target.path)
-  const endpoint = `repos/${target.repo}/contents/${endpointPath}${target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ''}`
-  const result = spawnSync('gh', ['api', endpoint, '-H', 'Accept: application/vnd.github.raw'], {
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024
-  })
-
-  if (result.status === 0) {
-    return { ok: true, text: result.stdout, repo: target.repo, path: target.path, ref: target.ref }
-  }
-
-  const message =
-    result.error?.message ??
-    (result.stderr || result.stdout || `gh api exited ${result.status}`).trim()
-  return { ok: false, message, repo: target.repo, path: target.path, ref: target.ref }
-}
-
-async function fetchGitHubFileWithPublicApi(target: {
-  repo: string
-  path: string
-  ref?: string
-}): Promise<GitHubFileResult> {
-  const endpointPath = encodePathForEndpoint(target.path)
-  const ref = target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ''
-  const response = await fetchText(
-    `https://api.github.com/repos/${target.repo}/contents/${endpointPath}${ref}`,
-    {
-      headers: {
-        Accept: 'application/vnd.github.raw',
-        'User-Agent': 'dot-pi-codefetch'
-      }
-    },
-    { timeoutMs: DEFAULT_TIMEOUT }
-  )
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: apiErrorMessage(response.status, response.text),
-      repo: target.repo,
-      path: target.path,
-      ref: target.ref
-    }
-  }
-
-  return { ok: true, text: response.text, repo: target.repo, path: target.path, ref: target.ref }
-}
-
-async function fetchGitHubFile(params: CodeFetchParams): Promise<GitHubFileResult> {
-  const target = resolveCodeFetchTarget(params)
-  if (!target.ok) return target
-
-  const ghResult = fetchGitHubFileWithGh(target)
-  if (ghResult.ok) return ghResult
-
-  const publicResult = await fetchGitHubFileWithPublicApi(target)
-  if (publicResult.ok) return publicResult
-
-  return {
-    ok: false,
-    message: `${ghResult.message}; fallback failed: ${publicResult.message}`,
-    repo: target.repo,
-    path: target.path,
-    ref: target.ref
   }
 }
 

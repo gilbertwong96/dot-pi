@@ -1,0 +1,10 @@
+{
+  "path": ["extensions", "skills"],
+  "pattern": "**/*.ts",
+  "ignore": ["**/node_modules/**"],
+  "minLines": 8,
+  "minTokens": 120,
+  "threshold": 0,
+  "reporters": ["console"],
+  "noTips": true
+}

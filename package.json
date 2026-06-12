@@ -17,7 +17,7 @@
     "lint": "oxlint -c oxlint.json package.json extensions skills --ignore-pattern 'extensions/critic/tests/**' --deny-warnings",
     "format:check": "bash -lc 'oxfmt --check package.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",
     "test": "bun test",
-    "test:dupes": "jscpd extensions skills --pattern '**/*.ts' --ignore '**/node_modules/**' --min-lines 8 --min-tokens 120 --threshold 0 --reporters console",
+    "test:dupes": "jscpd --config .jscpd.json",
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {

@@ -14,8 +14,12 @@
     "typescript/consistent-type-imports": "off",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
+    "typescript/no-unnecessary-template-expression": "error",
+    "typescript/prefer-optional-chain": "error",
     "import/no-cycle": "error",
     "import/no-self-import": "error",
-    "import/no-duplicates": "error"
+    "import/no-duplicates": "error",
+    "unicorn/no-nested-ternary": "error",
+    "unicorn/prefer-string-starts-ends-with": "error"
   }
 }
