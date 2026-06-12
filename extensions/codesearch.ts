@@ -9,6 +9,13 @@ import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-codi
 import { spawnSync } from 'child_process'
 import { apiErrorMessage, fetchText } from './shared/http'
 import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  formatSize,
+  truncateHeadText,
+  type TruncationResult
+} from './shared/truncate'
+import {
   firstText,
   meta as renderMeta,
   primary,
@@ -71,6 +78,8 @@ interface CodeFetchDetails {
   endLine?: number
   lineCount: number
   totalLines: number
+  truncation?: TruncationResult
+  truncationNotice?: string
   error?: boolean
 }
 
@@ -112,6 +121,7 @@ Pass either:
 - repo and path: e.g. repo:'facebook/react', path:'packages/react/index.js'
 
 Optionally pass ref, startLine, and endLine to fetch a specific branch/tag/SHA or line range.
+Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} by default; use startLine/endLine to fetch focused ranges.
 Prefers the GitHub CLI (gh). Falls back to GitHub's public contents API for public files when gh is unavailable or fails.`
 
 const DESCRIPTION = `Find real-world code examples from over a million public GitHub repositories.
@@ -632,15 +642,33 @@ export default function (pi: ExtensionAPI) {
       }
 
       const sliced = sliceLines(fetched.text, args.startLine, args.endLine)
-      const lineCount = Math.max(0, sliced.endLine - sliced.startLine + 1)
-      return toolText(sliced.text, {
+      const requestedLineCount = Math.max(0, sliced.endLine - sliced.startLine + 1)
+      const truncated = truncateHeadText(sliced.text, {
+        notice: (truncation) => {
+          if (truncation.firstLineExceedsLimit) {
+            return `[Line ${sliced.startLine} exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use a narrower startLine/endLine range.]`
+          }
+
+          const endLine = sliced.startLine + truncation.outputLines - 1
+          const nextLine = endLine + 1
+          const limit =
+            truncation.truncatedBy === 'lines'
+              ? `${DEFAULT_MAX_LINES} line limit`
+              : `${formatSize(DEFAULT_MAX_BYTES)} limit`
+          return `[Showing lines ${sliced.startLine}-${endLine} of requested ${sliced.startLine}-${sliced.endLine} (${limit}). Use startLine=${nextLine} to continue.]`
+        }
+      })
+
+      return toolText(truncated.text, {
         repo: fetched.repo,
         path: fetched.path,
         ref: fetched.ref,
         startLine: sliced.startLine,
         endLine: sliced.endLine,
-        lineCount,
-        totalLines: sliced.totalLines
+        lineCount: requestedLineCount,
+        totalLines: sliced.totalLines,
+        truncation: truncated.truncation,
+        truncationNotice: truncated.notice
       } satisfies CodeFetchDetails)
     },
 
@@ -660,8 +688,12 @@ export default function (pi: ExtensionAPI) {
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
 
       const text = firstText(result)
+      const codeText =
+        details?.truncationNotice && text.endsWith(`\n\n${details.truncationNotice}`)
+          ? text.slice(0, -`\n\n${details.truncationNotice}`.length)
+          : text
       const startLine = details?.startLine ?? 1
-      const codeLines = text.split('\n')
+      const codeLines = codeText.split('\n')
       const visibleLines = expanded ? codeLines : codeLines.slice(0, CODEFETCH_PREVIEW_LINES)
       const lineNumberWidth = String(startLine + visibleLines.length - 1).length
       const renderedCode = visibleLines.map((line, offset) => {
@@ -677,7 +709,12 @@ export default function (pi: ExtensionAPI) {
       if (details?.startLine && details?.endLine) {
         metaParts.push(`lines:${details.startLine}-${details.endLine}`)
       }
-      if (details) metaParts.push(`${details.lineCount}/${details.totalLines} lines`)
+      if (details) {
+        const shownLines = details.truncation?.outputLines ?? details.lineCount
+        metaParts.push(
+          `${shownLines}/${details.lineCount} requested lines · ${details.totalLines} total`
+        )
+      }
 
       const lines = [
         header,
@@ -688,6 +725,10 @@ export default function (pi: ExtensionAPI) {
       const hidden = codeLines.length - visibleLines.length
       if (!expanded && hidden > 0) {
         lines.push('', renderMeta(`… ${hidden} more lines`, theme), ...renderExpandFooter(theme))
+      }
+
+      if (expanded && details?.truncationNotice) {
+        lines.push('', renderMeta(details.truncationNotice, theme))
       }
 
       return renderLines(lines)
