@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 
-import { buildOracleContext, DEFAULT_CONFIG } from './oracle'
+import { buildOracleContext, buildOraclePreview, compactCount, DEFAULT_CONFIG } from './oracle'
 
 function user(text: string): AgentMessage {
   return { role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() }
@@ -41,6 +41,36 @@ function toolResult(text: string): AgentMessage {
     timestamp: Date.now()
   }
 }
+
+describe('compactCount', () => {
+  test('formats token counts compactly', () => {
+    expect(compactCount(33)).toBe('33')
+    expect(compactCount(1500)).toBe('1.5k')
+    expect(compactCount(1_200_000)).toBe('1.2M')
+  })
+})
+
+describe('buildOraclePreview', () => {
+  test('estimates cost and formats compact Pi-style lines', () => {
+    const preview = buildOraclePreview(12_000, DEFAULT_CONFIG, 'openrouter/example', [])
+
+    expect(preview.inputUsd).toBeCloseTo(0.12)
+    expect(preview.outputUsd).toBeCloseTo(0.075)
+    expect(preview.totalUsd).toBeCloseTo(0.195)
+    expect(preview.lines).toEqual([
+      'openrouter/example',
+      '~12.0k in · ≤1.5k out · ~$0.195',
+      'ctx latest+3.0k · results all · tools none'
+    ])
+  })
+
+  test('exposes budget comparisons through totalUsd', () => {
+    const preview = buildOraclePreview(100_000, DEFAULT_CONFIG, 'openrouter/example', ['read'])
+
+    expect(preview.totalUsd).toBeGreaterThan(DEFAULT_CONFIG.budget.maxTotalUsd)
+    expect(preview.lines[2]).toContain('tools read')
+  })
+})
 
 describe('buildOracleContext', () => {
   test('keeps latest compaction summary and current user request', () => {

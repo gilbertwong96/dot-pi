@@ -30,7 +30,7 @@ type ToolsPolicy = 'none' | 'read-only' | 'current' | 'all'
 type PromptStyle = 'dense' | 'review' | 'architecture'
 type OracleIntent = 'verify' | 'ask' | 'architecture' | 'changes'
 
-interface OracleConfig {
+export interface OracleConfig {
   model?: string
   thinking: ThinkingLevel
   precompact: {
@@ -472,7 +472,7 @@ function modelLabel(model: Model<any>): string {
   return `${model.provider}/${model.id}`
 }
 
-interface OraclePreview {
+export interface OraclePreview {
   inputTokens: number
   outputTokens: number
   inputUsd: number
@@ -481,10 +481,37 @@ interface OraclePreview {
   lines: string[]
 }
 
-function compactCount(value: number): string {
+export function compactCount(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
   return value.toLocaleString()
+}
+
+export function buildOraclePreview(
+  inputTokens: number,
+  config: OracleConfig,
+  targetModelLabel: string,
+  tools: string[]
+): OraclePreview {
+  const outputTokens = config.budget.targetOutputTokens
+  const inputUsd = (inputTokens / 1_000_000) * config.pricing.inputPerMillion
+  const outputUsd = (outputTokens / 1_000_000) * config.pricing.outputPerMillion
+  const totalUsd = inputUsd + outputUsd
+  const summary = config.context.summary === 'none' ? 'none' : config.context.summary
+  const toolLabel = tools.length ? tools.join(', ') : 'none'
+
+  return {
+    inputTokens,
+    outputTokens,
+    inputUsd,
+    outputUsd,
+    totalUsd,
+    lines: [
+      targetModelLabel,
+      `~${compactCount(inputTokens)} in · ≤${compactCount(outputTokens)} out · ~$${totalUsd.toFixed(3)}`,
+      `ctx ${summary}+${compactCount(config.context.keepTailTokens)} · results ${config.context.drop.toolResults} · tools ${toolLabel}`
+    ]
+  }
 }
 
 function estimateOraclePreview(
@@ -500,27 +527,8 @@ function estimateOraclePreview(
     [...sessionMessages, oracleUserMessage(question)],
     config
   )
-  const inputTokens = estimatedTotal(oracleMessages)
-  const outputTokens = config.budget.targetOutputTokens
-  const inputUsd = (inputTokens / 1_000_000) * config.pricing.inputPerMillion
-  const outputUsd = (outputTokens / 1_000_000) * config.pricing.outputPerMillion
-  const totalUsd = inputUsd + outputUsd
   const tools = toolNamesForPolicy(config.tools, previousTools, pi)
-  const summary = config.context.summary === 'none' ? 'none' : config.context.summary
-  const toolLabel = tools.length ? tools.join(', ') : 'none'
-
-  return {
-    inputTokens,
-    outputTokens,
-    inputUsd,
-    outputUsd,
-    totalUsd,
-    lines: [
-      modelLabel(targetModel),
-      `~${compactCount(inputTokens)} in · ≤${compactCount(outputTokens)} out · ~$${totalUsd.toFixed(3)}`,
-      `ctx ${summary}+${compactCount(config.context.keepTailTokens)} · results ${config.context.drop.toolResults} · tools ${toolLabel}`
-    ]
-  }
+  return buildOraclePreview(estimatedTotal(oracleMessages), config, modelLabel(targetModel), tools)
 }
 
 function previewText(preview: OraclePreview): string {
