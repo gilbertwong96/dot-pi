@@ -7,8 +7,9 @@
  */
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { Markdown, Text } from '@earendil-works/pi-tui'
+import { Markdown } from '@earendil-works/pi-tui'
 import {
+  clampRenderedLines,
   firstText,
   meta as renderMeta,
   nativeMarkdownTheme,
@@ -16,6 +17,7 @@ import {
   renderError,
   renderExpandFooter,
   renderLines,
+  renderSingleLine,
   title
 } from '../shared/render'
 import { Type } from 'typebox'
@@ -142,6 +144,92 @@ function isPdf(contentType: string, url: string): boolean {
 
 function isJson(contentType: string): boolean {
   return contentType.includes('application/json') || contentType.includes('+json')
+}
+
+function normalizedContentType(contentType: string): string {
+  return contentType.split(';')[0]?.trim().toLowerCase() ?? ''
+}
+
+function isTextualContentType(contentType: string): boolean {
+  const mime = normalizedContentType(contentType)
+  if (!mime) return false
+  if (mime.startsWith('text/')) return true
+  if (mime.endsWith('+json') || mime.endsWith('+xml')) return true
+
+  return [
+    'application/ecmascript',
+    'application/javascript',
+    'application/json',
+    'application/ld+json',
+    'application/markdown',
+    'application/rss+xml',
+    'application/xhtml+xml',
+    'application/xml',
+    'application/x-www-form-urlencoded',
+    'application/yaml'
+  ].includes(mime)
+}
+
+function isKnownBinaryContentType(contentType: string): boolean {
+  const mime = normalizedContentType(contentType)
+  if (!mime) return false
+  if (
+    mime.startsWith('audio/') ||
+    mime.startsWith('video/') ||
+    mime.startsWith('image/') ||
+    mime.startsWith('font/')
+  ) {
+    return true
+  }
+
+  return [
+    'application/gzip',
+    'application/octet-stream',
+    'application/wasm',
+    'application/x-7z-compressed',
+    'application/x-bzip2',
+    'application/x-gzip',
+    'application/x-rar-compressed',
+    'application/x-tar',
+    'application/zip'
+  ].includes(mime)
+}
+
+function looksBinary(arrayBuffer: ArrayBuffer): boolean {
+  const bytes = new Uint8Array(arrayBuffer.slice(0, Math.min(arrayBuffer.byteLength, 4096)))
+  if (bytes.length === 0) return false
+
+  if (
+    (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) ||
+    (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) ||
+    (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) ||
+    (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+    (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04)
+  ) {
+    return true
+  }
+
+  let controlChars = 0
+  for (const byte of bytes) {
+    if (byte === 0) return true
+    if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d && byte !== 0x1b) {
+      controlChars++
+    }
+  }
+
+  if (controlChars / bytes.length > 0.3) return true
+
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return false
+  } catch {
+    return true
+  }
+}
+
+function binaryContentMessage(contentType: string, size: number): string {
+  const type = normalizedContentType(contentType) || 'unknown binary content'
+  return `Binary content not displayed: ${type} · ${formatSize(size)}`
 }
 
 const FetchParamsSchema = Type.Object({
@@ -293,6 +381,24 @@ export default function (pi: ExtensionAPI) {
           }
         }
 
+        if (
+          isKnownBinaryContentType(contentType) ||
+          (!isTextualContentType(contentType) && looksBinary(arrayBuffer))
+        ) {
+          const message = binaryContentMessage(contentType, arrayBuffer.byteLength)
+          return {
+            content: [{ type: 'text', text: message }],
+            details: {
+              url,
+              finalUrl: redirected ? finalUrl : undefined,
+              contentType,
+              format: 'binary',
+              size: arrayBuffer.byteLength,
+              redirected
+            } as FetchDetails
+          }
+        }
+
         const content = new TextDecoder().decode(arrayBuffer)
 
         // JSON handling
@@ -390,7 +496,7 @@ export default function (pi: ExtensionAPI) {
       if (args.selector) tags.push(args.selector)
       if (tags.length) text += theme.fg('dim', ` [${tags.join(', ')}]`)
 
-      return new Text(text, 0, 0)
+      return renderSingleLine(text)
     },
 
     renderResult(result, { expanded, isPartial }, theme) {
@@ -432,14 +538,14 @@ export default function (pi: ExtensionAPI) {
       const markdown = new Markdown(fullText.trim(), 0, 0, nativeMarkdownTheme(theme), {
         color: (text) => theme.fg('toolOutput', text)
       })
-      return {
+      return clampRenderedLines({
         render: (width) => [
           '',
           ...(meta ? [renderMeta(meta, theme), ''] : []),
           ...markdown.render(width)
         ],
         invalidate: () => markdown.invalidate()
-      }
+      })
     }
   })
 }

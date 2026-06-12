@@ -1,5 +1,5 @@
 import { rawKeyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
-import { Text, visibleWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
+import { truncateToWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
 
 export function resultText(result: AgentToolResult<unknown>): string {
   return result.content
@@ -23,7 +23,17 @@ export function firstText(result: AgentToolResult<unknown>, fallback = ''): stri
  * - Expand hints are standalone footers: insert a blank line before expandHint().
  */
 export function renderLines(lines: string[]): Component {
-  return new Text(['', ...lines].join('\n'), 0, 0)
+  return {
+    render: (width) => ['', ...lines.map((line) => truncateLine(line, width))],
+    invalidate: () => undefined
+  }
+}
+
+export function clampRenderedLines(component: Component): Component {
+  return {
+    render: (width) => component.render(width).map((line) => truncateLine(line, width)),
+    invalidate: () => component.invalidate()
+  }
 }
 
 export function meta(text: string, theme: Theme): string {
@@ -113,18 +123,7 @@ export function truncateText(text: string, maxChars: number): string {
 
 export function truncateLine(text: string, maxWidth: number): string {
   if (maxWidth <= 0) return ''
-  if (visibleWidth(text) <= maxWidth) return text
-
-  const target = Math.max(0, maxWidth - 1)
-  let out = ''
-  let width = 0
-  for (const char of text) {
-    const charWidth = visibleWidth(char)
-    if (width + charWidth > target) return out + '…'
-    out += char
-    width += charWidth
-  }
-  return out
+  return truncateToWidth(text, maxWidth, '…')
 }
 
 export function renderSingleLine(text: string): Component {
