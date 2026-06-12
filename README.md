@@ -372,6 +372,8 @@ bun test
 
 Manual workflow smoke test: `docs/smoke-test.md`.
 
+Shared extension helper guide: `extensions/shared/README.md`.
+
 ## License
 
 MIT
