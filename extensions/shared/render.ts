@@ -1,4 +1,5 @@
 import { rawKeyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
+import { compactText as compactTextValue } from './format'
 import {
   Markdown,
   truncateToWidth,
@@ -239,12 +240,11 @@ export function renderMuted(text: string, theme: Theme): Component {
 }
 
 export function compactText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
+  return compactTextValue(text, Number.MAX_SAFE_INTEGER)
 }
 
 export function truncateText(text: string, maxChars: number): string {
-  const compact = compactText(text)
-  return compact.length > maxChars ? compact.slice(0, Math.max(0, maxChars - 1)) + '…' : compact
+  return compactTextValue(text, maxChars)
 }
 
 export function truncateLine(text: string, maxWidth: number): string {

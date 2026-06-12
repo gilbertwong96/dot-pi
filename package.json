@@ -12,9 +12,9 @@
   },
   "type": "module",
   "scripts": {
-    "check": "tsc --noEmit",
+    "check": "bun run lint && tsc --noEmit",
     "format": "oxfmt .",
-    "lint": "oxlint .",
+    "lint": "oxlint . --deny-warnings",
     "format:check": "bash -lc 'oxfmt --check package.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",
     "test": "bun test",
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"

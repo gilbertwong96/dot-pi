@@ -25,6 +25,7 @@ import {
 import { type EditorTheme, Key, matchesKey, type TUI } from '@earendil-works/pi-tui'
 import { spawnSync, spawn, type ChildProcess } from 'child_process'
 import WebSocket from 'ws'
+import { formatDuration } from '../shared/format'
 import { requireEnv } from '../shared/http'
 
 type CommitStrategy = 'manual' | 'vad'
@@ -160,17 +161,10 @@ let prefixText = ''
 let onPause: (() => void) | null = null
 let recordingStartTime = 0
 
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-}
-
 function updateStatusIndicator() {
   if (!setStatusFn || !currentTheme) return
   const circle = blinkState ? currentTheme.fg('error', '●') : currentTheme.fg('muted', '○')
-  const elapsed = formatTime(Date.now() - recordingStartTime)
+  const elapsed = formatDuration(Date.now() - recordingStartTime)
   const hints = [
     currentTheme.fg('dim', '⏎') + currentTheme.fg('muted', ' send'),
     currentTheme.fg('dim', 'space') + currentTheme.fg('muted', ' stop'),

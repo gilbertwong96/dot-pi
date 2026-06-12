@@ -51,10 +51,11 @@ function collectTools(): RegisteredTool[] {
 
 describe('tool renderCall streaming start', () => {
   test('does not render undefined when args are unavailable', () => {
-    const rendered = collectTools().map((tool) => [
-      tool.name,
-      renderText(tool.renderCall?.(undefined as never, theme, {} as never)!)
-    ])
+    const rendered = collectTools().map((tool) => {
+      const component = tool.renderCall?.(undefined as never, theme, {} as never)
+      if (!component) throw new Error(`${tool.name} missing renderCall`)
+      return [tool.name, renderText(component)]
+    })
 
     expect(rendered.length).toBeGreaterThan(0)
     for (const [name, text] of rendered) {

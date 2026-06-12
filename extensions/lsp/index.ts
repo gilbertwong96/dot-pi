@@ -37,22 +37,14 @@ import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import {
   ensureFileOpen,
-  getActiveClients,
   getOrCreateClient,
   refreshFile,
   sendRequest,
   setIdleTimeout,
-  shutdownAll,
-  WARMUP_TIMEOUT_MS
+  shutdownAll
 } from './client'
 import { getLinterClient } from './clients'
-import {
-  getServerForFile,
-  getServersForFile,
-  hasCapability,
-  loadConfig,
-  type LspConfig
-} from './config'
+import { getServersForFile, hasCapability, loadConfig, type LspConfig } from './config'
 import { applyWorkspaceEdit } from './edits'
 import * as rustAnalyzer from './rust-analyzer'
 import type { LspParams, LspToolDetails, ServerConfig } from './types'
@@ -274,7 +266,7 @@ async function getConfig(cwd: string): Promise<LspConfig> {
 // Diagnostics Helpers
 // =============================================================================
 
-async function getDiagnosticsForFile(
+async function _getDiagnosticsForFile(
   absolutePath: string,
   cwd: string,
   servers: Array<[string, ServerConfig]>,
@@ -450,7 +442,7 @@ export default function (pi: ExtensionAPI) {
     description: DESCRIPTION,
     parameters: lspSchema,
 
-    async execute(_toolCallId, params: LspParams, _signal, onUpdate) {
+    async execute(_toolCallId, params: LspParams) {
       const {
         action,
         file,

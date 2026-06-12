@@ -8,6 +8,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from '../shared/abort'
+import { formatBytes } from '../shared/format'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -21,7 +22,6 @@ import {
   primary,
   renderEmpty,
   renderError,
-  renderLines,
   renderMarkdownPreview,
   renderToolCall,
   title,
@@ -81,12 +81,6 @@ function dedupeRepeatedHeading(line: string): string {
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024
 const DEFAULT_TIMEOUT = 30 * 1000
 const MAX_TIMEOUT = 120 * 1000
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 
 const DESCRIPTION = `Fetches content from a specified URL and converts to requested format.
 
@@ -236,7 +230,7 @@ function looksBinary(arrayBuffer: ArrayBuffer): boolean {
 
 function binaryContentMessage(contentType: string, size: number): string {
   const type = normalizedContentType(contentType) || 'unknown binary content'
-  return `Binary content not displayed: ${type} · ${formatSize(size)}`
+  return `Binary content not displayed: ${type} · ${formatBytes(size)}`
 }
 
 const FetchParamsSchema = Type.Object({
@@ -476,7 +470,7 @@ export default function (pi: ExtensionAPI) {
       const finalUrl = details?.finalUrl ?? details?.url
       const meta = [
         finalUrl,
-        details?.size ? formatSize(details.size) : undefined,
+        details?.size ? formatBytes(details.size) : undefined,
         details?.truncated ? 'truncated' : undefined,
         details?.selector
       ]

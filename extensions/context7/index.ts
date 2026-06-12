@@ -7,7 +7,7 @@
  * Requires CONTEXT7_API_KEY environment variable.
  */
 
-import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import {
   DEFAULT_MAX_BYTES,
@@ -22,7 +22,6 @@ import {
   primary,
   renderEntryList,
   renderError,
-  renderLines,
   renderMarkdownPreview,
   renderMuted,
   renderToolCall,
@@ -184,7 +183,7 @@ export default function (pi: ExtensionAPI) {
       )
     }),
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params): Promise<AgentToolResult<ResolveDetails>> {
       const apiKey = requireEnv('CONTEXT7_API_KEY')
       if (!apiKey.ok) {
         return toolError(apiKey.message, { error: true } satisfies ResolveDetails)

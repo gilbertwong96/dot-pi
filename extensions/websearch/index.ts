@@ -239,7 +239,6 @@ const WebSearchParams = Type.Object({
 })
 
 const PREVIEW_TEXT_LENGTH = 220
-const PREVIEW_RESULTS = 2
 const DEFAULT_NUM_RESULTS = 8
 const DEFAULT_CONTEXT_MAX = 10000
 
