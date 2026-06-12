@@ -48,6 +48,7 @@ sh install.sh --local              # install dot-pi into the current project
 sh install.sh --with-companions    # install all optional companion packages
 sh install.sh --no-agent-browser   # skip agent-browser setup
 sh install.sh --dry-run            # print commands without running them
+DOT_PI_REF=v0.2.1 sh install.sh    # install a specific release/tag
 ```
 
 Project-local install for a repo/team:

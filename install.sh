@@ -3,6 +3,7 @@
 set -u
 
 DOT_PI_SOURCE="git:github.com/dannote/dot-pi"
+DOT_PI_REF=${DOT_PI_REF:-}
 PI_PACKAGE="@earendil-works/pi-coding-agent"
 
 YES=0
@@ -26,6 +27,9 @@ Options:
                         Skip agent-browser setup
       --with-companions Install optional companion Pi packages without prompting
   -h, --help            Show this help
+
+Environment:
+  DOT_PI_REF            Install a specific git ref/tag, for example v0.2.1
 EOF
 }
 
@@ -187,12 +191,21 @@ install_pi() {
   fi
 }
 
+dot_pi_source() {
+  if [ -n "$DOT_PI_REF" ]; then
+    printf '%s@%s\n' "$DOT_PI_SOURCE" "$DOT_PI_REF"
+  else
+    printf '%s\n' "$DOT_PI_SOURCE"
+  fi
+}
+
 install_dot_pi() {
+  source=$(dot_pi_source)
   log "Installing dot-pi package..."
   if [ "$LOCAL" -eq 1 ]; then
-    run pi install "$DOT_PI_SOURCE" -l
+    run pi install "$source" -l
   else
-    run pi install "$DOT_PI_SOURCE"
+    run pi install "$source"
   fi
 }
 
