@@ -36,6 +36,16 @@ The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi i
 curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh -s -- --yes
 ```
 
+Useful bootstrap options:
+
+```bash
+sh install.sh --help
+sh install.sh --local              # install dot-pi into the current project
+sh install.sh --with-companions    # install all optional companion packages
+sh install.sh --no-agent-browser   # skip agent-browser setup
+sh install.sh --dry-run            # print commands without running them
+```
+
 Project-local install for a repo/team:
 
 ```bash
