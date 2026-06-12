@@ -13,6 +13,7 @@ import {
   firstText,
   meta as renderMeta,
   primary,
+  renderEntryList,
   renderError,
   renderExpandFooter,
   renderLines,
@@ -224,24 +225,16 @@ export default function (pi: ExtensionAPI) {
       const libraries = details.libraries ?? []
       if (libraries.length === 0) return renderMuted('No libraries found', theme)
 
-      const lines: string[] = []
-      const maxItems = expanded ? libraries.length : 1
-      for (let i = 0; i < maxItems; i++) {
-        const lib = libraries[i]
-        if (!lib) continue
-        if (lines.length > 0) lines.push('')
-        lines.push(title(lib.id, theme) + renderMeta(` — ${lib.title}`, theme))
-        if (expanded && lib.description) lines.push(primary(lib.description, theme))
-      }
-
-      if (!expanded && libraries.length > 1) {
-        lines.push(
-          renderMeta(`… ${libraries.length - 1} more libraries`, theme),
-          ...renderExpandFooter(theme)
-        )
-      }
-
-      return renderLines(lines)
+      return renderEntryList(libraries, theme, {
+        expanded,
+        compactLimit: 1,
+        renderEntry: (lib) => ({
+          header: title(lib.id, theme) + renderMeta(` — ${lib.title}`, theme),
+          body: expanded && lib.description ? [primary(lib.description, theme)] : undefined
+        }),
+        hiddenLines: (hiddenLibraries) =>
+          hiddenLibraries > 0 ? [renderMeta(`… ${hiddenLibraries} more libraries`, theme)] : []
+      })
     }
   })
 

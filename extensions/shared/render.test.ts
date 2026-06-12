@@ -5,6 +5,7 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import {
   clampRenderedLines,
   firstText,
+  renderEntryList,
   renderLines,
   renderToolCall,
   toolError,
@@ -64,6 +65,22 @@ describe('renderToolCall', () => {
 
     expect(visibleWidth(line)).toBeLessThanOrEqual(12)
     expect(line).toContain('…')
+  })
+})
+
+describe('renderEntryList', () => {
+  test('renders compact entries with hidden footer', () => {
+    const lines = renderEntryList(['one', 'two'], theme, {
+      expanded: false,
+      compactLimit: 1,
+      renderEntry: (entry) => ({ header: entry }),
+      hiddenLines: (hidden) => (hidden > 0 ? [`… ${hidden} more`] : [])
+    }).render(120)
+
+    expect(lines).toContain('one')
+    expect(lines).toContain('… 1 more')
+    expect(lines.join('\n')).toContain('ctrl+o')
+    expect(lines).not.toContain('two')
   })
 })
 

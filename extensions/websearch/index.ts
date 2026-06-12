@@ -7,13 +7,11 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import {
-  appendEntryBlock,
-  appendFooter,
   firstText,
   meta as renderMeta,
   primary,
+  renderEntryList,
   renderError,
-  renderExpandFooter,
   renderLines,
   renderMuted,
   renderToolCall,
@@ -326,42 +324,35 @@ export default function (pi: ExtensionAPI) {
         return renderMuted('No results found.', theme)
       }
 
-      const lines: string[] = []
-      const maxResults = expanded ? results.length : Math.min(1, results.length)
       let textHidden = false
 
-      for (let i = 0; i < maxResults; i++) {
-        const r = results[i]
-        if (!r) continue
+      return renderEntryList(results, theme, {
+        expanded,
+        compactLimit: 1,
+        renderEntry: (r) => {
+          let metadata = renderMeta(theme.underline(r.url), theme)
+          if (r.author) metadata += renderMeta(` · ${r.author}`, theme)
+          if (r.publishedDate) metadata += renderMeta(` · ${r.publishedDate.split('T')[0]}`, theme)
 
-        let metadata = renderMeta(theme.underline(r.url), theme)
-        if (r.author) metadata += renderMeta(` · ${r.author}`, theme)
-        if (r.publishedDate) metadata += renderMeta(` · ${r.publishedDate.split('T')[0]}`, theme)
+          const body: string[] = []
+          const previewText = r.summary || r.highlights?.[0]
+          if (expanded) {
+            if (r.summary) body.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
+            if (r.text) body.push(primary(r.text, theme))
+          } else if (previewText) {
+            textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
+            body.push(primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
+          } else if (r.text) {
+            textHidden = true
+          }
 
-        const body: string[] = []
-        const previewText = r.summary || r.highlights?.[0]
-        if (expanded) {
-          if (r.summary) body.push(renderMeta('Summary: ', theme) + primary(r.summary, theme))
-          if (r.text) body.push(primary(r.text, theme))
-        } else if (previewText) {
-          textHidden = previewText.length > PREVIEW_TEXT_LENGTH || Boolean(r.text)
-          body.push(primary(truncateText(previewText, PREVIEW_TEXT_LENGTH), theme))
-        } else if (r.text) {
-          textHidden = true
+          return { header: title(r.title, theme), metadata, body }
+        },
+        hiddenLines: (hiddenResults) => {
+          if (hiddenResults > 0) return [renderMeta(`… ${hiddenResults} more results`, theme)]
+          return textHidden ? [renderMeta('… more text', theme)] : []
         }
-
-        appendEntryBlock(lines, { header: title(r.title, theme), metadata, body })
-      }
-
-      const hiddenResults = results.length - maxResults
-      if (!expanded && (hiddenResults > 0 || textHidden)) {
-        appendFooter(lines, [
-          ...(hiddenResults > 0 ? [renderMeta(`… ${hiddenResults} more results`, theme)] : []),
-          ...renderExpandFooter(theme)
-        ])
-      }
-
-      return renderLines(lines)
+      })
     }
   })
 }

@@ -8,12 +8,10 @@
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from './shared/abort'
 import {
-  appendEntryBlock,
-  appendFooter,
   firstText,
   primary,
+  renderEntryList,
   renderError,
-  renderExpandFooter,
   renderLines,
   renderMuted,
   renderToolCall,
@@ -328,56 +326,50 @@ export default function (pi: ExtensionAPI) {
       }
 
       const totalSnippets = results.reduce((sum, r) => sum + r.snippets.length, 0)
-      const lines: string[] = []
-      const maxResults = expanded ? results.length : Math.min(PREVIEW_REPOS, results.length)
+      return renderEntryList(results, theme, {
+        expanded,
+        compactLimit: PREVIEW_REPOS,
+        renderEntry: (r) => {
+          const firstSnippet = r.snippets[0]
+          const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
 
-      for (let i = 0; i < maxResults; i++) {
-        const r = results[i]
-        if (!r) continue
-        const firstSnippet = r.snippets[0]
-        const location = firstSnippet ? `${r.path}:${firstSnippet.lineNumber}` : r.path
+          const header =
+            theme.fg('accent', r.repo) +
+            theme.fg('dim', ' · ') +
+            theme.fg('muted', expanded ? r.path : location) +
+            (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
 
-        const header =
-          theme.fg('accent', r.repo) +
-          theme.fg('dim', ' · ') +
-          theme.fg('muted', expanded ? r.path : location) +
-          (r.license !== 'Unknown' ? theme.fg('dim', ` [${r.license}]`) : '')
+          const body: string[] = []
+          const maxSnippets = expanded ? r.snippets.length : 0
+          for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
+            const snippet = r.snippets[j]
+            if (!snippet) continue
+            if (j > 0) body.push('')
 
-        const body: string[] = []
-        const maxSnippets = expanded ? r.snippets.length : 0
-        for (let j = 0; j < Math.min(maxSnippets, r.snippets.length); j++) {
-          const snippet = r.snippets[j]
-          if (!snippet) continue
-          if (j > 0) body.push('')
+            const codeLines = snippet.code.split('\n')
+            const lineNumberWidth = String(snippet.lineNumber + codeLines.length - 1).length
+            body.push(
+              ...codeLines.map((line, offset) => {
+                const lineNumber = String(snippet.lineNumber + offset).padStart(
+                  lineNumberWidth,
+                  ' '
+                )
+                return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
+              })
+            )
+          }
 
-          const codeLines = snippet.code.split('\n')
-          const lineNumberWidth = String(snippet.lineNumber + codeLines.length - 1).length
-          body.push(
-            ...codeLines.map((line, offset) => {
-              const lineNumber = String(snippet.lineNumber + offset).padStart(lineNumberWidth, ' ')
-              return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
-            })
-          )
+          return { header, body }
+        },
+        hiddenLines: (hiddenResults) => {
+          const hiddenSnippets = totalSnippets
+          if (hiddenResults <= 0 && hiddenSnippets <= 0) return []
+          const pieces = []
+          if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
+          if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
+          return [theme.fg('dim', `… ${pieces.join(' · ')}`)]
         }
-
-        appendEntryBlock(lines, { header, body })
-      }
-
-      const hiddenResults = results.length - maxResults
-      const shownSnippets = expanded ? totalSnippets : 0
-      const hiddenSnippets = totalSnippets - shownSnippets
-
-      if (!expanded && (hiddenResults > 0 || hiddenSnippets > 0)) {
-        const pieces = []
-        if (hiddenResults > 0) pieces.push(`${hiddenResults} more repos`)
-        if (hiddenSnippets > 0) pieces.push(`${hiddenSnippets} more snippets`)
-        appendFooter(lines, [
-          theme.fg('dim', `… ${pieces.join(' · ')}`),
-          ...renderExpandFooter(theme)
-        ])
-      }
-
-      return renderLines(lines)
+      })
     }
   })
 }

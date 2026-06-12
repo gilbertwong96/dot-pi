@@ -128,6 +128,38 @@ export function appendFooter(lines: string[], footer: string[]): void {
   lines.push(...normalized)
 }
 
+interface EntryListOptions<T> {
+  expanded: boolean
+  compactLimit: number
+  renderEntry: (entry: T, index: number) => ResultEntryBlock | undefined
+  hiddenLines?: (hiddenEntries: number, visibleEntries: number) => string[]
+}
+
+export function renderEntryList<T>(
+  entries: T[],
+  theme: Theme,
+  options: EntryListOptions<T>
+): Component {
+  const lines: string[] = []
+  const visibleCount = options.expanded
+    ? entries.length
+    : Math.min(options.compactLimit, entries.length)
+
+  for (let index = 0; index < visibleCount; index++) {
+    const entry = entries[index]
+    if (entry === undefined) continue
+    const block = options.renderEntry(entry, index)
+    if (block) appendEntryBlock(lines, block)
+  }
+
+  if (!options.expanded) {
+    const hidden = options.hiddenLines?.(entries.length - visibleCount, visibleCount) ?? []
+    if (hidden.length > 0) appendFooter(lines, [...hidden, ...renderExpandFooter(theme)])
+  }
+
+  return renderLines(lines)
+}
+
 export function renderError(text: string, theme: Theme): Component {
   return renderLines([theme.fg('error', text || 'Error')])
 }
@@ -196,7 +228,11 @@ export function renderToolCall(
 }
 
 export function expandHint(theme: Theme): string {
-  return theme.fg('muted', '(') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
+  try {
+    return theme.fg('muted', '(') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
+  } catch {
+    return theme.fg('muted', '(ctrl+o to expand)')
+  }
 }
 
 export function hiddenLine(count: number, theme: Theme, unit = 'more'): string | undefined {
