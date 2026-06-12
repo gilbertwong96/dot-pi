@@ -213,7 +213,7 @@ My usual coding flow:
 | `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
 | `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                    |
 | `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
-| `/oracle [q]`    | `ask the expensive model`                   | Pre-compact, aggressively reduce one-turn context, switch to configured expensive model, answer, then restore.                 |
+| `/oracle [q]`    | `ask the expensive model`                   | Opens a native picker/confirm flow, pre-compacts, reduces one-turn context, switches model, answers, then restores.            |
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
 | `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                       |
 | `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                 |
@@ -251,12 +251,16 @@ Configure `/oracle` in settings:
         "customMessages": true
       }
     },
-    "tools": "none"
+    "tools": "none",
+    "confirm": true,
+    "defaultIntent": "verify",
+    "pricing": { "inputPerMillion": 10, "outputPerMillion": 50 },
+    "budget": { "targetOutputTokens": 1500, "maxTotalUsd": 1 }
   }
 }
 ```
 
-`precompact.mode` can be `"pi"`, `"custom"`, or `"off"`. Custom mode uses `precompact.model` when set and `precompact.thinking`; the final one-turn context is still reduced by the `context` policy without deleting session history.
+Run `/oracle` without args for the native intent picker and cost/context confirmation. Run `/oracle <question>` to skip the intent picker but still preview before sending. `precompact.mode` can be `"pi"`, `"custom"`, or `"off"`. Custom mode uses `precompact.model` when set and `precompact.thinking`; the final one-turn context is still reduced by the `context` policy without deleting session history.
 
 ### Skills
 

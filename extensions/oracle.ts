@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import {
+  buildSessionContext,
   compact,
   estimateTokens,
   type CompactionResult,
@@ -27,6 +28,7 @@ type ToolCallsPolicy = 'all' | 'names-only' | 'none'
 type BashOutputPolicy = 'all' | 'truncate' | 'none'
 type ToolsPolicy = 'none' | 'read-only' | 'current' | 'all'
 type PromptStyle = 'dense' | 'review' | 'architecture'
+type OracleIntent = 'verify' | 'ask' | 'architecture' | 'changes'
 
 interface OracleConfig {
   model?: string
@@ -61,6 +63,16 @@ interface OracleConfig {
     }
   }
   tools: ToolsPolicy
+  confirm: boolean
+  defaultIntent: OracleIntent
+  pricing: {
+    inputPerMillion: number
+    outputPerMillion: number
+  }
+  budget: {
+    targetOutputTokens: number
+    maxTotalUsd: number
+  }
   prompt: {
     costWarning: boolean
     style: PromptStyle
@@ -114,6 +126,16 @@ export const DEFAULT_CONFIG: OracleConfig = {
     }
   },
   tools: 'none',
+  confirm: true,
+  defaultIntent: 'verify',
+  pricing: {
+    inputPerMillion: 10,
+    outputPerMillion: 50
+  },
+  budget: {
+    targetOutputTokens: 1500,
+    maxTotalUsd: 1
+  },
   prompt: {
     costWarning: true,
     style: 'dense'
@@ -328,6 +350,29 @@ export function buildOracleContext(messages: AgentMessage[], config: OracleConfi
   return result
 }
 
+function oracleIntentPrompt(intent: OracleIntent, question?: string): string {
+  const text = question?.trim()
+  if (intent === 'ask' && text) return text
+
+  if (intent === 'architecture') {
+    return `Review the current plan and architecture from the compressed context.
+
+Focus on long-term risks, hidden coupling, irreversible decisions, missing constraints, and simpler alternatives. Do not continue implementation.`
+  }
+
+  if (intent === 'changes') {
+    return `Review the latest changes/work from the compressed context.
+
+Focus on correctness risks, missing tests, unsafe assumptions, likely regressions, and the cheapest verification steps. Do not continue implementation.`
+  }
+
+  return `Verify the latest cheaper-model work from the compressed context.
+
+Your job is not to continue implementation. Find decision-relevant mistakes, missing evidence, unsafe assumptions, and places where the cheaper model may have overfit stale or incomplete context.
+
+Return a concise verdict: trust / mostly trust / do not trust. Then list only critical issues, missing evidence, and cheapest next checks.`
+}
+
 function oracleSystemPrompt(config: OracleConfig): string {
   if (config.prompt.custom) return config.prompt.custom
 
@@ -346,11 +391,21 @@ function oracleSystemPrompt(config: OracleConfig): string {
 
 The context has been intentionally compressed before this request. Do not complain about missing low-level history. Use the supplied checkpoint, recent context, and user request. ${styleLine}
 
-Avoid restating obvious context. Ask for more context only if it materially changes the answer. Do not call tools unless the user explicitly asks for tool use or the answer would be unsafe without verification.`
+Avoid restating obvious context. Ask for more context only if it materially changes the answer. Do not call tools unless the user explicitly asks for tool use or the answer would be unsafe without verification.
+
+Output is expensive. Target ${config.budget.targetOutputTokens} output tokens or fewer unless there is a critical reason to exceed that.`
 }
 
 function oracleUserPrompt(question: string): string {
   return `Oracle request. Answer the following using the compressed context and the expensive-model instructions.\n\n${question}`
+}
+
+function oracleUserMessage(question: string): AgentMessage {
+  return {
+    role: 'user',
+    content: [{ type: 'text', text: oracleUserPrompt(question) }],
+    timestamp: Date.now()
+  }
 }
 
 function compactionInstructions(config: OracleConfig): string {
@@ -413,6 +468,62 @@ async function runCustomCompaction(
   return { compaction: result satisfies CompactionResult }
 }
 
+function modelLabel(model: Model<any>): string {
+  return `${model.provider}/${model.id}`
+}
+
+interface OraclePreview {
+  inputTokens: number
+  outputTokens: number
+  inputUsd: number
+  outputUsd: number
+  totalUsd: number
+  lines: string[]
+}
+
+function estimateOraclePreview(
+  ctx: ExtensionCommandContext,
+  config: OracleConfig,
+  targetModel: Model<any>,
+  question: string,
+  previousTools: string[],
+  pi: ExtensionAPI
+): OraclePreview {
+  const sessionMessages = buildSessionContext(ctx.sessionManager.getBranch()).messages
+  const oracleMessages = buildOracleContext(
+    [...sessionMessages, oracleUserMessage(question)],
+    config
+  )
+  const inputTokens = estimatedTotal(oracleMessages)
+  const outputTokens = config.budget.targetOutputTokens
+  const inputUsd = (inputTokens / 1_000_000) * config.pricing.inputPerMillion
+  const outputUsd = (outputTokens / 1_000_000) * config.pricing.outputPerMillion
+  const totalUsd = inputUsd + outputUsd
+  const tools = toolNamesForPolicy(config.tools, previousTools, pi)
+  const summary =
+    config.context.summary === 'none' ? 'no summary' : `${config.context.summary} summary`
+
+  return {
+    inputTokens,
+    outputTokens,
+    inputUsd,
+    outputUsd,
+    totalUsd,
+    lines: [
+      `${modelLabel(targetModel)}`,
+      `~${inputTokens.toLocaleString()} input + target ${outputTokens.toLocaleString()} output`,
+      `~$${totalUsd.toFixed(3)} max target (${config.pricing.inputPerMillion}/${config.pricing.outputPerMillion} per 1M in/out)`,
+      `context: ${summary} + ${config.context.keepTailTokens.toLocaleString()} tail tokens`,
+      `drop: thinking, ${config.context.drop.toolResults} tool results, images ${config.context.drop.images ? 'yes' : 'no'}`,
+      `tools: ${tools.length ? tools.join(', ') : 'none'}`
+    ]
+  }
+}
+
+function previewText(preview: OraclePreview): string {
+  return preview.lines.join('\n')
+}
+
 function toolNamesForPolicy(
   policy: ToolsPolicy,
   previousTools: string[],
@@ -444,10 +555,11 @@ export default function oracle(pi: ExtensionAPI) {
     return { messages: buildOracleContext(event.messages, activeRun.config) }
   })
 
-  pi.on('agent_end', async () => {
+  pi.on('agent_end', async (_event, ctx) => {
     const run = activeRun
     if (!run) return
     activeRun = undefined
+    ctx.ui.setStatus('oracle', undefined)
 
     if (run.config.restore.tools) pi.setActiveTools(run.previousTools)
     if (run.config.restore.thinking) pi.setThinkingLevel(run.previousThinking)
@@ -457,12 +569,6 @@ export default function oracle(pi: ExtensionAPI) {
   pi.registerCommand('oracle', {
     description: 'Ask a configured expensive model with aggressive one-shot context reduction',
     async handler(args, ctx) {
-      const question = args.trim()
-      if (!question) {
-        ctx.ui.notify('Usage: /oracle <question>', 'warning')
-        return
-      }
-
       if (activeRun) {
         ctx.ui.notify('An oracle request is already active.', 'warning')
         return
@@ -471,6 +577,32 @@ export default function oracle(pi: ExtensionAPI) {
       await ctx.waitForIdle()
 
       const config = loadOracleConfig(ctx.cwd)
+      let intent: OracleIntent = args.trim() ? 'ask' : config.defaultIntent
+      let question = args.trim()
+
+      if (!question) {
+        const choice = await ctx.ui.select('Oracle', [
+          'Verify latest work',
+          'Ask custom question',
+          'Review plan / architecture',
+          'Review latest changes'
+        ])
+        if (!choice) return
+        if (choice === 'Ask custom question') {
+          intent = 'ask'
+          question = (await ctx.ui.editor('Oracle question'))?.trim() ?? ''
+          if (!question) return
+        } else if (choice === 'Review plan / architecture') {
+          intent = 'architecture'
+        } else if (choice === 'Review latest changes') {
+          intent = 'changes'
+        } else {
+          intent = 'verify'
+        }
+      }
+
+      question = oracleIntentPrompt(intent, question)
+
       const previousModel = ctx.model
       const previousThinking = pi.getThinkingLevel()
       const previousTools = pi.getActiveTools()
@@ -479,6 +611,22 @@ export default function oracle(pi: ExtensionAPI) {
       if (!targetModel) {
         ctx.ui.notify('Oracle model not found. Configure oracle.model as provider/model.', 'error')
         return
+      }
+
+      const preview = estimateOraclePreview(ctx, config, targetModel, question, previousTools, pi)
+      if (config.budget.maxTotalUsd > 0 && preview.totalUsd > config.budget.maxTotalUsd) {
+        ctx.ui.notify(
+          `Oracle estimate $${preview.totalUsd.toFixed(3)} exceeds budget $${config.budget.maxTotalUsd.toFixed(3)}.`,
+          'error'
+        )
+        return
+      }
+
+      if (config.confirm) {
+        const ok = await ctx.ui.confirm('Oracle', previewText(preview))
+        if (!ok) return
+      } else {
+        ctx.ui.notify(`Oracle: ${preview.lines[1]} · ${preview.lines[5]}`, 'info')
       }
 
       activeRun = {
@@ -492,6 +640,10 @@ export default function oracle(pi: ExtensionAPI) {
       }
 
       try {
+        ctx.ui.setStatus(
+          'oracle',
+          `oracle ${modelLabel(targetModel)} · ${preview.inputTokens.toLocaleString()} in`
+        )
         await runCompaction(ctx, config)
         const switched = await pi.setModel(targetModel)
         if (!switched)
@@ -500,6 +652,7 @@ export default function oracle(pi: ExtensionAPI) {
         pi.setActiveTools(toolNamesForPolicy(config.tools, previousTools, pi))
         pi.sendUserMessage(oracleUserPrompt(question))
       } catch (error) {
+        ctx.ui.setStatus('oracle', undefined)
         const run = activeRun
         activeRun = undefined
         if (run?.config.restore.tools) pi.setActiveTools(run.previousTools)
