@@ -1,6 +1,14 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
-import { isKeyRelease, Key, matchesKey, SelectList, truncateToWidth } from '@earendil-works/pi-tui'
-import { renderLines, renderToolCall, toolText } from './shared/render'
+import {
+  isKeyRelease,
+  Key,
+  matchesKey,
+  SelectList,
+  Text,
+  truncateToWidth,
+  wrapTextWithAnsi
+} from '@earendil-works/pi-tui'
+import { renderLines, toolText } from './shared/render'
 import { Type } from 'typebox'
 
 type Option = {
@@ -107,13 +115,10 @@ export default function chooseOptions(pi: ExtensionAPI) {
       return toolText(formatChoiceResult(result), result)
     },
 
-    renderCall(args, theme) {
-      const safeArgs = args ?? {}
-      const count = Array.isArray(safeArgs.options) ? safeArgs.options.length : 0
-      return renderToolCall(theme, 'choose', {
-        segments: [{ text: safeArgs.question, color: 'muted' }],
-        suffix: count ? `${count} options` : undefined
-      })
+    renderCall(args, theme, context) {
+      const text = (context.lastComponent as Text | undefined) ?? new Text('', 0, 0)
+      text.setText(formatChooseCall(args, theme))
+      return text
     },
 
     renderResult(result, _options, theme) {
@@ -336,7 +341,11 @@ function renderChoiceRows(
   const width = options.width ?? 100
   const list = createChoiceSelectList(config, state, theme)
 
-  const lines = list.render(width)
+  const questionLines = wrapTextWithAnsi(
+    theme.fg('toolOutput', config.question),
+    Math.max(20, width)
+  )
+  const lines = [...questionLines, '', ...list.render(width)]
   if (options.footer) lines.push(renderChoiceFooter(config, state, theme, width))
   return lines
 }
@@ -364,6 +373,14 @@ function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme
   })
   list.setSelectedIndex(state.optionIndex)
   return list
+}
+
+function formatChooseCall(args: unknown, theme: Theme): string {
+  const safeArgs = (args ?? {}) as { question?: unknown; options?: unknown }
+  const count = Array.isArray(safeArgs.options) ? safeArgs.options.length : 0
+  const question = typeof safeArgs.question === 'string' ? safeArgs.question : ''
+  const suffix = count ? theme.fg('dim', ` (${count} options)`) : ''
+  return `${theme.fg('toolTitle', theme.bold('choose'))}${question ? ` ${theme.fg('muted', question)}` : ''}${suffix}`
 }
 
 function selectListTheme(theme: Theme) {
