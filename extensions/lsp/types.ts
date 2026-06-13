@@ -4,7 +4,7 @@
 
 import { StringEnum } from '@earendil-works/pi-ai'
 import { type Static, Type } from 'typebox'
-import type { Subprocess } from 'bun'
+import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
 // Re-export LSP types from vscode-languageserver-types
 export type {
@@ -186,7 +186,7 @@ export interface LspClient {
   name: string
   cwd: string
   config: ServerConfig
-  process: Subprocess
+  process: ChildProcessWithoutNullStreams
   requestId: number
   diagnostics: Map<string, Diagnostic[]>
   diagnosticsVersion: number

@@ -6,6 +6,8 @@
  * workspace diagnostics, call hierarchy, and rust-analyzer specific operations.
  */
 
+import { spawn } from 'node:child_process'
+
 import {
   type ExtensionAPI,
   getLanguageFromPath,
@@ -264,17 +266,28 @@ async function runWorkspaceDiagnostics(
   }
 
   try {
-    const proc = Bun.spawn(projectType.command, {
+    const [command, ...args] = projectType.command
+    const proc = spawn(command, args, {
       cwd,
-      stdout: 'pipe',
-      stderr: 'pipe'
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
     })
 
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text()
-    ])
-    await proc.exited
+    let stdout = ''
+    let stderr = ''
+    proc.stdout.setEncoding('utf8')
+    proc.stderr.setEncoding('utf8')
+    proc.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    proc.stderr.on('data', (chunk: string) => {
+      stderr += chunk
+    })
+
+    await new Promise<number | null>((resolve, reject) => {
+      proc.once('error', reject)
+      proc.once('exit', resolve)
+    })
 
     const combined = (stdout + stderr).trim()
     if (!combined) {

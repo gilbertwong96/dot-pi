@@ -2,6 +2,8 @@
  * Biome CLI-based linter client.
  */
 
+import { spawn } from 'node:child_process'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { DiagnosticSeverity, type Diagnostic } from 'vscode-languageserver-types'
 import type { LinterClient, ServerConfig } from '../types'
@@ -66,17 +68,23 @@ async function runBiome(
   const command = resolvedCommand ?? 'biome'
 
   try {
-    const proc = Bun.spawn([command, ...args], {
-      cwd,
-      stdout: 'pipe',
-      stderr: 'pipe'
+    const proc = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+
+    let stdout = ''
+    let stderr = ''
+    proc.stdout.setEncoding('utf8')
+    proc.stderr.setEncoding('utf8')
+    proc.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    proc.stderr.on('data', (chunk: string) => {
+      stderr += chunk
     })
 
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text()
-    ])
-    const exitCode = await proc.exited
+    const exitCode = await new Promise<number | null>((resolve, reject) => {
+      proc.once('error', reject)
+      proc.once('exit', resolve)
+    })
 
     return { stdout, stderr, success: exitCode === 0 }
   } catch (err) {
@@ -94,7 +102,7 @@ export class BiomeClient implements LinterClient {
   }
 
   async format(filePath: string, content: string): Promise<string> {
-    await Bun.write(filePath, content)
+    await writeFile(filePath, content)
 
     const result = await runBiome(
       ['format', '--write', filePath],
@@ -103,7 +111,7 @@ export class BiomeClient implements LinterClient {
     )
 
     if (result.success) {
-      return await Bun.file(filePath).text()
+      return await readFile(filePath, 'utf8')
     }
 
     return content

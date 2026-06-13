@@ -3,6 +3,8 @@
  */
 
 import * as fs from 'node:fs'
+import { spawn } from 'node:child_process'
+import type { Writable } from 'node:stream'
 import type { Diagnostic, WorkspaceEdit } from 'vscode-languageserver-types'
 import { applyWorkspaceEdit } from './edits'
 import type {
@@ -185,7 +187,7 @@ function concatBuffers(a: Uint8Array, b: Uint8Array): Uint8Array {
 }
 
 async function writeMessage(
-  sink: import('bun').FileSink,
+  sink: Writable,
   message: LspJsonRpcRequest | LspJsonRpcNotification | LspJsonRpcResponse
 ): Promise<void> {
   const content = JSON.stringify(message)
@@ -193,21 +195,21 @@ async function writeMessage(
   const header = `Content-Length: ${contentBytes.length}\r\n\r\n`
   const fullMessage = new TextEncoder().encode(header + content)
 
-  sink.write(fullMessage)
-  await sink.flush()
+  await new Promise<void>((resolve, reject) => {
+    sink.write(fullMessage, (err) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
 }
 
 async function startMessageReader(client: LspClient): Promise<void> {
   if (client.isReading) return
   client.isReading = true
 
-  const reader = (client.process.stdout as ReadableStream<Uint8Array>).getReader()
-
   try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
+    for await (const chunk of client.process.stdout) {
+      const value = chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk))
       const currentBuffer = concatBuffers(client.messageBuffer, value)
       client.messageBuffer = currentBuffer
 
@@ -248,7 +250,6 @@ async function startMessageReader(client: LspClient): Promise<void> {
     }
     client.pendingRequests.clear()
   } finally {
-    reader.releaseLock()
     client.isReading = false
   }
 }
@@ -326,7 +327,7 @@ async function sendResponse(
   }
 
   try {
-    await writeMessage(client.process.stdin as import('bun').FileSink, response)
+    await writeMessage(client.process.stdin, response)
   } catch (err) {
     console.error('LSP failed to respond.', { method, error: String(err) })
   }
@@ -355,11 +356,10 @@ export async function getOrCreateClient(
   const clientPromise = (async () => {
     const args = config.args ?? []
     const command = config.resolvedCommand ?? config.command
-    const proc = Bun.spawn([command, ...args], {
+    const proc = spawn(command, args, {
       cwd,
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe'
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
     })
 
     const client: LspClient = {
@@ -378,7 +378,7 @@ export async function getOrCreateClient(
     }
     clients.set(key, client)
 
-    proc.exited.then(() => {
+    proc.once('exit', () => {
       clients.delete(key)
       clientLocks.delete(key)
     })
@@ -664,7 +664,7 @@ export async function sendRequest(
       method
     })
 
-    writeMessage(client.process.stdin as import('bun').FileSink, request).catch((err) => {
+    writeMessage(client.process.stdin, request).catch((err) => {
       if (timeout) clearTimeout(timeout)
       client.pendingRequests.delete(id)
       cleanup()
@@ -685,7 +685,7 @@ export async function sendNotification(
   }
 
   client.lastActivity = Date.now()
-  await writeMessage(client.process.stdin as import('bun').FileSink, notification)
+  await writeMessage(client.process.stdin, notification)
 }
 
 export function shutdownAll(): void {

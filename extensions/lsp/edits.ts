@@ -2,7 +2,7 @@
  * LSP Text Edit Application
  */
 
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type {
   CreateFile,
@@ -50,9 +50,9 @@ export function applyTextEditsToString(content: string, edits: TextEdit[]): stri
  * Apply text edits to a file.
  */
 export async function applyTextEdits(filePath: string, edits: TextEdit[]): Promise<void> {
-  const content = await Bun.file(filePath).text()
+  const content = await readFile(filePath, 'utf8')
   const result = applyTextEditsToString(content, edits)
-  await Bun.write(filePath, result)
+  await writeFile(filePath, result)
 }
 
 /**
@@ -85,7 +85,7 @@ export async function applyWorkspaceEdit(edit: WorkspaceEdit, cwd: string): Prom
           const createOp = change as CreateFile
           const filePath = uriToFile(createOp.uri)
           await mkdir(path.dirname(filePath), { recursive: true })
-          await Bun.write(filePath, '')
+          await writeFile(filePath, '')
           applied.push(`Created ${path.relative(cwd, filePath)}`)
         } else if (change.kind === 'rename') {
           const renameOp = change as RenameFile
