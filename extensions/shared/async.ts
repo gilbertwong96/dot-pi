@@ -1,5 +1,5 @@
 export function sleep(ms: number): Promise<void> {
-  return Bun.sleep(ms)
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export async function waitForValue<T>(

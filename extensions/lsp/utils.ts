@@ -2,6 +2,7 @@
  * LSP Tool Utilities
  */
 
+import fs from 'node:fs'
 import path from 'node:path'
 import {
   DiagnosticSeverity,
@@ -400,11 +401,22 @@ export function extractHoverText(
 // =============================================================================
 
 export function sleep(ms: number): Promise<void> {
-  return Bun.sleep(ms)
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export async function commandExists(command: string): Promise<boolean> {
-  return Bun.which(command) !== null
+  const pathEnv = process.env.PATH ?? ''
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue
+    const candidate = path.join(dir, command)
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK)
+      return true
+    } catch {
+      // Continue searching PATH.
+    }
+  }
+  return false
 }
 
 export function truncate(str: string, maxLength: number): string {

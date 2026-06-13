@@ -2,8 +2,10 @@
  * LSP Configuration
  */
 
+import { access, readFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, extname, join } from 'node:path'
+import { basename, delimiter, extname, join } from 'node:path'
 import { globSync } from 'glob'
 import { createBiomeClient } from './clients/biome-client'
 import DEFAULTS from './defaults.json' with { type: 'json' }
@@ -93,11 +95,8 @@ function normalizeServerConfig(name: string, config: Partial<ServerConfig>): Ser
 
 async function readConfigFile(filePath: string): Promise<NormalizedConfig | null> {
   try {
-    const file = Bun.file(filePath)
-    if (!(await file.exists())) {
-      return null
-    }
-    const content = await file.text()
+    await access(filePath, constants.R_OK)
+    const content = await readFile(filePath, 'utf8')
     const parsed = parseConfigContent(content, filePath)
     return normalizeConfig(parsed)
   } catch {
@@ -171,8 +170,11 @@ export async function hasRootMarkers(cwd: string, markers: string[]): Promise<bo
       continue
     }
     const filePath = join(cwd, marker)
-    if (await Bun.file(filePath).exists()) {
+    try {
+      await access(filePath, constants.F_OK)
       return true
+    } catch {
+      // Marker missing.
     }
   }
   return false
@@ -195,13 +197,26 @@ export async function resolveCommand(command: string, cwd: string): Promise<stri
   for (const { markers, binDir } of LOCAL_BIN_PATHS) {
     if (await hasRootMarkers(cwd, markers)) {
       const localPath = join(cwd, binDir, command)
-      if (await Bun.file(localPath).exists()) {
+      try {
+        await access(localPath, constants.X_OK)
         return localPath
+      } catch {
+        // Local command missing or not executable.
       }
     }
   }
 
-  return Bun.which(command)
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (!dir) continue
+    const candidate = join(dir, command)
+    try {
+      await access(candidate, constants.X_OK)
+      return candidate
+    } catch {
+      // Continue searching PATH.
+    }
+  }
+  return null
 }
 
 function getConfigPaths(cwd: string): string[] {

@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import { getServersForFile, hasCapability, type LspConfig } from './config'
@@ -105,7 +105,7 @@ export function findFileByExtensions(baseDir: string, extensions: string[]): str
     if (depth > FILE_SEARCH_MAX_DEPTH) return null
     let entries: string[] = []
     try {
-      entries = Array.from(new Bun.Glob('*').scanSync({ cwd: dir, onlyFiles: false }))
+      entries = readdirSync(dir)
     } catch {
       return null
     }
