@@ -23,26 +23,26 @@ pi --critic
 
 ### Commands
 
-| Command               | Description                      |
-| --------------------- | -------------------------------- |
-| `/critic`             | Toggle critic mode on/off        |
-| `/critic-model <id>`  | Set the model for critic reviews |
-| `/critic-prompt`      | Edit critic system prompt        |
-| `/critic-trigger`     | Set when critic triggers         |
-| `/critic-context`     | Set what context critic sees     |
-| `/critic-timeout <s>` | Set timeout in seconds (5-300)   |
-| `/critic-debug`       | Toggle debug logging             |
+| Command | Description |
+|---------|-------------|
+| `/critic` | Toggle critic mode on/off |
+| `/critic-model <id>` | Set the model for critic reviews |
+| `/critic-prompt` | Edit critic system prompt |
+| `/critic-trigger` | Set when critic triggers |
+| `/critic-context` | Set what context critic sees |
+| `/critic-timeout <s>` | Set timeout in seconds (5-300) |
+| `/critic-debug` | Toggle debug logging |
 
 ### Flags
 
-| Flag                       | Description                                                  |
-| -------------------------- | ------------------------------------------------------------ |
-| `--critic`                 | Start with critic enabled                                    |
-| `--critic-debug`           | Enable debug logging                                         |
-| `--critic-trigger <mode>`  | Set trigger mode (turn_end, tool_result, agent_end, visual)  |
-| `--critic-model <model>`   | Set critic model (format: "provider model_id" or "model_id") |
-| `--critic-prompt <text>`   | Override default system prompt                               |
-| `--critic-max-reviews <n>` | Max reviews per user prompt (default: 3)                     |
+| Flag | Description |
+|------|-------------|
+| `--critic` | Start with critic enabled |
+| `--critic-debug` | Enable debug logging |
+| `--critic-trigger <mode>` | Set trigger mode (turn_end, tool_result, agent_end, visual) |
+| `--critic-model <model>` | Set critic model (format: "provider model_id" or "model_id") |
+| `--critic-prompt <text>` | Override default system prompt |
+| `--critic-max-reviews <n>` | Max reviews per user prompt (default: 3) |
 
 ## How It Works
 
@@ -145,7 +145,6 @@ User ──► Agent ──► bash (export image) ──► Result + PNG create
 ```
 
 Perfect for:
-
 - Figma design review
 - Chart/diagram generation
 - Screenshot validation
@@ -254,7 +253,6 @@ Agent Done
 ```
 
 Default: 3 reviews per prompt. After reaching the limit:
-
 - If last verdict was `APPROVED`: agent continues normally
 - If last verdict was `NEEDS_WORK` or `BLOCKED`: agent is told to stop and ask user for guidance
 
@@ -291,9 +289,8 @@ Done! Fixed the null check bug in utils.ts
 ```
 
 **Visual indicators:**
-
 - **Yellow border + ⚠** — Issues found, feedback sent to agent
-- **Green border + ✓** — Approved, no feedback needed
+- **Green border + ✓** — Approved, no feedback needed  
 - **Red border + ✗** — Error occurred (timeout, process failure)
 
 ## Structured Verdict
@@ -308,18 +305,18 @@ status: APPROVED | NEEDS_WORK | BLOCKED
 
 ### Status Values
 
-| Status       | Description                     | Visual   | Action                 |
-| ------------ | ------------------------------- | -------- | ---------------------- |
-| `APPROVED`   | Work is correct and complete    | Green ✓  | No feedback sent       |
-| `NEEDS_WORK` | Minor issues to address         | Yellow ⚠ | Feedback sent to agent |
-| `BLOCKED`    | Critical issues, cannot proceed | Red ⛔   | Feedback sent to agent |
+| Status | Description | Visual | Action |
+|--------|-------------|--------|--------|
+| `APPROVED` | Work is correct and complete | Green ✓ | No feedback sent |
+| `NEEDS_WORK` | Minor issues to address | Yellow ⚠ | Feedback sent to agent |
+| `BLOCKED` | Critical issues, cannot proceed | Red ⛔ | Feedback sent to agent |
 
 The critic's review text appears before the verdict block. The verdict block itself is stripped from the displayed output.
 
 ### Example Critic Response
 
 ```
-The code change is correct. The return type annotation matches the
+The code change is correct. The return type annotation matches the 
 function's actual return value.
 
 <critic_verdict>
@@ -332,14 +329,12 @@ If the critic doesn't include a verdict block, the extension defaults to `NEEDS_
 ## Configuration Tips
 
 ### Fast iteration with cheap critic
-
 ```
 /critic-model gpt-4o-mini
 /critic-timeout 30
 ```
 
 ### Thorough review with smart critic
-
 ```
 /critic-model claude-sonnet-4-20250514
 /critic-context full
@@ -347,7 +342,6 @@ If the critic doesn't include a verdict block, the extension defaults to `NEEDS_
 ```
 
 ### Security-focused review
-
 ```
 /critic-prompt
 # Edit to focus on security:
@@ -355,7 +349,6 @@ If the critic doesn't include a verdict block, the extension defaults to `NEEDS_
 ```
 
 ### Visual design review
-
 ```bash
 pi --critic \
   --critic-trigger visual \
@@ -365,7 +358,6 @@ pi --critic \
 ```
 
 ### Custom prompt via flag
-
 ```bash
 # Override system prompt for one-off task
 pi --critic --critic-prompt "Focus only on TypeScript type safety. Ignore styling."

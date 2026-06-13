@@ -66,7 +66,7 @@ const apiKey = await ctx.modelRegistry.getApiKey(model);
 const response = await complete(model, messages, { apiKey });
 
 // With fallback chain
-const model = ctx.modelRegistry.getPreferred("fast")
+const model = ctx.modelRegistry.getPreferred("fast") 
   ?? ctx.modelRegistry.getPreferred("cheap")
   ?? ctx.model;
 ```
@@ -75,20 +75,20 @@ const model = ctx.modelRegistry.getPreferred("fast")
 
 ```typescript
 // Use configured "fast" model
-const response = await ctx.complete(messages, {
-  prefer: 'fast',
-  timeout: 3000
-})
+const response = await ctx.complete(messages, { 
+  prefer: "fast",
+  timeout: 3000,
+});
 
 // Explicit model
 const response = await ctx.complete(messages, {
-  model: 'openai/gpt-4o-mini'
-})
+  model: "openai/gpt-4o-mini",
+});
 
 // With fallback
 const response = await ctx.complete(messages, {
-  prefer: ['fast', 'cheap', 'primary']
-})
+  prefer: ["fast", "cheap", "primary"],
+});
 ```
 
 ## Example: Decision-Time Guidance Extension
@@ -97,40 +97,31 @@ With the proposed API:
 
 ```typescript
 export default function decisionGuidance(pi: ExtensionAPI): void {
-  pi.on('context', async (event, ctx) => {
-    const trajectory = summarizeTrajectory(ctx.sessionManager.getEntries())
-
+  pi.on("context", async (event, ctx) => {
+    const trajectory = summarizeTrajectory(ctx.sessionManager.getEntries());
+    
     // Call classifier model
-    const model = ctx.modelRegistry.getPreferred('fast') ?? ctx.model
-    const apiKey = await ctx.modelRegistry.getApiKey(model)
-
-    const classification = await complete(
-      model,
-      [
-        {
-          role: 'user',
-          content: CLASSIFIER_PROMPT + trajectory,
-          timestamp: Date.now()
-        }
-      ],
-      { apiKey, timeout: 3000 }
-    )
-
-    const issues = parseClassification(classification)
-    if (issues.length === 0) return
-
-    const guidance = issues.map((i) => GUIDANCE_RULES[i]).join('\n\n')
+    const model = ctx.modelRegistry.getPreferred("fast") ?? ctx.model;
+    const apiKey = await ctx.modelRegistry.getApiKey(model);
+    
+    const classification = await complete(model, [{
+      role: "user",
+      content: CLASSIFIER_PROMPT + trajectory,
+      timestamp: Date.now(),
+    }], { apiKey, timeout: 3000 });
+    
+    const issues = parseClassification(classification);
+    if (issues.length === 0) return;
+    
+    const guidance = issues.map(i => GUIDANCE_RULES[i]).join("\n\n");
     return {
-      messages: [
-        ...event.messages,
-        {
-          role: 'user',
-          content: [{ type: 'text', text: guidance }],
-          timestamp: Date.now()
-        }
-      ]
-    }
-  })
+      messages: [...event.messages, {
+        role: "user",
+        content: [{ type: "text", text: guidance }],
+        timestamp: Date.now(),
+      }],
+    };
+  });
 }
 ```
 
