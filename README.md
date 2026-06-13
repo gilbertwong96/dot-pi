@@ -364,10 +364,10 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 ## Development
 
 ```bash
-bun install
-bun run format:check
-bun run check
-bun test
+npm install
+npm run format:check
+npm run check
+npm test
 ```
 
 Manual workflow smoke test: `docs/smoke-test.md`.

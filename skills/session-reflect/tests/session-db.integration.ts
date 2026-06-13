@@ -81,7 +81,7 @@ async function writeSession(project: string, filename: string, index: number): P
 }
 
 function run(args: string[]): { stdout: Buffer; stderr: Buffer } {
-  const result = spawnSync('bun', ['run', 'scripts/session-db.ts', ...args], {
+  const result = spawnSync('tsx', ['scripts/session-db.ts', ...args], {
     cwd,
     env: {
       ...process.env,

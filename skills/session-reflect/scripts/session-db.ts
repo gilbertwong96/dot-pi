@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S tsx
 import { Command } from 'commander'
 import fg from 'fast-glob'
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'

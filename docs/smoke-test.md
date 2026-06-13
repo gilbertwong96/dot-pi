@@ -3,9 +3,9 @@
 Use this after changing the workflow extensions. Run local checks first:
 
 ```bash
-bun run format:check
-bun run check
-bun test
+npm run format:check
+npm run check
+npm test
 ```
 
 ## Interactive Pi smoke tests
@@ -83,7 +83,7 @@ Expected: explains setup/shortcuts using `docs/handbook.md`, `prompts`, `rules`,
 Automated smoke check:
 
 ```bash
-bun run smoke:tutor
+npm run smoke:tutor
 ```
 
 Manual check:

@@ -59,15 +59,15 @@ import { parseCriticVerdict } from './verdict'
  * Returns { command, args } where args should be prepended to the actual pi args.
  */
 function getPiCommand(): { command: string; prefixArgs: string[] } {
-  // Check if we're running as a compiled Bun binary
-  // In that case, process.execPath IS the pi binary
-  const isBunBinary = !process.execPath.includes('node') && !process.execPath.includes('bun')
+  // Check if we're running as a standalone pi binary.
+  // In that case, process.execPath IS the pi binary.
+  const isStandaloneBinary = !process.execPath.includes('node')
 
-  if (isBunBinary) {
+  if (isStandaloneBinary) {
     return { command: process.execPath, prefixArgs: [] }
   }
 
-  // Running via node/bun runtime - use same runtime with entry script
+  // Running via Node runtime - use same runtime with entry script
   if (process.argv[1]) {
     return { command: process.execPath, prefixArgs: [process.argv[1]] }
   }
