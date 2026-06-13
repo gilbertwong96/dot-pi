@@ -990,8 +990,9 @@ export default function criticExtension(pi: ExtensionAPI): void {
     description: 'Edit the critic system prompt',
     handler: async (_args, ctx) => {
       const newPrompt = await ctx.ui.editor('Critic System Prompt:', state.systemPrompt)
-      if (newPrompt && newPrompt.trim()) {
-        state.systemPrompt = newPrompt.trim()
+      const trimmedPrompt = newPrompt?.trim()
+      if (trimmedPrompt) {
+        state.systemPrompt = trimmedPrompt
         persistState()
         ctx.ui.notify('Critic prompt updated', 'info')
       }

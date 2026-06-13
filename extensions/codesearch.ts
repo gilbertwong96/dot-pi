@@ -242,7 +242,7 @@ export function parseResults(rawText: string): SearchResult[] {
     const snippetMatch = line.match(SNIPPET_HEADER)
     if (snippetMatch) {
       flushSnippet()
-      snippet = parseInt(snippetMatch[1]!, 10)
+      snippet = parseInt(snippetMatch[1] ?? '0', 10)
       continue
     }
 
@@ -256,10 +256,10 @@ export function parseResults(rawText: string): SearchResult[] {
         flushSnippet()
       }
 
-      if (name === 'Repository') record.repo = value!.trim()
-      else if (name === 'Path') record.path = value!.trim()
-      else if (name === 'URL') record.url = value!.trim()
-      else if (name === 'License') record.license = value!.trim()
+      if (name === 'Repository') record.repo = value.trim()
+      else if (name === 'Path') record.path = value.trim()
+      else if (name === 'URL') record.url = value.trim()
+      else if (name === 'License') record.license = value.trim()
       continue
     }
 

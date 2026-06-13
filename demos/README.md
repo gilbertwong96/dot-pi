@@ -24,14 +24,14 @@ expect tapes/codesearch.expect
 
 ## Tapes
 
-| Tape                | Description                                       |
-| ------------------- | ------------------------------------------------- |
-| `codesearch.expect` | Search GitHub code for useEffect cleanup patterns |
-| `lsp.expect`        | Go to definition using LSP extension              |
-| `question.expect`   | Interactive question with selectable options      |
+| Tape                 | Description                                            |
+| -------------------- | ------------------------------------------------------ |
+| `codesearch.expect`  | Search GitHub code for useEffect cleanup patterns      |
+| `lsp.expect`         | Go to definition using LSP extension                   |
+| `question.expect`    | Interactive question with selectable options           |
 | `tutor-smoke.expect` | Smoke-test optional `/tutor` command without recording |
-| `webfetch.expect`   | Fetch and summarize bun.sh                        |
-| `websearch.expect`  | Search the web for Bun 1.3 features               |
+| `webfetch.expect`    | Fetch and summarize nodejs.org                         |
+| `websearch.expect`   | Search the web for Node.js 24 features                 |
 
 ## Playback
 

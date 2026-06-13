@@ -13,7 +13,7 @@ spawn asciinema rec --overwrite --idle-time-limit 2 --window-size 80x24 -c pi re
 
 expect "Sandbox"
 
-type_slow "fetch https://bun.sh and tell me what Bun is"
+type_slow "fetch https://nodejs.org and summarize what Node.js is"
 send "\r"
 
 sleep 25

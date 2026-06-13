@@ -210,7 +210,7 @@ class BashCompletionAutocompleteProvider implements AutocompleteProvider {
 
   private getCommandList(): string[] {
     const pathValue = process.env.PATH ?? ''
-    if (this.commandCache && this.commandCache.pathValue === pathValue) {
+    if (this.commandCache?.pathValue === pathValue) {
       return this.commandCache.commands
     }
 

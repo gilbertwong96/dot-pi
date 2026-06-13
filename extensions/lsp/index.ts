@@ -526,12 +526,11 @@ export default function (pi: ExtensionAPI) {
               const raw = Array.isArray(result) ? result : [result]
               const locations = raw.flatMap((loc) => {
                 if ('uri' in loc) {
-                  return [loc as Location]
+                  return [loc]
                 }
                 if ('targetUri' in loc) {
-                  const link = loc as LocationLink
                   return [
-                    { uri: link.targetUri, range: link.targetSelectionRange ?? link.targetRange }
+                    { uri: loc.targetUri, range: loc.targetSelectionRange ?? loc.targetRange }
                   ]
                 }
                 return []
@@ -570,7 +569,7 @@ export default function (pi: ExtensionAPI) {
               position
             })) as Hover | null
 
-            if (!result || !result.contents) {
+            if (!result?.contents) {
               output = 'No hover information'
             } else {
               output = extractHoverText(result.contents)
@@ -744,10 +743,9 @@ export default function (pi: ExtensionAPI) {
             } else {
               const lines = result.map((actionItem, i) => {
                 if ('kind' in actionItem || 'isPreferred' in actionItem || 'edit' in actionItem) {
-                  const actionDetails = actionItem as CodeAction
-                  const preferred = actionDetails.isPreferred ? ' (preferred)' : ''
-                  const kindInfo = actionDetails.kind ? ` [${actionDetails.kind}]` : ''
-                  return `  [${i}] ${actionDetails.title}${kindInfo}${preferred}`
+                  const preferred = actionItem.isPreferred ? ' (preferred)' : ''
+                  const kindInfo = actionItem.kind ? ` [${actionItem.kind}]` : ''
+                  return `  [${i}] ${actionItem.title}${kindInfo}${preferred}`
                 }
                 return `  [${i}] ${actionItem.title}`
               })

@@ -481,7 +481,7 @@ export default function (pi: ExtensionAPI) {
           "Unique name for this process (e.g., 'beebro-server', 'vite-dev'). Use kebab-case."
       }),
       command: Type.String({
-        description: 'Shell command to run (e.g., "bun run dev", "npm start")'
+        description: 'Shell command to run (e.g., "npm run dev", "npm start")'
       }),
       cwd: Type.Optional(
         Type.String({

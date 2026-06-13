@@ -1,6 +1,7 @@
 Never `fetch` GitHub/GitLab URLs — use `gh` / `glab` CLI.
 
 MR/PR review comments need line context:
+
 ```bash
 # GitLab
 glab api projects/:id/merge_requests/123/discussions | \

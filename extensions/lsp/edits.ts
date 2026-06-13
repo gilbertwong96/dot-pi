@@ -4,14 +4,7 @@
 
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type {
-  CreateFile,
-  DeleteFile,
-  RenameFile,
-  TextDocumentEdit,
-  TextEdit,
-  WorkspaceEdit
-} from 'vscode-languageserver-types'
+import type { TextEdit, WorkspaceEdit } from 'vscode-languageserver-types'
 import { uriToFile } from './utils'
 
 /**
@@ -73,30 +66,24 @@ export async function applyWorkspaceEdit(edit: WorkspaceEdit, cwd: string): Prom
   if (edit.documentChanges) {
     for (const change of edit.documentChanges) {
       if ('textDocument' in change && 'edits' in change) {
-        const docChange = change as TextDocumentEdit
-        const filePath = uriToFile(docChange.textDocument.uri)
-        const textEdits = docChange.edits.filter(
-          (e): e is TextEdit => 'range' in e && 'newText' in e
-        )
+        const filePath = uriToFile(change.textDocument.uri)
+        const textEdits = change.edits.filter((e): e is TextEdit => 'range' in e && 'newText' in e)
         await applyTextEdits(filePath, textEdits)
         applied.push(`Applied ${textEdits.length} edit(s) to ${path.relative(cwd, filePath)}`)
       } else if ('kind' in change && change.kind) {
         if (change.kind === 'create') {
-          const createOp = change as CreateFile
-          const filePath = uriToFile(createOp.uri)
+          const filePath = uriToFile(change.uri)
           await mkdir(path.dirname(filePath), { recursive: true })
           await writeFile(filePath, '')
           applied.push(`Created ${path.relative(cwd, filePath)}`)
         } else if (change.kind === 'rename') {
-          const renameOp = change as RenameFile
-          const oldPath = uriToFile(renameOp.oldUri)
-          const newPath = uriToFile(renameOp.newUri)
+          const oldPath = uriToFile(change.oldUri)
+          const newPath = uriToFile(change.newUri)
           await mkdir(path.dirname(newPath), { recursive: true })
           await rename(oldPath, newPath)
           applied.push(`Renamed ${path.relative(cwd, oldPath)} → ${path.relative(cwd, newPath)}`)
         } else if (change.kind === 'delete') {
-          const deleteOp = change as DeleteFile
-          const filePath = uriToFile(deleteOp.uri)
+          const filePath = uriToFile(change.uri)
           await rm(filePath, { recursive: true })
           applied.push(`Deleted ${path.relative(cwd, filePath)}`)
         }

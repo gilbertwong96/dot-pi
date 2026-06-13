@@ -45,9 +45,7 @@ export function detectProjectType(cwd: string): ProjectType {
 }
 
 export function getLspServers(config: LspConfig): Array<[string, ServerConfig]> {
-  return (Object.entries(config.servers) as Array<[string, ServerConfig]>).filter(
-    ([, serverConfig]) => !serverConfig.createClient
-  )
+  return Object.entries(config.servers).filter(([, serverConfig]) => !serverConfig.createClient)
 }
 
 export function getLspServerForFile(

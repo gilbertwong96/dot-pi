@@ -513,7 +513,7 @@ function currentAction(config: PickerConfig, state: ChooserState): string {
 function actionShortcutIndex(config: PickerConfig, data: string): number | undefined {
   const shortcuts = ['d', 's', 'e']
   for (let index = 0; index < Math.min(shortcuts.length, config.actions.length); index++) {
-    if (matchesKey(data, altKey(shortcuts[index]!))) return index
+    if (matchesKey(data, altKey(shortcuts[index] ?? ''))) return index
   }
   return undefined
 }

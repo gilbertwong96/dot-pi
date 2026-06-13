@@ -148,9 +148,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
         const content = msg.content
         if (typeof content === 'string') return !content.includes('[PLAN MODE ACTIVE]')
         if (Array.isArray(content)) {
-          return !content.some(
-            (c) => c.type === 'text' && (c as TextContent).text?.includes('[PLAN MODE ACTIVE]')
-          )
+          return !content.some((c) => c.type === 'text' && c.text?.includes('[PLAN MODE ACTIVE]'))
         }
         return true
       })
