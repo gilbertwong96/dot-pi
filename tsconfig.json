@@ -11,7 +11,8 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["node", "bun"]
+    "types": ["node"]
   },
-  "include": ["extensions/**/*.ts", "skills/**/*.ts", "skills/**/*.d.ts"]
+  "include": ["extensions/**/*.ts", "skills/**/*.ts", "skills/**/*.d.ts"],
+  "exclude": ["**/*.test.ts", "**/*.integration.ts", "skills/**/tests/**"]
 }
