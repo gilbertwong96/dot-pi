@@ -4,6 +4,7 @@
 
 import type { Diagnostic, TextEdit } from 'vscode-languageserver-types'
 import { getOrCreateClient, notifySaved, sendRequest, syncContent } from '../client'
+import { waitForValue } from '../../shared/async'
 import { applyTextEditsToString } from '../edits'
 import type { LinterClient, LspClient, ServerConfig } from '../types'
 import { fileToUri } from '../utils'
@@ -62,17 +63,7 @@ export class LspLinterClient implements LinterClient {
 
     await notifySaved(client, filePath)
 
-    const timeoutMs = 3000
-    const start = Date.now()
-    while (Date.now() - start < timeoutMs) {
-      const diagnostics = client.diagnostics.get(uri)
-      if (diagnostics !== undefined) {
-        return diagnostics
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-
-    return client.diagnostics.get(uri) ?? []
+    return (await waitForValue(() => client.diagnostics.get(uri), { timeoutMs: 3000 })) ?? []
   }
 
   dispose(): void {

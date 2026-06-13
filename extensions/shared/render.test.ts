@@ -7,6 +7,7 @@ import {
   firstText,
   renderEmpty,
   renderEntryList,
+  renderErrorOrPartial,
   renderLines,
   renderMarkdownPreview,
   renderToolCall,
@@ -33,6 +34,25 @@ describe('renderLines', () => {
 
     expect(visibleWidth(line)).toBeLessThanOrEqual(10)
     expect(line).toContain('…')
+  })
+})
+
+describe('renderErrorOrPartial', () => {
+  test('renders errors and partial empty states', () => {
+    expect(
+      renderErrorOrPartial(
+        { content: [{ type: 'text', text: 'Error: Boom' }], details: { error: true } },
+        { error: true },
+        {},
+        theme
+      )?.render(120)
+    ).toEqual(['', 'Error: Boom'])
+
+    expect(
+      renderErrorOrPartial({ content: [], details: {} }, {}, { isPartial: true }, theme)?.render(
+        120
+      )
+    ).toEqual([])
   })
 })
 

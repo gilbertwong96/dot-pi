@@ -19,6 +19,7 @@ import {
   renderToolCall,
   toolText
 } from '../shared/render'
+import { waitForValue } from '../shared/async'
 import { errorMessage } from '../shared/errors'
 import type {
   CallHierarchyIncomingCall,
@@ -66,7 +67,6 @@ import {
   formatLocation,
   formatSymbolInformation,
   formatWorkspaceEdit,
-  sleep,
   symbolKindToIcon,
   uriToFile
 } from './utils'
@@ -119,13 +119,7 @@ async function waitForDiagnostics(
   uri: string,
   timeoutMs = 3000
 ): Promise<Diagnostic[]> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    const diagnostics = client.diagnostics.get(uri)
-    if (diagnostics !== undefined) return diagnostics
-    await sleep(100)
-  }
-  return client.diagnostics.get(uri) ?? []
+  return (await waitForValue(() => client.diagnostics.get(uri), { timeoutMs })) ?? []
 }
 
 // =============================================================================

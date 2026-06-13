@@ -235,6 +235,17 @@ export function renderError(text: string, theme: Theme): Component {
   return renderLines([theme.fg('error', text || 'Error')])
 }
 
+export function renderErrorOrPartial(
+  result: AgentToolResult<unknown>,
+  details: { error?: boolean } | undefined,
+  options: { isPartial?: boolean },
+  theme: Theme
+): Component | undefined {
+  if (details?.error) return renderError(firstText(result, 'Error'), theme)
+  if (options.isPartial) return renderEmpty()
+  return undefined
+}
+
 export function renderMuted(text: string, theme: Theme): Component {
   return renderLines([theme.fg('muted', text)])
 }

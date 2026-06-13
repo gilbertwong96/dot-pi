@@ -16,12 +16,10 @@ import {
   truncateHeadText
 } from '../shared/truncate'
 import {
-  firstText,
   meta as renderMeta,
   primary,
-  renderEmpty,
   renderEntryList,
-  renderError,
+  renderErrorOrPartial,
   renderLines,
   renderMuted,
   renderToolCall,
@@ -407,12 +405,12 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as WebSearchDetails | undefined
 
-      if (details?.error) return renderError(firstText(result, 'Error'), theme)
+      const guarded = renderErrorOrPartial(result, details, { isPartial }, theme)
+      if (guarded) return guarded
 
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return renderEmpty()
         return details?.output
           ? renderLines([primary(details.output, theme)])
           : renderMuted('No results found.', theme)

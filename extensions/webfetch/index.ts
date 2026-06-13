@@ -19,11 +19,9 @@ import {
   truncateHeadText
 } from '../shared/truncate'
 import {
-  firstText,
   meta as renderMeta,
   primary,
-  renderEmpty,
-  renderError,
+  renderErrorOrPartial,
   renderMarkdownPreview,
   renderToolCall,
   title,
@@ -458,8 +456,8 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as FetchDetails | undefined
 
-      if (details?.error) return renderError(firstText(result, 'Error'), theme)
-      if (isPartial) return renderEmpty()
+      const guarded = renderErrorOrPartial(result, details, { isPartial }, theme)
+      if (guarded) return guarded
 
       const content = result.content[0]
       const fullText = content?.type === 'text' ? content.text : ''

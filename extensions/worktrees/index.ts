@@ -35,6 +35,7 @@ import {
   truncateToWidth
 } from '@earendil-works/pi-tui'
 import { Type } from 'typebox'
+import { commandFailure, commandOutput } from '../shared/process'
 import { toolError, toolText } from '../shared/render'
 import {
   formatWorktreeList,
@@ -248,8 +249,7 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
 
       const createResult = await pi.exec('git', args, { cwd: ctx.cwd })
       if (createResult.code !== 0) {
-        const error = createResult.stderr || createResult.stdout || 'Unknown error'
-        return toolError(`Failed to create worktree: ${error}`, {
+        return toolError(commandFailure(createResult, 'Failed to create worktree'), {
           name,
           path: worktreePath,
           branch: name
@@ -315,7 +315,7 @@ Project setup (npm/bun/cargo/etc.) runs automatically.`,
       const result = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd: ctx.cwd })
 
       if (result.code !== 0) {
-        return toolError(`Failed to list worktrees: ${result.stderr || result.stdout}`, {
+        return toolError(commandFailure(result, 'Failed to list worktrees'), {
           worktrees: []
         } satisfies WorktreeListDetails)
       }
@@ -370,14 +370,14 @@ Use force=true to remove even with uncommitted changes.`,
       const result = await pi.exec('git', args, { cwd: ctx.cwd })
 
       if (result.code !== 0) {
-        const error = result.stderr || result.stdout || 'Unknown error'
+        const error = commandOutput(result)
         if (isDirtyWorktreeRemovalError(error)) {
           return toolError(
             `Cannot remove worktree "${name}": has uncommitted changes.\nUse force=true to remove anyway, or commit/stash changes first.`,
             { name, path: worktreePath, branch: name } satisfies WorktreeDetails
           )
         }
-        return toolError(`Failed to remove worktree: ${error}`, {
+        return toolError(commandFailure(result, 'Failed to remove worktree'), {
           name,
           path: worktreePath,
           branch: name

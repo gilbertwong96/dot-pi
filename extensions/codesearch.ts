@@ -22,10 +22,10 @@ import {
   firstText,
   meta as renderMeta,
   primary,
-  renderEmpty,
   renderExpandFooter,
   renderEntryList,
   renderError,
+  renderErrorOrPartial,
   renderLines,
   renderMuted,
   renderToolCall,
@@ -385,12 +385,12 @@ export default function (pi: ExtensionAPI) {
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as CodeSearchDetails | undefined
 
-      if (details?.error) return renderError(firstText(result, 'Error'), theme)
+      const guarded = renderErrorOrPartial(result, details, { isPartial }, theme)
+      if (guarded) return guarded
 
       const results = details?.results ?? []
 
       if (results.length === 0) {
-        if (isPartial) return renderEmpty()
         return renderMuted('No results found.', theme)
       }
 
