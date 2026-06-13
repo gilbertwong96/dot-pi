@@ -443,7 +443,7 @@ program
     )
   })
 
-program.parseAsync()
+void program.parseAsync()
 
 function getCacheDir(): string {
   return String(program.opts().cacheDir ?? DEFAULT_CACHE_DIR)

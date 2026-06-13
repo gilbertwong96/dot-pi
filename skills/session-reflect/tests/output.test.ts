@@ -17,8 +17,9 @@ describe('session-reflect output helpers', () => {
     const [row] = formatResultRows([{ text: 'x'.repeat(130) }], 'table') as Array<{
       text: string
     }>
-    expect(row.text).toHaveLength(120)
-    expect(row.text.endsWith('…')).toBe(true)
+    expect(row).toBeDefined()
+    expect(row!.text).toHaveLength(120)
+    expect(row!.text.endsWith('…')).toBe(true)
   })
 
   test('formats sections by output mode', () => {

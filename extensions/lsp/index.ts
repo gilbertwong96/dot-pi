@@ -354,11 +354,20 @@ export default function (pi: ExtensionAPI) {
       // Status action
       if (action === 'status') {
         const servers = Object.keys(config.servers)
-        const output =
-          servers.length > 0
-            ? `Active language servers: ${servers.join(', ')}`
-            : 'No language servers configured for this project'
-        return lspText(output, { action, success: true })
+        const projectType = detectProjectType(cwd)
+        const lines = [`LSP status for ${cwd}`, `Detected project: ${projectType.description}`]
+
+        if (servers.length > 0) {
+          lines.push(`Active language servers: ${servers.join(', ')}`)
+        } else {
+          lines.push('Active language servers: none')
+          lines.push('No configured server matched this directory and PATH.')
+          lines.push(
+            'Run from a project root with markers such as tsconfig.json, Cargo.toml, go.mod, or pyproject.toml, or add an lsp.json override.'
+          )
+        }
+
+        return lspText(lines.join('\n'), { action, success: true })
       }
 
       // Workspace diagnostics

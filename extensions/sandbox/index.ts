@@ -16,14 +16,10 @@
  */
 
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import {
-  SandboxManager,
-  type SandboxRuntimeConfig,
-  type SandboxAskCallback
-} from '@anthropic-ai/sandbox-runtime'
 import {
   type BashOperations,
   createBashTool,
@@ -33,8 +29,65 @@ import {
 import { errorMessage } from '../shared/errors'
 import { parseJsonObject } from '../shared/json'
 
+interface SandboxNetworkConfig {
+  allowedDomains?: string[]
+  deniedDomains?: string[]
+}
+
+interface SandboxFilesystemConfig {
+  denyRead?: string[]
+  allowWrite?: string[]
+  denyWrite?: string[]
+}
+
+interface SandboxRuntimeConfig {
+  network?: SandboxNetworkConfig
+  filesystem?: SandboxFilesystemConfig
+  ignoreViolations?: Record<string, string[]>
+  enableWeakerNestedSandbox?: boolean
+}
+
 interface SandboxConfig extends SandboxRuntimeConfig {
   enabled?: boolean
+}
+
+interface SandboxViolation {
+  line: string
+}
+
+type SandboxAskCallback = (target: { host: string; port?: number | string }) => Promise<boolean>
+
+interface SandboxManagerApi {
+  initialize: (
+    config: SandboxRuntimeConfig,
+    askCallback: SandboxAskCallback,
+    enableLogMonitor: boolean
+  ) => Promise<void>
+  reset: () => Promise<void>
+  wrapWithSandbox: (command: string) => Promise<string>
+  annotateStderrWithSandboxFailures: (command: string, stderr: string) => string
+  getSandboxViolationStore: () => {
+    subscribe: (listener: (violations: SandboxViolation[]) => void) => () => void
+    getViolationsForCommand: (command: string) => SandboxViolation[]
+  }
+}
+
+const require = createRequire(import.meta.url)
+let loadedSandboxManager: SandboxManagerApi | null | undefined
+
+async function loadSandboxManager(): Promise<SandboxManagerApi | null> {
+  if (loadedSandboxManager !== undefined) return loadedSandboxManager
+
+  try {
+    const module = require('@anthropic-ai/sandbox-runtime') as {
+      SandboxManager?: SandboxManagerApi
+    }
+    loadedSandboxManager = module.SandboxManager ?? null
+    return loadedSandboxManager
+  } catch {
+    loadedSandboxManager = null
+    return null
+  }
 }
 
 const DEFAULT_CONFIG: SandboxConfig = {
@@ -136,7 +189,14 @@ function createSandboxedBashOps(_command?: string): BashOperations {
         throw new Error(`Working directory does not exist: ${cwd}`)
       }
 
-      const wrappedCommand = await SandboxManager.wrapWithSandbox(cmd)
+      const sandboxManager = await loadSandboxManager()
+      if (!sandboxManager) {
+        throw new Error(
+          'Sandbox runtime is not installed. Re-run without the sandbox extension or install @anthropic-ai/sandbox-runtime.'
+        )
+      }
+
+      const wrappedCommand = await sandboxManager.wrapWithSandbox(cmd)
       let stderrBuffer = ''
 
       return new Promise((resolve, reject) => {
@@ -195,7 +255,7 @@ function createSandboxedBashOps(_command?: string): BashOperations {
             reject(new Error(`timeout:${timeout}`))
           } else {
             // Check for sandbox violations and annotate output
-            const annotated = SandboxManager.annotateStderrWithSandboxFailures(cmd, stderrBuffer)
+            const annotated = sandboxManager.annotateStderrWithSandboxFailures(cmd, stderrBuffer)
             if (annotated !== stderrBuffer) {
               // There were violations - send the annotation as additional output
               const annotation = annotated.slice(stderrBuffer.length)
@@ -204,8 +264,9 @@ function createSandboxedBashOps(_command?: string): BashOperations {
               }
 
               // Parse violations and suggest config fixes
-              const violations =
-                SandboxManager.getSandboxViolationStore().getViolationsForCommand(cmd)
+              const violations = sandboxManager
+                .getSandboxViolationStore()
+                .getViolationsForCommand(cmd)
               const pathsToAllow = new Set<string>()
 
               for (const v of violations) {
@@ -327,7 +388,14 @@ export default function (pi: ExtensionAPI) {
       // Create ask callback for network permission prompts
       const askCallback = createAskCallback(ctx)
 
-      await SandboxManager.initialize(
+      const sandboxManager = await loadSandboxManager()
+      if (!sandboxManager) {
+        throw new Error(
+          'Sandbox runtime is not installed. Install @anthropic-ai/sandbox-runtime or run with --no-sandbox.'
+        )
+      }
+
+      await sandboxManager.initialize(
         {
           network: config.network,
           filesystem: config.filesystem,
@@ -339,10 +407,10 @@ export default function (pi: ExtensionAPI) {
       )
 
       // Subscribe to violation events
-      const violationStore = SandboxManager.getSandboxViolationStore()
+      const violationStore = sandboxManager.getSandboxViolationStore()
       let lastViolationCount = 0
 
-      unsubscribeViolations = violationStore.subscribe((violations) => {
+      unsubscribeViolations = violationStore.subscribe((violations: SandboxViolation[]) => {
         // Only notify about new violations
         if (violations.length > lastViolationCount) {
           const newViolations = violations.slice(lastViolationCount)
@@ -377,7 +445,8 @@ export default function (pi: ExtensionAPI) {
 
     if (sandboxInitialized) {
       try {
-        await SandboxManager.reset()
+        const sandboxManager = await loadSandboxManager()
+        await sandboxManager?.reset()
       } catch {
         // Ignore cleanup errors
       }

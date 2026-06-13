@@ -383,7 +383,7 @@ export async function getOrCreateClient(
       clientLocks.delete(key)
     })
 
-    startMessageReader(client)
+    void startMessageReader(client)
 
     try {
       const initResult = (await sendRequest(
@@ -617,7 +617,6 @@ export async function sendRequest(
   client.lastActivity = Date.now()
 
   return new Promise((resolve, reject) => {
-    let timeout: ReturnType<typeof setTimeout> | undefined
     const cleanup = () => {
       if (signal) {
         signal.removeEventListener('abort', abortHandler)
@@ -627,14 +626,14 @@ export async function sendRequest(
       if (client.pendingRequests.has(id)) {
         client.pendingRequests.delete(id)
       }
-      if (timeout) clearTimeout(timeout)
+      clearTimeout(timeout)
       cleanup()
       const reason =
         signal?.reason instanceof Error ? signal.reason : new Error('Operation aborted')
       reject(reason)
     }
 
-    timeout = setTimeout(() => {
+    const timeout = setTimeout(() => {
       if (client.pendingRequests.has(id)) {
         client.pendingRequests.delete(id)
         const err = new Error(`LSP request ${method} timed out`)
@@ -652,12 +651,12 @@ export async function sendRequest(
 
     client.pendingRequests.set(id, {
       resolve: (result) => {
-        if (timeout) clearTimeout(timeout)
+        clearTimeout(timeout)
         cleanup()
         resolve(result)
       },
       reject: (err) => {
-        if (timeout) clearTimeout(timeout)
+        clearTimeout(timeout)
         cleanup()
         reject(err)
       },
@@ -665,7 +664,7 @@ export async function sendRequest(
     })
 
     writeMessage(client.process.stdin, request).catch((err) => {
-      if (timeout) clearTimeout(timeout)
+      clearTimeout(timeout)
       client.pendingRequests.delete(id)
       cleanup()
       reject(err)
