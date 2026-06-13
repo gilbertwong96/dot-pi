@@ -29,7 +29,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { AssistantMessage, Message, TextContent } from '@earendil-works/pi-ai'
+import type { AssistantMessage, TextContent } from '@earendil-works/pi-ai'
 import {
   DynamicBorder,
   type ExtensionAPI,
@@ -49,13 +49,9 @@ import {
   Text
 } from '@earendil-works/pi-tui'
 import type { ToolStatusDetails } from '../shared/tool-details'
-import {
-  errorMessageFromEvent,
-  isRecord,
-  isThinkingContent,
-  textContentFromUnknown,
-  usageFromUnknown
-} from './events'
+import { isThinkingContent } from './events'
+import { candidateImagePaths, existingImagePaths } from './images'
+import { parseCriticJsonEvent } from './runner-events'
 import { parseCriticVerdict, type CriticVerdictStatus } from './verdict'
 
 /**
@@ -293,24 +289,6 @@ function killProcess(proc: ChildProcess): void {
   } catch {}
 }
 
-function extractImagePaths(text: string): string[] {
-  const patterns = [/\/tmp\/[^\s"'<>]+\.png/gi, /\/var\/[^\s"'<>]+\.png/gi]
-  const paths: string[] = []
-  for (const pattern of patterns) {
-    const matches = text.match(pattern) || []
-    paths.push(...matches)
-  }
-
-  // Filter to existing files only
-  return [...new Set(paths)].filter((p) => {
-    try {
-      return fs.statSync(p).isFile()
-    } catch {
-      return false
-    }
-  })
-}
-
 function runCriticSync(
   cwd: string,
   systemPrompt: string,
@@ -403,26 +381,14 @@ function runCriticSync(
     const lines = stdout.split('\n').filter(Boolean)
 
     for (const line of lines) {
-      try {
-        const event = JSON.parse(line) as unknown
-        if (
-          isRecord(event) &&
-          event.type === 'message_end' &&
-          isRecord(event.message) &&
-          event.message.role === 'assistant'
-        ) {
-          const msg = event.message
-          const textContent = textContentFromUnknown(msg.content)
-          if (textContent?.text) {
-            result.critique = textContent.text
-          }
-          const usage = usageFromUnknown(msg.usage)
-          if (usage) result.usage = usage
-          if (typeof msg.model === 'string') result.model = msg.model
-          log(ctx, debug, 'info', `[sync] Received assistant message`)
-        }
-      } catch {
-        // Skip non-JSON lines
+      const event = parseCriticJsonEvent(line)
+      if (!event) continue
+      if (event.critique) result.critique = event.critique
+      if (event.usage) result.usage = event.usage
+      if (event.model) result.model = event.model
+      if (event.error) result.error = event.error
+      if (event.messageRole === 'assistant') {
+        log(ctx, debug, 'info', `[sync] Received assistant message`)
       }
     }
 
@@ -526,7 +492,7 @@ async function runCritic(
 
     log(ctx, debug, 'info', `Spawning pi with args: ${args.slice(0, 5).join(' ')}...`)
 
-    const messages: Message[] = []
+    let latestCritique = ''
     let stderr = ''
     let wasAborted = false
     let wasTimedOut = false
@@ -562,36 +528,18 @@ async function runCritic(
       }, timeoutMs)
 
       const processLine = (line: string) => {
-        if (!line.trim()) return
-        let event: unknown
-        try {
-          event = JSON.parse(line)
-        } catch {
-          return
+        const event = parseCriticJsonEvent(line)
+        if (!event) return
+
+        if (event.messageRole) {
+          log(ctx, debug, 'info', `Received message: role=${event.messageRole}`)
         }
-
-        if (isRecord(event) && event.type === 'message_end' && event.message) {
-          const msg = event.message as Message
-          messages.push(msg)
-          log(ctx, debug, 'info', `Received message: role=${msg.role}`)
-
-          if (msg.role === 'assistant') {
-            const usage = msg.usage
-            if (usage) {
-              result.usage = {
-                input: usage.input || 0,
-                output: usage.output || 0,
-                cost: usage.cost?.total || 0
-              }
-            }
-            if (msg.model) result.model = msg.model
-          }
-        }
-
-        if (isRecord(event) && event.type === 'error') {
-          const message = errorMessageFromEvent(event)
-          log(ctx, debug, 'error', `Critic error event: ${message}`)
-          result.error = message
+        if (event.critique) latestCritique = event.critique
+        if (event.usage) result.usage = event.usage
+        if (event.model) result.model = event.model
+        if (event.error) {
+          log(ctx, debug, 'error', `Critic error event: ${event.error}`)
+          result.error = event.error
         }
       }
 
@@ -666,19 +614,7 @@ async function runCritic(
       }
     }
 
-    // Extract critique from last assistant message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-      if (msg.role === 'assistant') {
-        for (const part of msg.content) {
-          if (part.type === 'text') {
-            result.critique = part.text
-            break
-          }
-        }
-        break
-      }
-    }
+    result.critique = latestCritique
 
     if (!result.critique && !result.error) {
       result.error = 'Critic returned empty response'
@@ -852,7 +788,7 @@ export default function criticExtension(pi: ExtensionAPI): void {
       const criticModel = state.model ?? ctx.model?.id
 
       // Extract image paths from context to attach to critic
-      const imagePaths = extractImagePaths(contextStr)
+      const imagePaths = existingImagePaths(contextStr)
       if (imagePaths.length > 0) {
         log(
           ctx,
@@ -862,7 +798,7 @@ export default function criticExtension(pi: ExtensionAPI): void {
         )
       } else {
         // Log what paths we found in text but couldn't use
-        const allMatches = contextStr.match(/\/tmp\/[^\s"'<>]+\.png/gi) || []
+        const allMatches = candidateImagePaths(contextStr)
         if (allMatches.length > 0) {
           log(
             ctx,
@@ -1279,7 +1215,7 @@ export default function criticExtension(pi: ExtensionAPI): void {
     if (state.triggerMode === 'visual') {
       const input = JSON.stringify(event.input)
       const allText = input + '\n' + content
-      const imagePaths = extractImagePaths(allText)
+      const imagePaths = existingImagePaths(allText)
 
       if (imagePaths.length === 0) {
         log(ctx, state.debug, 'info', `[visual] No images found in tool result, skipping`)

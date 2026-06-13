@@ -17,7 +17,6 @@
   "ignoreDependencies": [
     "@anthropic-ai/sandbox-runtime",
     "@duckdb/node-api",
-    "cli-highlight",
     "commander",
     "convert-layout",
     "fast-glob",

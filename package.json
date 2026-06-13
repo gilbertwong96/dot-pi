@@ -22,9 +22,7 @@
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "^0.0.32",
     "cheerio": "^1.2.0",
-    "cli-highlight": "^2.1.11",
     "diff": "^9.0.0",
     "glob": "^11.0.0",
     "jsonc-parser": "^3.3.1",
