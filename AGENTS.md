@@ -36,7 +36,7 @@ bun run test
 bun run format:check
 ```
 
-`bun run check` includes oxlint with warnings denied, TypeScript checking, and jscpd duplicate detection. Use `bun run deps:check` for dependency hygiene audits before release work. Keep shared helpers in `extensions/shared/` when logic appears in more than one extension.
+`bun run check` includes oxlint with warnings denied, TypeScript checking, jscpd duplicate detection, and `deps:check` dependency hygiene. Keep shared helpers in `extensions/shared/` when logic appears in more than one extension.
 
 ## Native pi Tool Rendering Rules
 

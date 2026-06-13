@@ -12,7 +12,7 @@
   },
   "type": "module",
   "scripts": {
-    "check": "bun run lint && tsc --noEmit && bun run test:dupes",
+    "check": "bun run lint && tsc --noEmit && bun run test:dupes && bun run deps:check",
     "format": "oxfmt .",
     "lint": "oxlint -c oxlint.json package.json extensions skills --ignore-pattern 'extensions/critic/tests/**' --deny-warnings",
     "format:check": "bash -lc 'oxfmt --check package.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",

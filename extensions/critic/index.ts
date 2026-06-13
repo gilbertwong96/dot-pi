@@ -34,25 +34,24 @@ import {
   DynamicBorder,
   type ExtensionAPI,
   type ExtensionContext,
-  type TurnEndEvent,
-  getMarkdownTheme
+  type TurnEndEvent
 } from '@earendil-works/pi-coding-agent'
 import {
   Container,
   Input,
   Key,
-  Markdown,
   matchesKey,
   type SelectItem,
   SelectList,
   Spacer,
   Text
 } from '@earendil-works/pi-tui'
-import type { ToolStatusDetails } from '../shared/tool-details'
 import { isThinkingContent } from './events'
 import { candidateImagePaths, existingImagePaths } from './images'
+import { renderCriticReview } from './renderer'
 import { parseCriticJsonEvent } from './runner-events'
-import { parseCriticVerdict, type CriticVerdictStatus } from './verdict'
+import type { CriticDetails, CriticResult } from './types'
+import { parseCriticVerdict } from './verdict'
 
 /**
  * Get the command to spawn pi subprocess.
@@ -123,26 +122,6 @@ interface CriticRuntimeState {
   lastUserPromptTime: number
   isProcessingCritic: boolean
   lastVerdictApproved: boolean | null
-}
-
-interface CriticResult {
-  critique: string
-  approved: boolean
-  status?: CriticVerdictStatus
-  model?: string
-  usage?: {
-    input: number
-    output: number
-    cost: number
-  }
-  error?: string
-  timedOut?: boolean
-  durationMs?: number
-}
-
-interface CriticDetails extends ToolStatusDetails {
-  result: CriticResult
-  context: string
 }
 
 const LOG_FILE = path.join(os.tmpdir(), 'pi-critic.log')
@@ -887,89 +866,9 @@ export default function criticExtension(pi: ExtensionAPI): void {
     }
   }
 
-  // Register custom renderer for critic messages
-  pi.registerMessageRenderer<CriticDetails>('critic-review', (message, { expanded }, theme) => {
-    const details = message.details
-    const result = details?.result
-
-    const container = new Container()
-
-    const hasError = !!result?.error
-    const status = result?.status || (result?.approved ? 'APPROVED' : 'NEEDS_WORK')
-
-    let borderColor: 'error' | 'success' | 'warning'
-    let icon: string
-
-    if (hasError) {
-      borderColor = 'error'
-      icon = '✗'
-    } else if (status === 'APPROVED') {
-      borderColor = 'success'
-      icon = '✓'
-    } else if (status === 'BLOCKED') {
-      borderColor = 'error'
-      icon = '⛔'
-    } else {
-      borderColor = 'warning'
-      icon = '⚠'
-    }
-
-    // Top border
-    container.addChild(new DynamicBorder((s: string) => theme.fg(borderColor, s)))
-
-    // Header line
-    let header = `${theme.fg(borderColor, icon)} ${theme.fg(borderColor, theme.bold('Critic Review'))}`
-    if (result?.model) {
-      header += ` ${theme.fg('muted', `(${result.model})`)}`
-    }
-    if (result?.timedOut) {
-      header += ` ${theme.fg('error', '[TIMEOUT]')}`
-    }
-    container.addChild(new Text(header, 1, 0))
-
-    if (hasError) {
-      container.addChild(new Text(theme.fg('error', `Error: ${result.error}`), 1, 0))
-    }
-
-    const mdTheme = getMarkdownTheme()
-    const contentText =
-      typeof message.content === 'string'
-        ? message.content
-        : message.content
-            .filter((c): c is TextContent => c.type === 'text')
-            .map((c) => c.text)
-            .join('\n')
-
-    if (contentText && !contentText.startsWith('(')) {
-      container.addChild(new Markdown(contentText, 1, 0, mdTheme))
-    }
-
-    // Stats line
-    const statsParts: string[] = []
-    if (result?.usage) {
-      statsParts.push(
-        `↑${result.usage.input} ↓${result.usage.output} $${result.usage.cost.toFixed(4)}`
-      )
-    }
-    if (result?.durationMs) {
-      statsParts.push(`${(result.durationMs / 1000).toFixed(1)}s`)
-    }
-    if (statsParts.length > 0) {
-      container.addChild(new Text(theme.fg('dim', statsParts.join(' · ')), 1, 0))
-    }
-
-    // Expanded context view
-    if (expanded && details?.context) {
-      container.addChild(new Spacer(1))
-      container.addChild(new Text(theme.fg('muted', '─── Context ───'), 1, 0))
-      container.addChild(new Text(theme.fg('dim', details.context), 1, 0))
-    }
-
-    // Bottom border
-    container.addChild(new DynamicBorder((s: string) => theme.fg(borderColor, s)))
-
-    return container
-  })
+  pi.registerMessageRenderer<CriticDetails>('critic-review', (message, { expanded }, theme) =>
+    renderCriticReview(message, expanded, theme)
+  )
 
   // Command: toggle critic
   pi.registerCommand('critic', {
