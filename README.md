@@ -125,7 +125,7 @@ The default install focuses on broadly useful, low-surprise tools.
 | `ast-grep.ts`            | AST-based code search and rewrite                                                      | `brew install ast-grep`                                                                                |
 | `background.ts`          | Start/stop long-running dev servers and watchers                                       | None                                                                                                   |
 | `choose-options.ts`      | `choose_from_options` tool: TUI picker for LLM-proposed options/lists                  | None                                                                                                   |
-| `codesearch.ts`          | Search public GitHub code via grep.app and fetch matched files with `codefetch`         | Optional `gh` for private/high-rate `codefetch`                                                        |
+| `codesearch.ts`          | Search public GitHub code via grep.app and fetch matched files with `codefetch`        | Optional `gh` for private/high-rate `codefetch`                                                        |
 | `command-priority.ts`    | Reorder slash-command autocomplete using `slashCommandPriority` setting                | Optional settings entry                                                                                |
 | `confirm-actions.ts`     | Ask before publish/mutate commands and high-risk local actions                         | None                                                                                                   |
 | `context7/`              | Fetch current library docs from Context7                                               | `CONTEXT7_API_KEY`, often via `env-json`                                                               |
@@ -297,7 +297,6 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `plan-mode/`           | Experimental read-only planning mode                                              |
 | `provider/`            | Experimental dynamic provider registration                                        |
 | `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
-| `sandbox/`             | Experimental OS-level sandboxing                                                  |
 | `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
 | `voice-input/`         | Requires ElevenLabs key and audio setup                                           |
 

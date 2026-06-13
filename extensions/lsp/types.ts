@@ -39,21 +39,7 @@ export type {
   CallHierarchyOutgoingCall
 } from 'vscode-languageserver-types'
 
-import type {
-  Diagnostic,
-  TextEdit,
-  WorkspaceEdit,
-  DocumentSymbol,
-  SymbolInformation,
-  CodeAction,
-  Command,
-  Location,
-  LocationLink,
-  Hover,
-  CallHierarchyItem,
-  CallHierarchyIncomingCall,
-  CallHierarchyOutgoingCall
-} from 'vscode-languageserver-types'
+import type { Diagnostic } from 'vscode-languageserver-types'
 
 // =============================================================================
 // Tool Schema

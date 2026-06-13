@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 
 import { buildOracleContext, buildOraclePreview, compactCount, DEFAULT_CONFIG } from './oracle'
