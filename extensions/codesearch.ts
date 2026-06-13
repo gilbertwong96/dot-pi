@@ -98,11 +98,6 @@ function codeSearchErrorDetails(query: string): CodeSearchDetails {
   return { query, results: [], error: true }
 }
 
-export function codeSearchRequestError(error: unknown): string {
-  const message = errorMessage(error)
-  return `grep.app MCP request failed: ${message}. Check network/VPN/DNS or retry.`
-}
-
 function codeSearchLoadingDetails(query: string): CodeSearchLoadingDetails {
   return { query, results: [], loading: true }
 }
@@ -369,7 +364,7 @@ export default function (pi: ExtensionAPI) {
           return toolError('Search request timed out', codeSearchErrorDetails(query))
         }
 
-        return toolError(codeSearchRequestError(err), codeSearchErrorDetails(query))
+        return toolError(errorMessage(err), codeSearchErrorDetails(query))
       }
     },
 

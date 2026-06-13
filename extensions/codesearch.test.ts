@@ -5,7 +5,7 @@ import {
   testTheme,
   type RegisteredTool
 } from './shared/test-utils'
-import codesearch, { codeSearchRequestError, parseResults, sliceLines } from './codesearch'
+import codesearch, { parseResults, sliceLines } from './codesearch'
 
 function codefetchTool(): RegisteredTool {
   return registeredTool(codesearch, 'codefetch')
@@ -21,14 +21,6 @@ function renderCodefetch(details: Record<string, unknown>, text: string, expande
   )
   return renderComponentText(component)
 }
-
-describe('codeSearchRequestError', () => {
-  test('adds a grep.app network hint', () => {
-    expect(
-      codeSearchRequestError(new Error('fetch failed', { cause: new Error('ENOTFOUND') }))
-    ).toBe('grep.app MCP request failed: fetch failed: ENOTFOUND. Check network/VPN/DNS or retry.')
-  })
-})
 
 describe('sliceLines', () => {
   test('returns a normalized 1-based line range', () => {
