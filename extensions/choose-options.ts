@@ -345,7 +345,11 @@ function renderChoiceRows(
     theme.fg('toolOutput', config.question),
     Math.max(20, width)
   )
-  const lines = [...questionLines, '', ...list.render(width)]
+  const lines = [
+    ...questionLines,
+    '',
+    ...list.render(width).map((line) => truncateToWidth(line, width))
+  ]
   if (options.footer) lines.push(renderChoiceFooter(config, state, theme, width))
   return lines
 }

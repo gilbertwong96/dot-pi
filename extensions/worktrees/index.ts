@@ -513,7 +513,7 @@ Use force=true to remove even with uncommitted changes.`,
               lines.push('')
 
               // Render select list
-              const listLines = selectList.render(width)
+              const listLines = selectList.render(width).map((line) => truncateToWidth(line, width))
               lines.push(...listLines)
 
               lines.push('')
