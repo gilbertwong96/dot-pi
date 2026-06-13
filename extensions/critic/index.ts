@@ -46,6 +46,7 @@ import {
   Spacer,
   Text
 } from '@earendil-works/pi-tui'
+import { errorMessage } from '../shared/errors'
 import { isThinkingContent } from './events'
 import { candidateImagePaths, existingImagePaths } from './images'
 import { renderCriticReview } from './renderer'
@@ -398,7 +399,7 @@ function runCriticSync(
     return result
   } catch (err) {
     result.durationMs = Date.now() - startTime
-    result.error = err instanceof Error ? err.message : String(err)
+    result.error = errorMessage(err)
     result.critique = `(Critic error: ${result.error})`
     log(ctx, debug, 'error', `[sync] Critic exception: ${result.error}`)
     return result
@@ -632,7 +633,7 @@ async function runCritic(
     return result
   } catch (err) {
     result.durationMs = Date.now() - startTime
-    result.error = err instanceof Error ? err.message : String(err)
+    result.error = errorMessage(err)
     result.critique = `(Critic error: ${result.error})`
     log(ctx, debug, 'error', `Critic exception: ${result.error}`)
     return result

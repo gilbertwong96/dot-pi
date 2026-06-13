@@ -1,6 +1,6 @@
+import { isRecord } from '../shared/json'
 import {
   errorMessageFromEvent,
-  isRecord,
   textContentFromUnknown,
   usageFromUnknown,
   type UsageSummary

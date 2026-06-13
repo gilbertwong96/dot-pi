@@ -8,6 +8,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { withTimeoutSignal } from '../shared/abort'
+import { errorMessage } from '../shared/errors'
 import { formatBytes } from '../shared/format'
 import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import { toolParameters } from '../shared/tool-schema'
@@ -442,8 +443,7 @@ export default function (pi: ExtensionAPI) {
           selector: selector || undefined
         } satisfies FetchDetails)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        return toolError(message, { url, error: true } satisfies FetchDetails)
+        return toolError(errorMessage(err), { url, error: true } satisfies FetchDetails)
       }
     },
 

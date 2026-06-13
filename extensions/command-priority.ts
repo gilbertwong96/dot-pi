@@ -1,38 +1,22 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import type { AutocompleteItem } from '@earendil-works/pi-tui'
-import { parse } from 'jsonc-parser'
+import { readLayeredSettings } from './shared/settings'
 
 const SETTING_KEYS = ['slashCommandPriority', 'commandAutocompletePriority']
 
-function readPriorityFile(path: string): string[] {
-  if (!existsSync(path)) return []
-
-  try {
-    const settings = parse(readFileSync(path, 'utf8')) as Record<string, unknown>
-    for (const key of SETTING_KEYS) {
-      const value = settings[key]
-      if (Array.isArray(value)) {
-        return value.filter((item): item is string => typeof item === 'string')
-      }
+function readPriority(settings: Record<string, unknown>): string[] {
+  for (const key of SETTING_KEYS) {
+    const value = settings[key]
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string')
     }
-  } catch {
-    return []
   }
-
   return []
 }
 
 function loadPriority(cwd: string): string[] {
-  const globalPath = process.env.PI_CODING_AGENT_DIR
-    ? join(process.env.PI_CODING_AGENT_DIR, 'settings.json')
-    : join(homedir(), '.pi', 'agent', 'settings.json')
-  const projectPath = join(cwd, '.pi', 'settings.json')
-
   const seen = new Set<string>()
-  const priority = [...readPriorityFile(globalPath), ...readPriorityFile(projectPath)]
+  const priority = readLayeredSettings(cwd).flatMap(readPriority)
 
   return priority
     .map((name) => name.replace(/^\//, ''))

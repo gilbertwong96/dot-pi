@@ -10,6 +10,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { DynamicBorder, truncateTail } from '@earendil-works/pi-coding-agent'
 import { Container, Text } from '@earendil-works/pi-tui'
+import { errorMessage } from './shared/errors'
 import {
   firstText,
   meta,
@@ -416,7 +417,7 @@ export default function (pi: ExtensionAPI) {
         updateStatus(ctx)
         ctx.ui.notify(`Stopped "${name}"`, 'info')
       } catch (err) {
-        ctx.ui.notify(err instanceof Error ? err.message : String(err), 'error')
+        ctx.ui.notify(errorMessage(err), 'error')
       }
     }
   })
@@ -464,7 +465,7 @@ export default function (pi: ExtensionAPI) {
         const logs = readFullLogs(ctx.cwd, name)
         await ctx.ui.editor(`Logs: ${name}`, logs)
       } catch (err) {
-        ctx.ui.notify(err instanceof Error ? err.message : String(err), 'error')
+        ctx.ui.notify(errorMessage(err), 'error')
       }
     }
   })
@@ -495,7 +496,7 @@ export default function (pi: ExtensionAPI) {
         updateStatus(ctx)
         return toolText(`Started "${info.name}" (PID ${info.pid})\nLogs: ${info.logFile}`, info)
       } catch (err) {
-        return toolError(err instanceof Error ? err.message : String(err), {
+        return toolError(errorMessage(err), {
           name: params.name,
           pid: 0,
           running: false,
@@ -541,7 +542,7 @@ export default function (pi: ExtensionAPI) {
         updateStatus(ctx)
         return toolText(`Stopped "${params.name}"`, { name: params.name } satisfies StopDetails)
       } catch (err) {
-        return toolError(err instanceof Error ? err.message : String(err), {
+        return toolError(errorMessage(err), {
           name: params.name,
           error: true
         } satisfies StopDetails)
@@ -622,7 +623,7 @@ export default function (pi: ExtensionAPI) {
         const logs = readLogs(ctx.cwd, params.name, params.lines ?? 50)
         return toolText(logs, { name: params.name, logs } satisfies LogsDetails)
       } catch (err) {
-        return toolError(err instanceof Error ? err.message : String(err), {
+        return toolError(errorMessage(err), {
           name: params.name,
           logs: '',
           error: true

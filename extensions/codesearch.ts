@@ -7,6 +7,7 @@
 
 import { type AgentToolResult, type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { fetchGitHubFile, type GitHubFileTargetParams } from './shared/github'
+import { errorMessage } from './shared/errors'
 import { apiErrorMessage, fetchText } from './shared/http'
 import { parseSseJson } from './shared/sse'
 import { toolParameters } from './shared/tool-schema'
@@ -363,8 +364,7 @@ export default function (pi: ExtensionAPI) {
           return toolError('Search request timed out', codeSearchErrorDetails(query))
         }
 
-        const message = err instanceof Error ? err.message : String(err)
-        return toolError(message, codeSearchErrorDetails(query))
+        return toolError(errorMessage(err), codeSearchErrorDetails(query))
       }
     },
 

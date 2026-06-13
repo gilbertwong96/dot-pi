@@ -7,6 +7,7 @@ import { basename, extname, join } from 'node:path'
 import { globSync } from 'glob'
 import { createBiomeClient } from './clients/biome-client'
 import DEFAULTS from './defaults.json' with { type: 'json' }
+import { isRecord } from '../shared/json'
 import type { ServerConfig } from './types'
 
 export interface LspConfig {
@@ -19,10 +20,6 @@ const PID_TOKEN = '$PID'
 interface NormalizedConfig {
   servers: Record<string, Partial<ServerConfig>>
   idleTimeoutMs?: number
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function parseConfigContent(content: string, filePath: string): unknown {

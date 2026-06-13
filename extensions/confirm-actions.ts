@@ -5,9 +5,6 @@
  * session actions that need explicit user approval.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type {
   ExtensionAPI,
   SessionBeforeSwitchEvent,
@@ -15,9 +12,9 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import { isToolCallEventType } from '@earendil-works/pi-coding-agent'
 import { parse, type ParseEntry } from 'shell-quote'
-import { parse as parseJsonc } from 'jsonc-parser'
 import { notifyDesktop } from './shared/desktop-notify'
 import { formatPiNotificationTitle } from './shared/project-name'
+import { readLayeredSettings } from './shared/settings'
 
 export type CommandRule = {
   argv: string[]
@@ -433,25 +430,11 @@ function isFlag(arg: string): boolean {
 }
 
 function loadCommandRules(cwd: string): CommandRule[] {
-  const globalPath = process.env.PI_CODING_AGENT_DIR
-    ? join(process.env.PI_CODING_AGENT_DIR, 'settings.json')
-    : join(homedir(), '.pi', 'agent', 'settings.json')
-  const projectPath = join(cwd, '.pi', 'settings.json')
-  const settings = [readSettings(globalPath), readSettings(projectPath)]
+  const settings = readLayeredSettings(cwd)
   const groups = Object.assign({}, ...settings.map((item) => readConfirmActionGroups(item)))
   const customRules = settings.flatMap(readCommandRules)
 
   return [...buildDefaultCommandRules(groups), ...customRules]
-}
-
-function readSettings(path: string): Record<string, unknown> {
-  if (!existsSync(path)) return {}
-
-  try {
-    return parseJsonc(readFileSync(path, 'utf8')) as Record<string, unknown>
-  } catch {
-    return {}
-  }
 }
 
 function readConfirmActionGroups(settings: Record<string, unknown>): ConfirmActionGroups {

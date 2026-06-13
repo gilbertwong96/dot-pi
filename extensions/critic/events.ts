@@ -1,4 +1,5 @@
 import type { TextContent } from '@earendil-works/pi-ai'
+import { isRecord } from '../shared/json'
 
 export interface ThinkingContent {
   type: 'thinking'
@@ -9,10 +10,6 @@ export interface UsageSummary {
   input: number
   output: number
   cost: number
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
 }
 
 export function isThinkingContent(content: unknown): content is ThinkingContent {

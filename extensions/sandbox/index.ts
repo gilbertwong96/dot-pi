@@ -30,6 +30,8 @@ import {
   type ExtensionAPI,
   type ExtensionContext
 } from '@earendil-works/pi-coding-agent'
+import { errorMessage } from '../shared/errors'
+import { parseJsonObject } from '../shared/json'
 
 interface SandboxConfig extends SandboxRuntimeConfig {
   enabled?: boolean
@@ -80,17 +82,17 @@ function loadConfig(cwd: string): SandboxConfig {
 
   if (existsSync(globalConfigPath)) {
     try {
-      globalConfig = JSON.parse(readFileSync(globalConfigPath, 'utf-8'))
+      globalConfig = parseJsonObject(readFileSync(globalConfigPath, 'utf-8')) ?? {}
     } catch (e) {
-      console.error(`Warning: Could not parse ${globalConfigPath}: ${e}`)
+      console.error(`Warning: Could not parse ${globalConfigPath}: ${errorMessage(e)}`)
     }
   }
 
   if (existsSync(projectConfigPath)) {
     try {
-      projectConfig = JSON.parse(readFileSync(projectConfigPath, 'utf-8'))
+      projectConfig = parseJsonObject(readFileSync(projectConfigPath, 'utf-8')) ?? {}
     } catch (e) {
-      console.error(`Warning: Could not parse ${projectConfigPath}: ${e}`)
+      console.error(`Warning: Could not parse ${projectConfigPath}: ${errorMessage(e)}`)
     }
   }
 
@@ -363,10 +365,7 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify('Sandbox initialized', 'info')
     } catch (err) {
       sandboxEnabled = false
-      ctx.ui.notify(
-        `Sandbox initialization failed: ${err instanceof Error ? err.message : err}`,
-        'error'
-      )
+      ctx.ui.notify(`Sandbox initialization failed: ${errorMessage(err)}`, 'error')
     }
   })
 

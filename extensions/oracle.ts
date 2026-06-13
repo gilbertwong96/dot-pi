@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { AgentMessage, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import {
   buildSessionContext,
@@ -21,8 +18,9 @@ import type {
   ToolCall
 } from '@earendil-works/pi-ai'
 import { Box, Text } from '@earendil-works/pi-tui'
-import { parse } from 'jsonc-parser'
 import { filterDisplayOnlyMessages, registerDisplayOnlyMessage } from './shared/display-message'
+import { errorMessage } from './shared/errors'
+import { deepMerge, readLayeredSettings } from './shared/settings'
 
 type PrecompactMode = 'pi' | 'custom' | 'off'
 type SummaryMode = 'latest' | 'all' | 'none'
@@ -152,37 +150,8 @@ export const DEFAULT_CONFIG: OracleConfig = {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function readSettings(path: string): Record<string, unknown> {
-  if (!existsSync(path)) return {}
-  try {
-    const parsed = parse(readFileSync(path, 'utf8'))
-    return isRecord(parsed) ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function deepMerge<T extends Record<string, unknown>>(base: T, override: unknown): T {
-  if (!isRecord(override)) return base
-  const out: Record<string, unknown> = { ...base }
-  for (const [key, value] of Object.entries(override)) {
-    const previous = out[key]
-    out[key] = isRecord(previous) && isRecord(value) ? deepMerge(previous, value) : value
-  }
-  return out as T
-}
-
 function loadOracleConfig(cwd: string): OracleConfig {
-  const globalPath = process.env.PI_CODING_AGENT_DIR
-    ? join(process.env.PI_CODING_AGENT_DIR, 'settings.json')
-    : join(homedir(), '.pi', 'agent', 'settings.json')
-  const projectPath = join(cwd, '.pi', 'settings.json')
-  const globalSettings = readSettings(globalPath)
-  const projectSettings = readSettings(projectPath)
+  const [globalSettings, projectSettings] = readLayeredSettings(cwd)
   const merged = deepMerge(
     DEFAULT_CONFIG as unknown as Record<string, unknown>,
     globalSettings.oracle
@@ -688,7 +657,7 @@ export default function oracle(pi: ExtensionAPI) {
         if (run?.config.restore.tools) pi.setActiveTools(run.previousTools)
         if (run?.config.restore.thinking) pi.setThinkingLevel(run.previousThinking)
         if (run?.config.restore.model && run.previousModel) await pi.setModel(run.previousModel)
-        ctx.ui.notify(error instanceof Error ? error.message : String(error), 'error')
+        ctx.ui.notify(errorMessage(error), 'error')
       }
     }
   })

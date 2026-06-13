@@ -6,6 +6,7 @@
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { errorMessage } from '../shared/errors'
 import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import {
@@ -390,8 +391,7 @@ export default function (pi: ExtensionAPI) {
           truncation: truncated.truncation
         } satisfies WebSearchDetails)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        return toolError(message, webSearchErrorDetails(query))
+        return toolError(errorMessage(err), webSearchErrorDetails(query))
       }
     },
 

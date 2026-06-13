@@ -19,6 +19,7 @@ import {
   renderToolCall,
   toolText
 } from '../shared/render'
+import { errorMessage } from '../shared/errors'
 import type {
   CallHierarchyIncomingCall,
   CallHierarchyItem,
@@ -927,8 +928,7 @@ export default function (pi: ExtensionAPI) {
 
         return lspText(output, { serverName, action, success: true, file: targetFile ?? undefined })
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        return lspError(`LSP error: ${errorMessage}`, {
+        return lspError(`LSP error: ${errorMessage(err)}`, {
           serverName,
           action,
           file: resolvedFile ?? undefined
