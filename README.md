@@ -91,11 +91,14 @@ pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
 pi install npm:pi-elixir                                    # Elixir/BEAM development
 pi install npm:pi-subagents                                 # subagent delegation
 pi install npm:pi-context                                   # context history tags/checkouts
+pi install npm:pi-delete-session                            # bulk session deletion
 ```
 
 `pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
+
+`pi-delete-session` is useful for cleaning up accumulated sessions. It adds a `/delete-session` command with multi-select checkboxes, project grouping, a red confirmation dialog before permanent deletion, and auto-reset to a new session if you delete the active one.
 
 Recommended external Gmail skill/tool setup:
 
