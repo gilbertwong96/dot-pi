@@ -22,12 +22,12 @@ Or copy the file directly.
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool              | Description                              |
+| ----------------- | ---------------------------------------- |
 | `worktree_create` | Create isolated worktree with new branch |
-| `worktree_list` | List all worktrees in repository |
-| `worktree_status` | Get git status of a specific worktree |
-| `worktree_remove` | Remove worktree (branch preserved) |
+| `worktree_list`   | List all worktrees in repository         |
+| `worktree_status` | Get git status of a specific worktree    |
+| `worktree_remove` | Remove worktree (branch preserved)       |
 
 ## Usage with Subagent
 
@@ -53,11 +53,13 @@ LLM:
 **Footer status**: Shows `⎇ N worktrees` when worktrees are active
 
 **Widget**: Displays list of active worktrees above the editor:
+
 ```
 ─── Worktrees ───
 ● fix-auth /project/.worktrees/fix-auth
 ○ add-caching /project/.worktrees/add-caching
 ```
+
 - `●` = setup completed
 - `○` = setup in progress
 
@@ -70,10 +72,10 @@ LLM:
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `/worktree` | Interactive worktree selector with type-to-filter and actions (show path, status, remove) |
-| `/worktrees` | List all worktrees (quick notification) |
+| Command      | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| `/worktree`  | Interactive worktree selector with type-to-filter and actions (show path, status, remove) |
+| `/worktrees` | List all worktrees (quick notification)                                                   |
 
 ## What's a Git Worktree?
 

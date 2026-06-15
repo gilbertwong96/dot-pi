@@ -52,7 +52,7 @@ return renderEntryList(items, theme, {
     metadata: meta(item.path, theme),
     body: expanded ? [primary(item.text, theme)] : undefined
   }),
-  hiddenLines: (hidden) => hidden > 0 ? [meta(`… ${hidden} more`, theme)] : []
+  hiddenLines: (hidden) => (hidden > 0 ? [meta(`… ${hidden} more`, theme)] : [])
 })
 ```
 
@@ -74,9 +74,13 @@ Use `requireEnv()` for API keys and `fetchText()` / `fetchJson()` for HTTP calls
 const apiKey = requireEnv('EXA_API_KEY')
 if (!apiKey.ok) return toolError(apiKey.message, details)
 
-const response = await fetchJson<MyResponse>(url, {
-  headers: { Authorization: `Bearer ${apiKey.value}` }
-}, { signal, timeoutMs: 30_000 })
+const response = await fetchJson<MyResponse>(
+  url,
+  {
+    headers: { Authorization: `Bearer ${apiKey.value}` }
+  },
+  { signal, timeoutMs: 30_000 }
+)
 ```
 
 Use `withTimeoutSignal()` directly when an SDK accepts `AbortSignal` but does its own request.
