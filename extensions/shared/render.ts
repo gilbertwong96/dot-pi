@@ -3,6 +3,7 @@ import { compactText as compactTextValue } from './format'
 import {
   Markdown,
   truncateToWidth,
+  visibleWidth,
   type Component,
   type MarkdownTheme
 } from '@earendil-works/pi-tui'
@@ -59,9 +60,22 @@ export function renderEmpty(): Component {
   }
 }
 
+type RenderLine = string | ((width: number) => string)
+
 export function renderLines(lines: string[]): Component {
+  return renderLinesWithMarker(lines, '…')
+}
+
+export function renderLinesWithMarker(lines: RenderLine[], marker: string): Component {
   return {
-    render: (width) => ['', ...lines.map((line) => truncateLine(line, width))],
+    render: (width) => [
+      '',
+      ...lines.map((line) =>
+        typeof line === 'function'
+          ? truncateLine(line(width), width, marker)
+          : truncateLine(line, width, marker)
+      )
+    ],
     invalidate: () => undefined
   }
 }
@@ -190,6 +204,64 @@ function defaultMarkdownPreview(
   return { lines: lines.slice(0, compactLines), hidden: Math.max(0, lines.length - compactLines) }
 }
 
+interface TextLinesPreviewOptions {
+  expanded: boolean
+  compactLimit: number
+  expandedLimit?: number
+  header?: string[]
+  mode?: 'head' | 'tail'
+  hiddenUnit?: string
+  inlineHidden?: boolean
+  styleLine?: (line: string, theme: Theme) => string
+  truncationMarker?: string
+}
+
+export function renderTextLinesPreview(
+  lines: string[],
+  theme: Theme,
+  options: TextLinesPreviewOptions
+): Component {
+  const styleLine = options.styleLine ?? ((line: string) => primary(line, theme))
+  const mode = options.mode ?? 'head'
+  const limit = options.expanded ? options.expandedLimit : options.compactLimit
+  const visibleLines =
+    limit === undefined ? lines : mode === 'tail' ? lines.slice(-limit) : lines.slice(0, limit)
+  const hidden = Math.max(0, lines.length - visibleLines.length)
+  const hiddenText = hiddenLine(hidden, theme, options.hiddenUnit ?? 'more lines')
+  const inlineHidden =
+    !options.expanded && options.inlineHidden && hiddenText && visibleLines.length > 0
+  const renderedLines = [
+    ...(options.header ?? []),
+    ...visibleLines.map((line, index) => {
+      const styledLine = styleLine(line, theme)
+      if (!inlineHidden || index !== visibleLines.length - 1) return styledLine
+      return appendWidthAwareSuffix(
+        styledLine,
+        ` ${hiddenText} ${expandHint(theme)}`,
+        options.truncationMarker
+      )
+    })
+  ]
+
+  if (!options.expanded && hiddenText && !inlineHidden) {
+    renderedLines.push('', hiddenText, ...renderExpandFooter(theme))
+  }
+
+  return renderLinesWithMarker(renderedLines, options.truncationMarker ?? '…')
+}
+
+function appendWidthAwareSuffix(
+  line: string,
+  suffix: string,
+  marker = '…'
+): (width: number) => string {
+  return (width) => {
+    const suffixWidth = visibleWidth(suffix)
+    if (suffixWidth >= width) return truncateLine(suffix, width, marker)
+    return truncateLine(line, width - suffixWidth, marker) + suffix
+  }
+}
+
 export function renderMarkdownPreview(
   markdown: string,
   theme: Theme,
@@ -258,9 +330,9 @@ export function truncateText(text: string, maxChars: number): string {
   return compactTextValue(text, maxChars)
 }
 
-export function truncateLine(text: string, maxWidth: number): string {
+export function truncateLine(text: string, maxWidth: number, marker = '…'): string {
   if (maxWidth <= 0) return ''
-  return truncateToWidth(text, maxWidth, '…')
+  return truncateToWidth(text, maxWidth, marker)
 }
 
 export function renderSingleLine(text: string): Component {

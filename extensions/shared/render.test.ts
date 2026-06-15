@@ -10,6 +10,7 @@ import {
   renderErrorOrPartial,
   renderLines,
   renderMarkdownPreview,
+  renderTextLinesPreview,
   renderToolCall,
   toolError,
   toolLoading
@@ -34,6 +35,17 @@ describe('renderLines', () => {
 
     expect(visibleWidth(line)).toBeLessThanOrEqual(10)
     expect(line).toContain('…')
+  })
+
+  test('supports explicit truncation marker', () => {
+    const [, line] = renderTextLinesPreview(['abcdefghijklmnopqrstuvwxyz'], theme, {
+      expanded: false,
+      compactLimit: 1,
+      truncationMarker: '...'
+    }).render(10)
+
+    expect(visibleWidth(line)).toBeLessThanOrEqual(10)
+    expect(line).toContain('...')
   })
 })
 
@@ -108,6 +120,56 @@ describe('renderMarkdownPreview', () => {
     expect(lines).toContain('one')
     expect(lines).toContain('two')
     expect(lines).toContain('… 1 more lines')
+  })
+})
+
+describe('renderTextLinesPreview', () => {
+  test('renders a compact tail preview with expand footer', () => {
+    const lines = renderTextLinesPreview(['one', 'two', 'three'], theme, {
+      expanded: false,
+      compactLimit: 1,
+      header: ['logs'],
+      mode: 'tail'
+    }).render(120)
+
+    expect(lines).toContain('logs')
+    expect(lines).toContain('three')
+    expect(lines).toContain('… 2 more lines')
+    expect(lines.join('\n')).toContain('ctrl+o')
+    expect(lines).not.toContain('one')
+  })
+
+  test('renders all lines when expanded', () => {
+    const lines = renderTextLinesPreview(['one', 'two'], theme, {
+      expanded: true,
+      compactLimit: 1,
+      mode: 'tail'
+    }).render(120)
+
+    expect(lines).toEqual(['', 'one', 'two'])
+  })
+
+  test('supports inline hidden counts without extra footer lines', () => {
+    const lines = renderTextLinesPreview(['one', 'two', 'three'], theme, {
+      expanded: false,
+      compactLimit: 1,
+      header: ['logs'],
+      mode: 'tail',
+      inlineHidden: true
+    }).render(120)
+
+    expect(lines).toEqual(['', 'logs', 'three … 2 more lines (ctrl+o to expand)'])
+  })
+
+  test('limits expanded previews when requested', () => {
+    const lines = renderTextLinesPreview(['one', 'two', 'three', 'four'], theme, {
+      expanded: true,
+      compactLimit: 1,
+      expandedLimit: 3,
+      mode: 'tail'
+    }).render(120)
+
+    expect(lines).toEqual(['', 'two', 'three', 'four'])
   })
 })
 

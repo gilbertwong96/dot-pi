@@ -9,20 +9,22 @@
 
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { DynamicBorder, truncateTail } from '@earendil-works/pi-coding-agent'
-import { Container, Text } from '@earendil-works/pi-tui'
+import { Container, Text, visibleWidth } from '@earendil-works/pi-tui'
 import { errorMessage } from './shared/errors'
 import {
   firstText,
   meta,
-  primary,
   renderError,
   renderLines,
   renderMuted,
+  renderTextLinesPreview,
   renderToolCall,
   title,
+  truncateLine,
   toolError,
   toolText
 } from './shared/render'
+import { compactLines, normalizeTerminalOutput } from './shared/format'
 import { Type } from 'typebox'
 import { spawn, spawnSync } from 'child_process'
 import * as crypto from 'crypto'
@@ -223,22 +225,6 @@ function stopProcess(projectDir: string, name: string): void {
   }
 }
 
-function stripProgressNoise(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  let clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
-
-  clean = clean
-    .split('\n')
-    .map((line) => {
-      if (!line.includes('\r')) return line
-      const parts = line.split('\r')
-      return parts[parts.length - 1]
-    })
-    .join('\n')
-
-  return clean
-}
-
 function readLogs(projectDir: string, name: string, lines: number): string {
   const dir = findProcessDir(projectDir, name)
   if (!dir) {
@@ -254,7 +240,7 @@ function readLogs(projectDir: string, name: string, lines: number): string {
     encoding: 'utf8'
   })
 
-  const raw = stripProgressNoise(result.stdout || result.stderr || '')
+  const raw = normalizeTerminalOutput(result.stdout || result.stderr || '')
   const truncation = truncateTail(raw, { maxLines: lines })
 
   if (truncation.truncated) {
@@ -364,15 +350,39 @@ function updateStatus(ctx: ExtensionContext) {
         for (const proc of running) {
           const displayName = getDisplayName(proc)
           try {
-            const logs = readLogs(ctx.cwd, proc.name, 2)
-            container.addChild(new Text(theme.fg('muted', ` ${displayName} `), 0, 0))
-            if (logs.trim()) {
-              for (const line of logs.trim().split('\n')) {
-                container.addChild(new Text(theme.fg('dim', ` ${line}`), 0, 0))
-              }
+            const logs = readLogs(ctx.cwd, proc.name, 10)
+            const lines = compactLines(logs)
+            const latest = lines.at(-1)
+            const hidden = Math.max(0, lines.length - 1)
+            container.addChild({
+              render: (width) => [
+                truncateLine(theme.fg('muted', ` ${displayName} `), width, theme.fg('muted', '…'))
+              ],
+              invalidate: () => undefined
+            })
+            if (latest) {
+              container.addChild({
+                render: (width) => {
+                  const suffix = hidden > 0 ? ` ${theme.fg('muted', `… ${hidden} more lines`)}` : ''
+                  const suffixWidth = visibleWidth(suffix)
+                  if (suffixWidth >= width)
+                    return [truncateLine(suffix, width, theme.fg('muted', '…'))]
+                  const available = Math.max(1, width - suffixWidth)
+                  return [
+                    truncateLine(theme.fg('dim', ` ${latest}`), available, theme.fg('dim', '…')) +
+                      suffix
+                  ]
+                },
+                invalidate: () => undefined
+              })
             }
           } catch {
-            container.addChild(new Text(theme.fg('muted', ` ${displayName} `), 0, 0))
+            container.addChild({
+              render: (width) => [
+                truncateLine(theme.fg('muted', ` ${displayName} `), width, theme.fg('muted', '…'))
+              ],
+              invalidate: () => undefined
+            })
             container.addChild(new Text(theme.fg('dim', ' (no logs)'), 0, 0))
           }
         }
@@ -635,20 +645,23 @@ export default function (pi: ExtensionAPI) {
       const safeArgs = args ?? {}
       return renderToolCall(theme, 'bg logs', {
         segments: [{ text: safeArgs.name }],
-        suffix: safeArgs.lines ? `${safeArgs.lines} lines` : undefined
+        suffix: safeArgs.lines ? `last ${safeArgs.lines}` : undefined
       })
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, { expanded }, theme) {
       const details = result.details as LogsDetails
       if (details.error) return renderError(firstText(result, 'Error'), theme)
-      if (!details.logs.trim()) return renderMuted('(empty)', theme)
-      const preview = details.logs.split('\n').slice(-3)
-      return renderLines([
-        ...renderProcessRow(theme, details.name, `logs  last ${preview.length}`),
-        '',
-        ...preview.map((line) => primary(line, theme))
-      ])
+      const lines = compactLines(details.logs)
+      if (lines.length === 0) return renderMuted('(empty)', theme)
+      return renderTextLinesPreview(lines, theme, {
+        expanded,
+        compactLimit: 3,
+        mode: 'tail',
+        hiddenUnit: 'hidden',
+        inlineHidden: true,
+        truncationMarker: theme.fg('toolOutput', '…')
+      })
     }
   })
 }
