@@ -81,6 +81,7 @@
       "extensions/notify.ts",
       "extensions/oracle.ts",
       "extensions/quote.ts",
+      "extensions/rules.ts",
       "extensions/refactor-discipline.ts",
       "extensions/workflow-shortcuts.ts",
       "extensions/webfetch",
