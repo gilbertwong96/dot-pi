@@ -17,7 +17,7 @@
     "lint": "npm run lint:structure && npm run lint:type",
     "lint:structure": "oxlint -c oxlint.json package.json extensions skills --ignore-pattern 'extensions/critic/tests/**'",
     "lint:type": "oxlint -c oxlint.json --type-aware --type-check extensions skills --ignore-pattern '**/*.test.ts' --ignore-pattern '**/*.integration.ts' --ignore-pattern 'skills/**/tests/**' --ignore-pattern 'extensions/critic/tests/**'",
-    "format:check": "bash -lc 'oxfmt --check package.json tsconfig.json oxlint.json .oxfmtrc.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)'",
+    "format:check": "npx --no oxfmt --check package.json tsconfig.json oxlint.json .oxfmtrc.json $(find extensions skills -path \"*/node_modules\" -prune -o -name \"*.ts\" -print)",
     "typecheck": "tsgo --noEmit && tsc --noEmit",
     "test": "vitest run",
     "test:dupes": "jscpd --config .jscpd.json",
