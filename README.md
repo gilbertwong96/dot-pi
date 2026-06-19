@@ -69,7 +69,7 @@ Update Pi and installed packages later with:
 pi update
 ```
 
-If prompt shortcuts such as `/ga` or `/verify` do not appear, check that `dot-pi` is enabled in `~/.pi/agent/settings.json`:
+If prompt shortcuts such as `/ga` or `/wn` do not appear, check that `dot-pi` is enabled in `~/.pi/agent/settings.json`:
 
 ```json
 {
@@ -152,6 +152,7 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
     "steps",
     "big",
     "ground",
+    "rtfm",
     "minimal",
     "proper",
     "verify",
@@ -194,15 +195,15 @@ Set a group to `false` to disable those built-in confirmations; custom `confirmC
 
 ### Workflow slash commands
 
-These mirror repeated Pi prompts from real sessions, but keep them bounded and evidence-first. `/steps` and `/big` use prompt-template defaults, so `/steps` means 7 steps and `/steps 10` means 10 steps. `/recap`, `/quote`, and `/oracle` are extension commands.
+These mirror repeated Pi prompts from real sessions. Keep common prompts short; use explicit prompts when extra intent matters. `/steps` and `/big` use prompt-template defaults, so `/steps` means 7 steps and `/steps 10` means 10 steps. `/recap`, `/quote`, and `/oracle` are extension commands.
 
 My usual coding flow:
 
-1. Use `/ga` for bounded approval of the current agreed next step.
+1. Use `/ga` for plain “go ahead”.
 2. Use `/wn` for quick orientation, `/steps [N]` for lists, and `/big [N]` for coarse work chunks.
-3. Use `/ground`, `/proper`, or `/minimal` before the agent invents shape or drifts from project mechanisms.
+3. Use `/rtfm`, `/ground`, `/proper`, or `/minimal` when extra intent matters.
 4. Use `/all` only for already agreed pending items.
-5. Use `/verify` and `/retry` for evidence and tighter recovery.
+5. Use `/retry` for tighter recovery.
 6. Use `/stop` when the trajectory is wrong.
 7. Use `/push` once work is coherent; use `/release` only for release prep.
 
@@ -211,7 +212,7 @@ My usual coding flow:
 | `/all`           | `go ahead with all`, `do all pending`       | Complete currently agreed pending items; do not invent new work.                                                               |
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
 | `/big [N]`       | `next big 10 steps`                         | Exactly N coarse work chunks, no microsteps. Defaults to 7.                                                                    |
-| `/ga`            | `go ahead`                                  | Bounded approval for the current agreed next step only.                                                                        |
+| `/ga`            | `go ahead`                                  | Plain approval to continue.                                                                                                    |
 | `/ground`        | `read existing APIs/docs first`             | Inspect existing code/docs/upstream APIs; summarize patterns and minimal path. No edits.                                      |
 | `/minimal`       | `too many entities`, `clean/minimal`        | Remove unnecessary wrappers/entities/shims/hand-rolled logic; reuse mechanisms.                                                |
 | `/nobc`          | `no backward compatibility for new stuff`   | Replace newly introduced names/config cleanly; keep compatibility only for real released users.                                |
@@ -221,7 +222,8 @@ My usual coding flow:
 | `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
 | `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
 | `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                         |
-| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose actual failure, retry narrower, verify.                                                                               |
+| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose actual failure and retry narrower.                                                                                    |
+| `/rtfm`          | `read the docs/source first`                | Read relevant docs/source, then answer from evidence. No guessing.                                                             |
 | `/steps [N]`     | `whats next?`, `next 7 steps`               | Brief state, exactly N prioritized next steps, best bounded action. Defaults to 7.                                             |
 | `/stop`          | `stop`, `wrong direction`                   | Stop drift, identify failure mode, propose one recovery action. No edits.                                                      |
 | `/verify`        | `did you test?`, `use browser`, `run ci`    | Verify with real evidence and report exact checks.                                                                             |
@@ -258,7 +260,7 @@ Configure `/oracle` in settings:
     },
     "tools": "none",
     "confirm": true,
-    "defaultIntent": "verify",
+    "defaultIntent": "review",
     "pricing": { "inputPerMillion": 10, "outputPerMillion": 50 },
     "budget": { "targetOutputTokens": 1500, "maxTotalUsd": 1 }
   }

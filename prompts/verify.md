@@ -2,6 +2,6 @@
 description: Verify and fix
 ---
 
-Verify current work with real evidence: tests/LSP/formatter/browser/runtime/profiling/local CI as relevant.
+Verify this properly.
 
-Fix failures. Report exact evidence.
+Use the relevant checks. Report exact evidence.
