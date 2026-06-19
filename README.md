@@ -147,18 +147,22 @@ Slash command priority can be configured in `~/.pi/agent/settings.json` or `.pi/
 {
   "slashCommandPriority": [
     "ga",
-    "gaa",
-    "lgtm",
-    "quote",
-    "next",
-    "oracle",
-    "recap",
     "all",
-    "nobc",
+    "wn",
+    "steps",
+    "big",
+    "ground",
+    "minimal",
+    "proper",
     "verify",
     "retry",
+    "stop",
     "push",
     "release",
+    "quote",
+    "recap",
+    "oracle",
+    "nobc",
     "ar"
   ]
 }
@@ -190,38 +194,38 @@ Set a group to `false` to disable those built-in confirmations; custom `confirmC
 
 ### Workflow slash commands
 
-These mirror my actual repeated Pi prompts from recent coding sessions, so I can type less without losing intent. Most are prompt shortcuts; `/next`, `/recap`, and `/quote` are extension commands so optional arguments and selection handling stay clean.
+These mirror repeated Pi prompts from real sessions, but keep them bounded and evidence-first. `/steps` and `/big` use prompt-template defaults, so `/steps` means 7 steps and `/steps 10` means 10 steps. `/recap`, `/quote`, and `/oracle` are extension commands.
 
 My usual coding flow:
 
-1. Ask `/next` when context gets fuzzy. Pi should restate state, list the next concrete steps, and pick the best immediate move.
-2. Use `/ga` for a simple approval of the current path. This is the direct replacement for my very frequent “go ahead”.
-3. Select assistant text, press `ctrl+/`, then comment below the inserted email-style quote.
-4. Use `/lgtm` when I want more autonomy than `/ga`: proceed, implement the next slice, verify, and summarize.
-5. Use `/oracle` when I want an expensive model to answer from a compressed context instead of dumping the full session into it.
-6. Use `/recap` when `/next` is too local and I need the original plan vs current drift.
-7. Use `/all` after reviews/plans when I do not want piecemeal fixes.
-8. Use `/verify` when I suspect the agent skipped tests, browser checks, CI, or manual validation.
-9. Use `/retry` after a failed/flaky attempt, usually with a tighter diagnosis.
-10. Use `/push` once the work is coherent; use `/release` only when changelog/version/publish prep is needed.
-11. Use `/ar` for the repeated autoresearch resume loop after context-limit restarts.
+1. Use `/ga` for bounded approval of the current agreed next step.
+2. Use `/wn` for quick orientation, `/steps [N]` for lists, and `/big [N]` for coarse work chunks.
+3. Use `/ground`, `/proper`, or `/minimal` before the agent invents shape or drifts from project mechanisms.
+4. Use `/all` only for already agreed pending items.
+5. Use `/verify` and `/retry` for evidence and tighter recovery.
+6. Use `/stop` when the trajectory is wrong.
+7. Use `/push` once work is coherent; use `/release` only for release prep.
 
 | Command          | Use when I would normally type...           | Meaning                                                                                                                        |
 | ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `/ga`            | `go ahead`                                  | Minimal approval; continue current path.                                                                                       |
-| `/gaa`           | `go ahead with all`                         | Alias for `/all`; complete all pending review/plan items, not one-by-one.                                                      |
-| `/lgtm`          | `yes`, `do it`, `okay`                      | Proceed; do not ask unless blocked; verify and summarize.                                                                      |
-| `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
-| `/next [count]`  | `whats next?`, `what are next 7 big steps?` | Brief state, prioritized next steps, best immediate action.                                                                    |
-| `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
-| `/oracle [q]`    | `ask the expensive model`                   | Opens a native picker/confirm flow, pre-compacts, reduces one-turn context, switches model, answers, then restores.            |
+| `/all`           | `go ahead with all`, `do all pending`       | Complete currently agreed pending items; do not invent new work.                                                               |
 | `/ar`            | `autoresearch loop ended... resume`         | Resume experiment loop from saved state; run and log next experiment.                                                          |
-| `/verify`        | `did you test?`, `use browser`, `run ci`    | Run relevant checks, fix failures, rerun focused checks.                                                                       |
-| `/all`           | `fix all`, `do all`, `all pending items`    | Same intent as `/gaa`; complete all pending review/plan items, not one-by-one.                                                 |
+| `/big [N]`       | `next big 10 steps`                         | Exactly N coarse work chunks, no microsteps. Defaults to 7.                                                                    |
+| `/ga`            | `go ahead`                                  | Bounded approval for the current agreed next step only.                                                                        |
+| `/ground`        | `read existing APIs/docs first`             | Inspect existing code/docs/upstream APIs; summarize patterns and minimal path. No edits.                                      |
+| `/minimal`       | `too many entities`, `clean/minimal`        | Remove unnecessary wrappers/entities/shims/hand-rolled logic; reuse mechanisms.                                                |
 | `/nobc`          | `no backward compatibility for new stuff`   | Replace newly introduced names/config cleanly; keep compatibility only for real released users.                                |
+| `/oracle [q]`    | `ask the expensive model`                   | Pre-compacts/reduces context, switches model, answers, then restores.                                                          |
+| `/proper`        | `do it properly`, `use the pipeline`        | Use existing project pipeline/conventions, not bypasses.                                                                       |
 | `/push`          | `push`, `commit and push`, `time to commit` | Review status, commit in repo style, push.                                                                                     |
+| `/quote [text]`  | selected assistant excerpt + comment        | Quote args or current selection as `>` lines. Shortcut: `ctrl+/`; `/quote` without args may use clipboard as a final fallback. |
+| `/recap [focus]` | `wtf is going on?`, `what was the plan?`    | Reconstruct global context: goal, state, decisions, open threads, drift, and best action.                                      |
 | `/release`       | `publish`, `changelog`, `prepare release`   | Prepare release artifacts/checks; do not publish without confirmation.                                                         |
-| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose previous failure, retry tighter, verify.                                                                              |
+| `/retry`         | `retry`, `try again`, `rerun`               | Diagnose actual failure, retry narrower, verify.                                                                               |
+| `/steps [N]`     | `whats next?`, `next 7 steps`               | Brief state, exactly N prioritized next steps, best bounded action. Defaults to 7.                                             |
+| `/stop`          | `stop`, `wrong direction`                   | Stop drift, identify failure mode, propose one recovery action. No edits.                                                      |
+| `/verify`        | `did you test?`, `use browser`, `run ci`    | Verify with real evidence and report exact checks.                                                                             |
+| `/wn`            | `whats next?`                               | One-paragraph state plus the single best bounded next action.                                                                  |
 
 Configure `/oracle` in settings:
 

@@ -2,4 +2,6 @@
 description: Retry last failure
 ---
 
-Find why it failed, retry tighter, verify.
+Diagnose the last failure from actual output/state.
+
+Retry narrower. Don’t repeat blindly. Verify.
