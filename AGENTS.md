@@ -52,6 +52,21 @@ Update an existing canonical home before creating a new Markdown document:
 
 Do not commit ad hoc audit reports, execution diaries, machine-local test evidence, or speculative proposals as standalone docs. Use issues/reviews or commit history for those. Skills, prompts, rules, and Markdown test fixtures are functional resources, not documentation clutter.
 
+## Model Provider Configuration
+
+Providers shipped with the package register themselves by extension:
+
+- **Extension** (`extensions/provider-commandcode.ts`): registers the provider programmatically via `pi.registerProvider()`. `pi install` plus the provider's API key env var is enough to use it.
+
+Pi also supports a standalone `~/.pi/agent/models.json` for providers configured outside this package. dot-pi does not ship one.
+
+When adding a new provider:
+
+1. Add an `extensions/provider-<name>.ts` extension that calls `pi.registerProvider()`
+2. Register it in `package.json` → `pi.extensions`
+3. Add its row to the extensions table in `README.md`
+4. Run `npm run check` to validate before committing
+
 ## Quality Gates
 
 Before committing changes, run:
