@@ -26,6 +26,20 @@ When adding new extensions, skills, or rules:
 3. Include Origin column with link to source if adapted from another project
 4. Commit both the component and README update together
 
+## Model Provider Configuration
+
+Two mechanisms exist for registering model providers:
+
+- **Extension** (`extensions/provider-byteplus.ts`): Registers providers programmatically. Just `pi install` and set the API key env var. Preferred approach for providers shipped with the package.
+- **Config file** (`models.json`): Standalone JSON config symlinked to `~/.pi/agent/models.json`. Useful for standalone use outside the package.
+
+When adding a new provider:
+
+1. Add a `extensions/provider-<name>.ts` extension that calls `pi.registerProvider()`
+2. Register it in `package.json` → `pi.extensions`
+3. Update `models.json` with the same config (keep both in sync)
+4. Run `npm run check` to validate before committing
+
 ## Quality Gates
 
 Before committing changes, run:
