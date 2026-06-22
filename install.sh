@@ -2,7 +2,7 @@
 
 set -u
 
-DOT_PI_SOURCE="git:github.com/dannote/dot-pi"
+DOT_PI_SOURCE="git:github.com/gilbertwong96/dot-pi"
 DOT_PI_REF=${DOT_PI_REF:-}
 PI_PACKAGE="@earendil-works/pi-coding-agent"
 
@@ -280,10 +280,35 @@ install_companions() {
     "pi-context" \
     "Context history tags and checkouts for resuming or navigating long-running work." \
     n
+  install_pi_package \
+    "npm:pi-delete-session" \
+    "pi-delete-session" \
+    "Bulk session deletion: delete multiple sessions at once, grouped by project, with safety confirmations." \
+    n
+  install_pi_package \
+    "npm:pi-cost" \
+    "pi-cost" \
+    "Cost dashboard: usage and cost tracking for the pi coding agent." \
+    n
+  install_pi_package \
+    "npm:@sherif-fanous/pi-rtk" \
+    "pi-rtk" \
+    "Token savings: routes bash commands through rtk (Rust Token Killer) to cut LLM token usage." \
+    n
+  install_pi_package \
+    "npm:pi-provider-umans" \
+    "pi-provider-umans" \
+    "Umans.ai model provider: OpenAI-compatible endpoint with dynamic model discovery." \
+    n
+  install_pi_package \
+    "npm:@sting8k/pi-vcc" \
+    "pi-vcc" \
+    "Conversation compactor: transcript-preserving structured summaries with no LLM calls." \
+    n
 
   if [ "$(os_name)" = "macos" ]; then
     install_pi_package \
-      "git:github.com/injaneity/pi-computer-use@v0.2.6" \
+      "git:github.com/injaneity/pi-computer-use@v0.3.2" \
       "pi-computer-use" \
       "macOS visible-app automation with screenshot, window, and accessibility tools." \
       n

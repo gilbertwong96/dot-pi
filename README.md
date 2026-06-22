@@ -19,7 +19,7 @@ pi install git:github.com/gilbertwong96/dot-pi
 For the recommended end-user setup, run the bootstrap script. Safer review-first flow:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh
+curl -fsSLO https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh
 less install.sh
 sh install.sh
 ```
@@ -27,17 +27,17 @@ sh install.sh
 Convenience one-liner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-rtk`, `pi-provider-umans`, `pi-vcc`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
 
 Headless/non-interactive Linux needs Node.js 22.19.0+ and npm available before Pi can install. Check with `node --version` and `npm --version`; install Node 22+ with your preferred Node manager or distro setup if needed.
 
 Use non-interactive defaults with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh -s -- --yes
 ```
 
 Useful bootstrap options:
@@ -73,7 +73,7 @@ If prompt shortcuts such as `/ga` or `/wn` do not appear, check that `dot-pi` is
 
 ```json
 {
-  "packages": ["git:github.com/dannote/dot-pi"]
+  "packages": ["git:github.com/gilbertwong96/dot-pi"]
 }
 ```
 
@@ -87,11 +87,15 @@ ln -s /path/to/dot-pi/prompts/*.md ~/.pi/agent/prompts/
 Useful companion packages, installed separately when you want them:
 
 ```bash
-pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
 pi install npm:pi-elixir                                    # Elixir/BEAM development
 pi install npm:pi-subagents                                 # subagent delegation
 pi install npm:pi-context                                   # context history tags/checkouts
 pi install npm:pi-delete-session                            # bulk session deletion
+pi install npm:pi-cost                                      # cost/usage dashboard
+pi install npm:@sherif-fanous/pi-rtk                        # bash token savings via rtk
+pi install npm:pi-provider-umans                            # Umans.ai model provider
+pi install npm:@sting8k/pi-vcc                              # transcript-preserving compaction
+pi install git:github.com/injaneity/pi-computer-use@v0.3.2  # macOS computer use
 ```
 
 `pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
@@ -336,7 +340,7 @@ Example package filter enabling only voice input, AppleScript, and the extra Mar
 {
   "packages": [
     {
-      "source": "git:github.com/dannote/dot-pi",
+      "source": "git:github.com/gilbertwong96/dot-pi",
       "extensions": ["+extensions/voice-input"],
       "skills": [
         "+skills/applescript",
