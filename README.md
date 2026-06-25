@@ -30,7 +30,7 @@ Convenience one-liner:
 curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-rtk`, `pi-provider-umans`, `pi-vcc`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-mise`, `pi-rtk`, `pi-token-speed`, `pi-provider-umans`, `pi-vcc`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; `pi-mise` defaults to yes when `mise` is detected; other companions default to no.
 
 Headless/non-interactive Linux needs Node.js 22.19.0+ and npm available before Pi can install. Check with `node --version` and `npm --version`; install Node 22+ with your preferred Node manager or distro setup if needed.
 
@@ -92,7 +92,9 @@ pi install npm:pi-subagents                                 # subagent delegatio
 pi install npm:pi-context                                   # context history tags/checkouts
 pi install npm:pi-delete-session                            # bulk session deletion
 pi install npm:pi-cost                                      # cost/usage dashboard
+pi install npm:@capotej/pi-mise                             # auto-activate mise toolchains
 pi install npm:@sherif-fanous/pi-rtk                        # bash token savings via rtk
+pi install npm:pi-token-speed                               # tokens-per-second via sliding window
 pi install npm:pi-provider-umans                            # Umans.ai model provider
 pi install npm:@sting8k/pi-vcc                              # transcript-preserving compaction
 pi install git:github.com/injaneity/pi-computer-use@v0.3.2  # macOS computer use
@@ -102,6 +104,7 @@ pi install git:github.com/injaneity/pi-computer-use@v0.3.2  # macOS computer use
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
 
+`pi-mise` is useful for projects that manage tool versions with mise. It trusts and auto-activates the project's mise config so every `bash` command runs with the correct toolchain, and contributes a `mise` skill for manual `mise exec`/`mise run`/`mise install` cases.
 `pi-delete-session` is useful for cleaning up accumulated sessions. It adds a `/delete-session` command with multi-select checkboxes, project grouping, a red confirmation dialog before permanent deletion, and auto-reset to a new session if you delete the active one.
 
 Recommended external Gmail skill/tool setup:

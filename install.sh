@@ -264,6 +264,14 @@ elixir_default() {
   fi
 }
 
+mise_default() {
+  if has mise; then
+    echo y
+  else
+    echo n
+  fi
+}
+
 install_companions() {
   install_pi_package \
     "npm:pi-elixir" \
@@ -291,9 +299,19 @@ install_companions() {
     "Cost dashboard: usage and cost tracking for the pi coding agent." \
     n
   install_pi_package \
+    "npm:@capotej/pi-mise" \
+    "pi-mise" \
+    "Mise auto-activation: trusts and activates mise-managed toolchains when a mise config is present in the project." \
+    "$(mise_default)"
+  install_pi_package \
     "npm:@sherif-fanous/pi-rtk" \
     "pi-rtk" \
     "Token savings: routes bash commands through rtk (Rust Token Killer) to cut LLM token usage." \
+    n
+  install_pi_package \
+    "npm:pi-token-speed" \
+    "pi-token-speed" \
+    "Token speed: measures tokens per second via a sliding window." \
     n
   install_pi_package \
     "npm:pi-provider-umans" \
