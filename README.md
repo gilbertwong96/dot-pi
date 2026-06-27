@@ -378,6 +378,7 @@ ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 | `commit-messages.md`        | Follow existing repo commit style                   |
 | `delete-files.md`           | Use `rm -f` to delete files                         |
 | `git-hosting.md`            | Use `gh`/`glab` CLI instead of fetching URLs        |
+| `git-identity.md`           | Never override or invent git committer identity     |
 | `pull-requests.md`          | PR workflow: study templates, preview before submit |
 | `ripgrep.md`                | Prefer `rg` over `grep`                             |
 | `skills-cli.md`             | Run skill commands from skill directory             |
