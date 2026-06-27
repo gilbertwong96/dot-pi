@@ -10,5 +10,5 @@
 
 - Do NOT repeat the title in the PR body (unless template requires it)
 - Follow the style from user's previous PRs
-- Keep it concise — match the complexity of the change
+- Keep it **short** and **concise** — match the complexity of the change
 - Avoid LLM smells: no "This PR...", "This commit...", "This change...", filler words, emojis, excessive **bold**, over-explaining implementation details
