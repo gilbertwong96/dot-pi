@@ -146,6 +146,16 @@ describe('matchCommandRule', () => {
       'Publish GitHub issue comment'
     )
     expect(
+      matchCommandRule('gh issue close 2 --comment "fixed"', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Close GitHub issue')
+    expect(matchCommandRule('gh issue delete 2 --yes', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Delete GitHub issue'
+    )
+    expect(
+      matchCommandRule('gh --repo acme/app issue close 2 --comment fixed', DEFAULT_COMMAND_RULES)
+        ?.label
+    ).toBe('Close GitHub issue')
+    expect(
       matchCommandRule('gh repo create acme/app --private', DEFAULT_COMMAND_RULES)?.label
     ).toBe('Create GitHub repo')
     expect(matchCommandRule('gh repo delete acme/app --yes', DEFAULT_COMMAND_RULES)?.label).toBe(
@@ -166,6 +176,82 @@ describe('matchCommandRule', () => {
     expect(
       matchCommandRule('gh repo deploy-key list --repo acme/app', DEFAULT_COMMAND_RULES)
     ).toBeUndefined()
+  })
+
+  test('parses multiline quoted arguments without hiding later invocations', () => {
+    expect(
+      matchCommandRule(
+        'git status --short && gh issue close 2 --comment "Fixed on master\n paths"',
+        DEFAULT_COMMAND_RULES
+      )?.label
+    ).toBe('Close GitHub issue')
+  })
+
+  test('finds dangerous commands inside shell expansions', () => {
+    expect(matchCommandRule('echo $(gh issue close 2)', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Close GitHub issue'
+    )
+    expect(matchCommandRule('cat <(gh issue close 2)', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Close GitHub issue'
+    )
+    expect(matchCommandRule('echo `gh issue close 2`', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Close GitHub issue'
+    )
+  })
+
+  test('confirms command execution surfaces before they can hide protected commands', () => {
+    expect(matchCommandRule('bash -c "gh issue close 2"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell command string'
+    )
+    expect(matchCommandRule('sudo sh -c "gh issue close 2"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell command string'
+    )
+    expect(matchCommandRule('bash -lc "gh issue close 2"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell command string'
+    )
+    expect(matchCommandRule('eval "gh issue close 2"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell eval'
+    )
+    expect(matchCommandRule('source ./deploy.sh', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Source shell script'
+    )
+    expect(matchCommandRule('alias done="gh issue close"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Define shell alias'
+    )
+    expect(
+      matchCommandRule('find . -name issue -exec gh issue close {} ;', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Run find -exec command')
+    expect(
+      matchCommandRule('printf "2\\n" | xargs gh issue close', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Run xargs protected command')
+  })
+
+  test('finds protected commands in shell functions', () => {
+    expect(
+      matchCommandRule('finish() { gh issue close 2; }; finish', DEFAULT_COMMAND_RULES)?.label
+    ).toBe('Close GitHub issue')
+  })
+
+  test('does not treat inert command text as execution', () => {
+    expect(
+      matchCommandRule('cat <<EOF\ngh issue close 2\nEOF', DEFAULT_COMMAND_RULES)
+    ).toBeUndefined()
+    expect(matchCommandRule('echo "gh issue close 2"', DEFAULT_COMMAND_RULES)).toBeUndefined()
+  })
+
+  test('fails closed for dynamic protected-tool commands and parse errors', () => {
+    expect(matchCommandRule('gh issue "$ACTION" 2', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell command with dynamic protected-tool arguments'
+    )
+    expect(matchCommandRule('git status "$path"', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run shell command with dynamic protected-tool arguments'
+    )
+    expect(matchCommandRule('"$TOOL" issue close 2', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run dynamic shell command'
+    )
+    expect(matchCommandRule('if then', DEFAULT_COMMAND_RULES)?.label).toBe(
+      'Run unparsable shell command'
+    )
   })
 
   test('default rules confirm release publish and deploy commands', () => {

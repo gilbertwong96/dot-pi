@@ -11,7 +11,14 @@ import type {
   SessionMessageEntry
 } from '@earendil-works/pi-coding-agent'
 import { isToolCallEventType } from '@earendil-works/pi-coding-agent'
-import { parse, type ParseEntry } from 'shell-quote'
+import {
+  parse as parseShell,
+  type ArithmeticExpression,
+  type Node,
+  type Script,
+  type Word,
+  type WordPart
+} from 'unbash'
 import { notifyDesktop } from './shared/desktop-notify'
 import { formatPiNotificationTitle } from './shared/project-name'
 import { readLayeredSettings } from './shared/settings'
@@ -30,6 +37,8 @@ const GITHUB_RULES: CommandRule[] = [
   exact(['gh', 'issue', 'create'], 'Create GitHub issue'),
   exact(['gh', 'issue', 'edit'], 'Edit GitHub issue'),
   exact(['gh', 'issue', 'comment'], 'Publish GitHub issue comment'),
+  exact(['gh', 'issue', 'close'], 'Close GitHub issue'),
+  exact(['gh', 'issue', 'delete'], 'Delete GitHub issue'),
   exact(['gh', 'repo', 'create'], 'Create GitHub repo'),
   exact(['gh', 'repo', 'delete'], 'Delete GitHub repo'),
   exact(['gh', 'repo', 'archive'], 'Archive GitHub repo'),
@@ -51,6 +60,8 @@ const GITLAB_RULES: CommandRule[] = [
   exact(['glab', 'issue', 'create'], 'Publish GitLab issue'),
   exact(['glab', 'issue', 'update'], 'Edit GitLab issue'),
   exact(['glab', 'issue', 'note'], 'Publish GitLab issue comment'),
+  exact(['glab', 'issue', 'close'], 'Close GitLab issue'),
+  exact(['glab', 'issue', 'delete'], 'Delete GitLab issue'),
   exact(['glab', 'release', 'create'], 'Publish GitLab release')
 ]
 
@@ -85,6 +96,18 @@ const DEPLOY_RULES: CommandRule[] = [
   matched(['wrangler'], 'Deploy with Wrangler', hasAnySubcommand(['deploy', 'publish']))
 ]
 
+const EXECUTION_SURFACE_RULES: CommandRule[] = [
+  matched(['bash'], 'Run shell command string', isShellCommandString),
+  matched(['sh'], 'Run shell command string', isShellCommandString),
+  matched(['zsh'], 'Run shell command string', isShellCommandString),
+  matched(['eval'], 'Run shell eval', () => true),
+  matched(['source'], 'Source shell script', () => true),
+  matched(['.'], 'Source shell script', () => true),
+  matched(['alias'], 'Define shell alias', () => true),
+  matched(['find'], 'Run find -exec command', hasAnySubcommand(['-exec', '-execdir'])),
+  matched(['xargs'], 'Run xargs protected command', isXargsProtectedCommand)
+]
+
 const RULE_GROUPS = {
   github: GITHUB_RULES,
   gitlab: GITLAB_RULES,
@@ -92,7 +115,8 @@ const RULE_GROUPS = {
   twitter: TWITTER_RULES,
   git: GIT_RULES,
   publish: PACKAGE_PUBLISH_RULES,
-  deploy: DEPLOY_RULES
+  deploy: DEPLOY_RULES,
+  execution: EXECUTION_SURFACE_RULES
 } satisfies Record<string, CommandRule[]>
 
 type RuleGroupName = keyof typeof RULE_GROUPS
@@ -119,8 +143,13 @@ function matched(
   return { argv, label, matches }
 }
 
-const CONTROL_OPERATORS = new Set(['&&', '||', ';', '|', '|&', '&'])
 const PREFIX_WRAPPERS = new Set(['sudo', 'command', 'env', 'noglob'])
+const DYNAMIC_COMMAND_RULE = exact(
+  ['<dynamic>'],
+  'Run shell command with dynamic protected-tool arguments'
+)
+const DYNAMIC_COMMAND_NAME_RULE = exact(['<dynamic-command-name>'], 'Run dynamic shell command')
+const PARSE_ERROR_RULE = exact(['<parse-error>'], 'Run unparsable shell command')
 
 export default function (pi: ExtensionAPI) {
   let commandRules = DEFAULT_COMMAND_RULES
@@ -130,12 +159,15 @@ export default function (pi: ExtensionAPI) {
   })
 
   pi.on('tool_call', async (event, ctx) => {
-    if (!ctx.hasUI) return
     if (!isToolCallEventType('bash', event)) return
 
     const command = event.input.command
     const match = matchCommandRule(command, commandRules)
     if (!match) return
+
+    if (!ctx.hasUI) {
+      return { block: true, reason: `${match.label} blocked (no UI for confirmation)` }
+    }
 
     notifyDesktop(notificationTitle(ctx.cwd), `Approve: ${match.label}`)
 
@@ -206,40 +238,257 @@ export default function (pi: ExtensionAPI) {
 }
 
 export function matchCommandRule(command: string, rules: CommandRule[]): CommandRule | undefined {
-  for (const invocation of parseInvocations(command)) {
-    const normalized = normalizeInvocation(invocation)
-    const match = rules.find(
-      (rule) => startsWithArgv(normalized, rule.argv) && (rule.matches?.(normalized) ?? true)
-    )
+  const parsed = parseCommand(command)
+  if (parsed.parseFailed) return PARSE_ERROR_RULE
+
+  for (const invocation of parsed.invocations) {
+    const normalized = normalizeInvocation(invocation.argv)
+    const match = rules.find((rule) => {
+      const comparable = normalizeToolInvocation(normalized, rule.argv)
+      return startsWithArgv(comparable, rule.argv) && (rule.matches?.(comparable) ?? true)
+    })
     if (match) return match
+
+    if (invocation.dynamicName) return DYNAMIC_COMMAND_NAME_RULE
+    if (invocation.dynamic && isProtectedToolInvocation(normalized)) return DYNAMIC_COMMAND_RULE
   }
 }
 
 export function parseInvocations(command: string): string[][] {
-  let entries: ParseEntry[]
+  return parseCommand(command).invocations.map((invocation) => invocation.argv)
+}
+
+type ParsedInvocation = {
+  argv: string[]
+  dynamic: boolean
+  dynamicName: boolean
+}
+
+type ParsedCommand = {
+  invocations: ParsedInvocation[]
+  parseFailed: boolean
+}
+
+function parseCommand(command: string): ParsedCommand {
   try {
-    entries = parse(command)
+    const script = parseShell(command)
+    return {
+      invocations: collectInvocationsFromScript(script),
+      parseFailed: Boolean(script.errors?.length)
+    }
   } catch {
-    return []
+    return { invocations: [], parseFailed: true }
   }
+}
 
-  const invocations: string[][] = []
-  let current: string[] = []
+function collectInvocationsFromScript(script: Script | undefined): ParsedInvocation[] {
+  if (!script) return []
+  return script.commands.flatMap((statement) => collectInvocationsFromNode(statement))
+}
 
-  for (const entry of entries) {
-    if (typeof entry === 'string') {
-      current.push(entry)
-      continue
+function collectInvocationsFromNode(node: Node | undefined): ParsedInvocation[] {
+  if (!node) return []
+
+  switch (node.type) {
+    case 'Statement':
+      return [
+        ...collectInvocationsFromNode(node.command),
+        ...collectInvocationsFromRedirects(node.redirects)
+      ]
+    case 'Command': {
+      const words = [node.name, ...node.suffix].filter((word): word is Word => Boolean(word))
+      const argv = words.map((word) => word.value)
+      return [
+        ...(argv.length > 0
+          ? [
+              {
+                argv,
+                dynamic: words.some((word) => !isStaticWord(word)),
+                dynamicName: Boolean(node.name && !isStaticWord(node.name))
+              }
+            ]
+          : []),
+        ...words.flatMap(collectInvocationsFromWord),
+        ...node.prefix.flatMap((assignment) => collectInvocationsFromWord(assignment.value)),
+        ...collectInvocationsFromRedirects(node.redirects)
+      ]
     }
+    case 'Pipeline':
+    case 'AndOr':
+      return node.commands.flatMap((command) => collectInvocationsFromNode(command))
+    case 'If':
+      return [
+        ...collectInvocationsFromNode(node.clause),
+        ...collectInvocationsFromNode(node.then),
+        ...collectInvocationsFromNode(node.else)
+      ]
+    case 'For':
+      return [
+        ...collectInvocationsFromWord(node.name),
+        ...node.wordlist.flatMap(collectInvocationsFromWord),
+        ...collectInvocationsFromNode(node.body)
+      ]
+    case 'ArithmeticFor':
+      return [
+        ...collectInvocationsFromArithmetic(node.initialize),
+        ...collectInvocationsFromArithmetic(node.test),
+        ...collectInvocationsFromArithmetic(node.update),
+        ...collectInvocationsFromNode(node.body)
+      ]
+    case 'Select':
+      return [
+        ...collectInvocationsFromWord(node.name),
+        ...node.wordlist.flatMap(collectInvocationsFromWord),
+        ...collectInvocationsFromNode(node.body)
+      ]
+    case 'While':
+      return [...collectInvocationsFromNode(node.clause), ...collectInvocationsFromNode(node.body)]
+    case 'Function':
+      return [
+        ...collectInvocationsFromWord(node.name),
+        ...collectInvocationsFromNode(node.body),
+        ...collectInvocationsFromRedirects(node.redirects)
+      ]
+    case 'Subshell':
+    case 'BraceGroup':
+      return collectInvocationsFromNode(node.body)
+    case 'CompoundList':
+      return node.commands.flatMap((statement) => collectInvocationsFromNode(statement))
+    case 'Case':
+      return [
+        ...collectInvocationsFromWord(node.word),
+        ...node.items.flatMap((item) => [
+          ...item.pattern.flatMap(collectInvocationsFromWord),
+          ...collectInvocationsFromNode(item.body)
+        ])
+      ]
+    case 'Coproc':
+      return [
+        ...collectInvocationsFromWord(node.name),
+        ...collectInvocationsFromNode(node.body),
+        ...collectInvocationsFromRedirects(node.redirects)
+      ]
+    case 'TestCommand':
+      return collectInvocationsFromTestExpression(node.expression)
+    case 'ArithmeticCommand':
+      return collectInvocationsFromArithmetic(node.expression)
+  }
+}
 
-    if ('op' in entry && CONTROL_OPERATORS.has(entry.op)) {
-      if (current.length > 0) invocations.push(current)
-      current = []
+function collectInvocationsFromRedirects(
+  redirects: { target?: Word; body?: Word }[]
+): ParsedInvocation[] {
+  return redirects.flatMap((redirect) => [
+    ...collectInvocationsFromWord(redirect.target),
+    ...collectInvocationsFromWord(redirect.body)
+  ])
+}
+
+function collectInvocationsFromWord(word: Word | undefined): ParsedInvocation[] {
+  if (!word?.parts) return []
+  return word.parts.flatMap(collectInvocationsFromWordPart)
+}
+
+function collectInvocationsFromWordPart(part: WordPart): ParsedInvocation[] {
+  switch (part.type) {
+    case 'CommandExpansion':
+    case 'ProcessSubstitution':
+      return collectInvocationsFromScript(part.script)
+    case 'ArithmeticExpansion':
+      return collectInvocationsFromArithmetic(part.expression)
+    case 'DoubleQuoted':
+    case 'LocaleString':
+      return part.parts.flatMap(collectInvocationsFromWordPart)
+    case 'ParameterExpansion':
+      return [
+        ...collectInvocationsFromWord(part.operand),
+        ...collectInvocationsFromWord(part.slice?.offset),
+        ...collectInvocationsFromWord(part.slice?.length),
+        ...collectInvocationsFromWord(part.replace?.pattern),
+        ...collectInvocationsFromWord(part.replace?.replacement)
+      ]
+    default:
+      return []
+  }
+}
+
+function collectInvocationsFromArithmetic(
+  expression: ArithmeticExpression | undefined
+): ParsedInvocation[] {
+  if (!expression) return []
+
+  switch (expression.type) {
+    case 'ArithmeticCommandExpansion':
+      return collectInvocationsFromScript(expression.script)
+    case 'ArithmeticBinary':
+      return [
+        ...collectInvocationsFromArithmetic(expression.left),
+        ...collectInvocationsFromArithmetic(expression.right)
+      ]
+    case 'ArithmeticUnary':
+      return collectInvocationsFromArithmetic(expression.operand)
+    case 'ArithmeticTernary':
+      return [
+        ...collectInvocationsFromArithmetic(expression.test),
+        ...collectInvocationsFromArithmetic(expression.consequent),
+        ...collectInvocationsFromArithmetic(expression.alternate)
+      ]
+    case 'ArithmeticGroup':
+      return collectInvocationsFromArithmetic(expression.expression)
+    case 'ArithmeticWord':
+      return []
+  }
+}
+
+function collectInvocationsFromTestExpression(expression: unknown): ParsedInvocation[] {
+  if (!expression || typeof expression !== 'object') return []
+
+  const invocations: ParsedInvocation[] = []
+  for (const value of Object.values(expression)) {
+    if (isWord(value)) invocations.push(...collectInvocationsFromWord(value))
+    else if (Array.isArray(value)) {
+      for (const item of value) invocations.push(...collectInvocationsFromTestExpression(item))
+    } else if (value && typeof value === 'object') {
+      invocations.push(...collectInvocationsFromTestExpression(value))
     }
   }
-
-  if (current.length > 0) invocations.push(current)
   return invocations
+}
+
+function isStaticWord(word: Word): boolean {
+  return !word.parts || word.parts.every(isStaticWordPart)
+}
+
+function isStaticWordPart(part: WordPart): boolean {
+  switch (part.type) {
+    case 'Literal':
+    case 'SingleQuoted':
+    case 'AnsiCQuoted':
+      return true
+    case 'DoubleQuoted':
+    case 'LocaleString':
+      return part.parts.every(isStaticWordPart)
+    default:
+      return false
+  }
+}
+
+function isWord(value: unknown): value is Word {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    'text' in value &&
+    'value' in value &&
+    typeof (value as Word).text === 'string'
+  )
+}
+
+function isProtectedToolInvocation(argv: string[]): boolean {
+  const command = argv[0]
+  return Boolean(
+    command &&
+    ['git', 'gh', 'glab', 'gws', 'bird', 'bunx', 'npm', 'pnpm', 'bun', 'yarn'].includes(command)
+  )
 }
 
 function normalizeInvocation(argv: string[]): string[] {
@@ -255,6 +504,29 @@ function normalizeInvocation(argv: string[]): string[] {
   }
 
   return rest
+}
+
+function normalizeToolInvocation(argv: string[], ruleArgv: string[]): string[] {
+  const tool = ruleArgv[0]
+  if (tool !== 'gh' && tool !== 'glab') return argv
+  if (argv[0] !== tool) return argv
+
+  return [tool, ...dropCliGlobalOptions(argv.slice(1))]
+}
+
+function dropCliGlobalOptions(argv: string[]): string[] {
+  let index = 0
+  while (index < argv.length) {
+    const arg = argv[index] ?? ''
+    if (!isFlag(arg)) break
+    if (arg === '--') return argv.slice(index + 1)
+    index += cliGlobalFlagConsumesValue(arg) ? 2 : 1
+  }
+  return argv.slice(index)
+}
+
+function cliGlobalFlagConsumesValue(arg: string): boolean {
+  return ['-R', '--repo', '--hostname', '--config'].includes(arg)
 }
 
 function dropAssignments(argv: string[]): string[] {
@@ -368,6 +640,49 @@ function isGitForcedClean(argv: string[]): boolean {
 
 function isGitBranchDelete(argv: string[]): boolean {
   return getGitSubcommand(argv) === 'branch' && hasAnyFlag(argv, ['-d', '-D', '--delete'])
+}
+
+function isShellCommandString(argv: string[]): boolean {
+  return argv.some((arg) => arg === '-c' || arg.startsWith('-c') || hasFlag(arg, '-c'))
+}
+
+function isXargsProtectedCommand(argv: string[]): boolean {
+  const commandIndex = findXargsCommandIndex(argv)
+  if (commandIndex === -1) return false
+  return isProtectedToolInvocation(argv.slice(commandIndex))
+}
+
+function findXargsCommandIndex(argv: string[]): number {
+  let index = 1
+  while (index < argv.length) {
+    const arg = argv[index] ?? ''
+    if (arg === '--') return index + 1 < argv.length ? index + 1 : -1
+    if (!isFlag(arg)) return index
+    index += flagConsumesValue(arg) || xargsFlagConsumesValue(arg) ? 2 : 1
+  }
+  return -1
+}
+
+function xargsFlagConsumesValue(arg: string): boolean {
+  return [
+    '-a',
+    '--arg-file',
+    '-d',
+    '--delimiter',
+    '-E',
+    '-I',
+    '--replace',
+    '-i',
+    '-L',
+    '--max-lines',
+    '-l',
+    '-n',
+    '--max-args',
+    '-P',
+    '--max-procs',
+    '-s',
+    '--max-chars'
+  ].includes(arg)
 }
 
 function getGitSubcommand(argv: string[]): string | undefined {
