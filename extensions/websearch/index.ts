@@ -7,8 +7,10 @@
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { errorMessage } from '../shared/errors'
-import { apiErrorMessage, env, fetchText, requireEnv } from '../shared/http'
 import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
+import { buildExaSearchRequest } from '../web/backends/exa-search'
+import { getSearchBackend } from '../web/shared/registry'
+import type { ExaSearchRequest, WebSearchResult } from '../web/shared/types'
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -31,36 +33,19 @@ import {
 } from '../shared/render'
 import { Type } from 'typebox'
 
-function getBaseUrl(): string {
-  return env('EXA_ENDPOINT_URL') || 'https://api.exa.ai'
-}
-
-interface SearchResult {
-  title: string
-  url: string
-  author?: string
-  publishedDate?: string
-  text: string
-  highlights?: string[]
-  summary?: string
-}
+export { buildExaSearchRequest }
 
 interface WebSearchDetails extends ToolStatusDetails, TruncatedOutputDetails {
   query: string
-  results: SearchResult[]
+  results: WebSearchResult[]
   output?: string
-}
-
-interface ExaSearchResponse {
-  results?: Array<Record<string, unknown>>
-  output?: { content?: unknown }
 }
 
 type WebSearchLoadingDetails = WebSearchDetails & Required<Pick<ToolStatusDetails, 'loading'>>
 
 function webSearchDetails(
   query: string,
-  results: SearchResult[] = [],
+  results: WebSearchResult[] = [],
   output?: string
 ): WebSearchDetails {
   return { query, results, output }
@@ -73,9 +58,6 @@ function webSearchErrorDetails(query: string): WebSearchDetails {
 function webSearchLoadingDetails(query: string): WebSearchLoadingDetails {
   return { query, results: [], loading: true }
 }
-
-const DATE_UNSUPPORTED_CATEGORIES = new Set(['company', 'people'])
-const EXCLUDE_DOMAINS_UNSUPPORTED_CATEGORIES = new Set(['company', 'people'])
 
 const DESCRIPTION = `Search the web using Exa AI - performs real-time web searches and returns content from relevant websites.
 
@@ -236,16 +218,7 @@ const WebSearchParams = Type.Object({
 })
 
 const PREVIEW_TEXT_LENGTH = 220
-const DEFAULT_NUM_RESULTS = 8
-const DEFAULT_CONTEXT_MAX = 10000
-
-function formatSynthesis(output: unknown): string | undefined {
-  if (typeof output === 'string') return output
-  if (output === undefined || output === null) return undefined
-  return JSON.stringify(output, null, 2)
-}
-
-function formatResultsAsText(results: SearchResult[], output?: string): string {
+function formatResultsAsText(results: WebSearchResult[], output?: string): string {
   const resultText = results
     .map((r) => {
       let header = `Title: ${r.title}\nURL: ${r.url}`
@@ -265,52 +238,12 @@ function formatResultsAsText(results: SearchResult[], output?: string): string {
   return output ? `Synthesized output:\n${output}\n\n---\n\n${resultText}` : resultText
 }
 
-function cleanObject(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined))
-}
-
-export function buildExaSearchRequest(params: Record<string, unknown>): Record<string, unknown> {
-  const contents = cleanObject({
-    text: cleanObject({
-      maxCharacters: params.contextMaxCharacters ?? DEFAULT_CONTEXT_MAX,
-      includeHtmlTags: params.includeHtmlTags,
-      verbosity: params.textVerbosity,
-      includeSections: params.includeSections,
-      excludeSections: params.excludeSections
-    }),
-    highlights:
-      params.highlights === true ? true : params.highlights ? params.highlights : undefined,
-    summary: params.summary,
-    maxAgeHours: params.maxAgeHours,
-    livecrawlTimeout: params.livecrawlTimeout
-  })
-
-  const category = params.category as string | undefined
-  const request = cleanObject({
-    query: params.query,
-    numResults: params.numResults ?? DEFAULT_NUM_RESULTS,
-    type: params.type ?? 'auto',
-    category,
-    userLocation: params.userLocation,
-    includeDomains: params.includeDomains,
-    includeText: params.includeText,
-    excludeText: params.excludeText,
-    moderation: params.moderation,
-    additionalQueries: params.additionalQueries,
-    systemPrompt: params.systemPrompt,
-    outputSchema: params.outputSchema,
-    contents
-  })
-
-  if (!category || !EXCLUDE_DOMAINS_UNSUPPORTED_CATEGORIES.has(category)) {
-    request.excludeDomains = params.excludeDomains
+function toExaSearchRequest(params: Record<string, unknown>): ExaSearchRequest {
+  return {
+    ...(params as Omit<ExaSearchRequest, 'backend' | 'maxResults'>),
+    backend: 'exa',
+    maxResults: params.numResults as number | undefined
   }
-  if (!category || !DATE_UNSUPPORTED_CATEGORIES.has(category)) {
-    request.startPublishedDate = params.startPublishedDate
-    request.endPublishedDate = params.endPublishedDate
-  }
-
-  return cleanObject(request)
 }
 
 export default function (pi: ExtensionAPI) {
@@ -321,51 +254,18 @@ export default function (pi: ExtensionAPI) {
     parameters: WebSearchParams,
 
     async execute(_toolCallId, params, signal, onUpdate, _ctx) {
-      const apiKey = requireEnv('EXA_API_KEY')
-      if (!apiKey.ok) {
-        return toolError(apiKey.message, webSearchErrorDetails(params.query))
-      }
-
       const { query } = params
 
       onUpdate?.(toolLoading(webSearchLoadingDetails(query)))
 
       try {
-        const response = await fetchText(
-          `${getBaseUrl()}/search`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': apiKey.value
-            },
-            body: JSON.stringify(buildExaSearchRequest(params))
-          },
-          { signal, timeoutMs: 60_000 }
-        )
-
-        if (!response.ok) {
-          return toolError(
-            apiErrorMessage(response.status, response.text),
-            webSearchErrorDetails(query)
-          )
-        }
+        const backend = getSearchBackend('exa')
+        const response = await backend.search(toExaSearchRequest(params), signal)
+        const { results, output } = response
 
         if (signal?.aborted) {
           return toolText('Search cancelled', webSearchDetails(query))
         }
-
-        const data = JSON.parse(response.text) as ExaSearchResponse
-        const output = formatSynthesis(data.output?.content)
-        const results: SearchResult[] = (data.results ?? []).map((r) => ({
-          title: (r.title as string) || 'Untitled',
-          url: r.url as string,
-          author: (r.author as string) || undefined,
-          publishedDate: (r.publishedDate as string) || undefined,
-          text: (r.text as string) || '',
-          highlights: (r.highlights as string[]) || undefined,
-          summary: (r.summary as string) || undefined
-        }))
 
         if (results.length === 0 && !output) {
           return toolText(
