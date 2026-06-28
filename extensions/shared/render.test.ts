@@ -4,6 +4,7 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 
 import {
   clampRenderedLines,
+  expandTabs,
   firstText,
   renderEmpty,
   renderEntryList,
@@ -46,6 +47,21 @@ describe('renderLines', () => {
 
     expect(visibleWidth(line)).toBeLessThanOrEqual(10)
     expect(line).toContain('...')
+  })
+
+  test('expands tabs globally before rendering lines', () => {
+    const lines = renderLines(['\treturn true', 'ab\tcd']).render(120)
+
+    expect(lines.join('\n')).not.toContain('\t')
+    expect(lines).toContain('        return true')
+    expect(lines).toContain('ab      cd')
+  })
+
+  test('expands tabs without breaking ansi styling', () => {
+    const red = '\x1b[31m'
+    const reset = '\x1b[0m'
+
+    expect(expandTabs(`${red}ab\tcd${reset}`)).toBe(`${red}ab      cd${reset}`)
   })
 })
 

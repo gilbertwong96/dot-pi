@@ -77,6 +77,24 @@ describe('codefetch renderer', () => {
     expect(rendered).toContain('lines:10-12')
     expect(rendered).not.toContain('(ctrl+o to expand)')
   })
+
+  test('expands tabs before rendering code lines', () => {
+    const rendered = renderCodefetch(
+      {
+        repo: 'owner/repo',
+        path: 'main.go',
+        startLine: 1,
+        endLine: 2,
+        lineCount: 2,
+        totalLines: 2
+      },
+      '\treturn true\nab\tcd'
+    )
+
+    expect(rendered).not.toContain('\t')
+    expect(rendered).toContain('1       return true')
+    expect(rendered).toContain('2 ab    cd')
+  })
 })
 
 describe('parseResults', () => {

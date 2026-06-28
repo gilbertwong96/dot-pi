@@ -95,6 +95,65 @@ export function primary(text: string, theme: Theme): string {
   return theme.fg('toolOutput', text)
 }
 
+function readAnsiSequence(text: string, start: number): string | undefined {
+  const introducer = text[start + 1]
+
+  if (introducer === '[') {
+    for (let index = start + 2; index < text.length; index++) {
+      const code = text.charCodeAt(index)
+      if (code >= 0x40 && code <= 0x7e) return text.slice(start, index + 1)
+    }
+  }
+
+  if (introducer === ']') {
+    const bell = text.indexOf('\x07', start + 2)
+    const st = text.indexOf('\x1b\\', start + 2)
+    const end = bell === -1 ? st : st === -1 ? bell : Math.min(bell, st)
+    if (end !== -1) return text.slice(start, end + (end === st ? 2 : 1))
+  }
+
+  if (introducer && 'PX^_'.includes(introducer)) {
+    const end = text.indexOf('\x1b\\', start + 2)
+    if (end !== -1) return text.slice(start, end + 2)
+  }
+
+  return start + 1 < text.length ? text.slice(start, start + 2) : text[start]
+}
+
+export function expandTabs(text: string, tabSize = 8): string {
+  let column = 0
+  let expanded = ''
+
+  for (let index = 0; index < text.length; ) {
+    if (text[index] === '\x1b') {
+      const sequence = readAnsiSequence(text, index)
+      if (sequence) {
+        expanded += sequence
+        index += sequence.length
+        continue
+      }
+    }
+
+    const codePoint = text.codePointAt(index)
+    if (codePoint === undefined) break
+
+    const char = String.fromCodePoint(codePoint)
+    index += char.length
+
+    if (char === '\t') {
+      const spaces = tabSize - (column % tabSize)
+      expanded += ' '.repeat(spaces)
+      column += spaces
+      continue
+    }
+
+    expanded += char
+    column += visibleWidth(char)
+  }
+
+  return expanded
+}
+
 export function title(text: string, theme: Theme): string {
   return theme.fg('toolOutput', theme.bold(text))
 }
@@ -332,7 +391,7 @@ export function truncateText(text: string, maxChars: number): string {
 
 export function truncateLine(text: string, maxWidth: number, marker = '…'): string {
   if (maxWidth <= 0) return ''
-  return truncateToWidth(text, maxWidth, marker)
+  return truncateToWidth(expandTabs(text), maxWidth, marker)
 }
 
 export function renderSingleLine(text: string): Component {
