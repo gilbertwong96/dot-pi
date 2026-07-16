@@ -328,6 +328,11 @@ install_companions() {
     "pi-atlas" \
     "Agent usage dashboard: parses session logs into costs, languages, models, projects, and tools with an interactive /atlas view. All processing is local." \
     n
+  install_pi_package \
+    "npm:pi-discuss-mode" \
+    "pi-discuss-mode" \
+    "Read-only discuss mode: blocks Edit/Write tools and destructive bash so the agent can only read and explore. Toggle via /discuss, Ctrl+Alt+D, or --discuss." \
+    n
 
   if [ "$(os_name)" = "macos" ]; then
     install_pi_package \
