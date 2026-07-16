@@ -328,11 +328,6 @@ install_companions() {
     "pi-atlas" \
     "Agent usage dashboard: parses session logs into costs, languages, models, projects, and tools with an interactive /atlas view. All processing is local." \
     n
-  install_pi_package \
-    "npm:@weiping/pi-superpowers" \
-    "pi-superpowers" \
-    "Workflow skills: ports 14 Superpowers skills (TDD, debugging, collaboration, brainstorming) to Pi with Chinese trigger support." \
-    n
 
   if [ "$(os_name)" = "macos" ]; then
     install_pi_package \
