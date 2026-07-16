@@ -333,6 +333,11 @@ install_companions() {
     "pi-discuss-mode" \
     "Read-only discuss mode: blocks Edit/Write tools and destructive bash so the agent can only read and explore. Toggle via /discuss, Ctrl+Alt+D, or --discuss." \
     n
+  install_pi_package \
+    "git:github.com/obra/superpowers" \
+    "superpowers" \
+    "Upstream agentic-skills framework (obra/superpowers): 14 skills for TDD, systematic debugging, brainstorming, writing-plans, subagent-driven-development, code review, worktree workflows, and more. Session-start extension injects the using-superpowers bootstrap." \
+    n
 
   if [ "$(os_name)" = "macos" ]; then
     install_pi_package \
