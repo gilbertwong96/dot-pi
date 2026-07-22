@@ -30,7 +30,7 @@ Convenience one-liner:
 curl -fsSL https://raw.githubusercontent.com/gilbertwong96/dot-pi/master/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-mise`, `pi-rtk`, `pi-token-speed`, `pi-provider-umans`, `pi-vcc`, `pi-atlas`, `pi-discuss-mode`, `superpowers`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; `pi-mise` defaults to yes when `mise` is detected; other companions default to no.
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and prompts for optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, `pi-delete-session`, `pi-cost`, `pi-mise`, `pi-token-speed`, `pi-provider-umans`, `pi-vcc`, `pi-atlas`, `pi-discuss-mode`, `superpowers`, and `pi-computer-use` on macOS). `pi-elixir` defaults to yes when Elixir or Mix is detected; `pi-mise` defaults to yes when `mise` is detected; other companions default to no.
 
 Headless/non-interactive Linux needs Node.js 22.19.0+ and npm available before Pi can install. Check with `node --version` and `npm --version`; install Node 22+ with your preferred Node manager or distro setup if needed.
 
@@ -93,7 +93,6 @@ pi install npm:pi-context                                   # context history ta
 pi install npm:pi-delete-session                            # bulk session deletion
 pi install npm:pi-cost                                      # cost/usage dashboard
 pi install npm:@capotej/pi-mise                             # auto-activate mise toolchains
-pi install npm:@sherif-fanous/pi-rtk                        # bash token savings via rtk
 pi install npm:pi-token-speed                               # tokens-per-second via sliding window
 pi install npm:pi-provider-umans                            # Umans.ai model provider
 pi install npm:@sting8k/pi-vcc                              # transcript-preserving compaction

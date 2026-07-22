@@ -304,11 +304,6 @@ install_companions() {
     "Mise auto-activation: trusts and activates mise-managed toolchains when a mise config is present in the project." \
     "$(mise_default)"
   install_pi_package \
-    "npm:@sherif-fanous/pi-rtk" \
-    "pi-rtk" \
-    "Token savings: routes bash commands through rtk (Rust Token Killer) to cut LLM token usage." \
-    n
-  install_pi_package \
     "npm:pi-token-speed" \
     "pi-token-speed" \
     "Token speed: measures tokens per second via a sliding window." \
