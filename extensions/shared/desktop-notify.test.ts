@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest'
 import {
   buildDesktopNotificationSequences,
   buildMacOSNotifyScript,
-  escapeForAppleScript
+  escapeForAppleScript,
+  getTerminalBundleId
 } from './desktop-notify'
 
 describe('buildDesktopNotificationSequences', () => {
@@ -87,5 +88,38 @@ describe('escapeForAppleScript', () => {
   test('preserves sanitization: drops semicolons, control chars, caps length', () => {
     expect(escapeForAppleScript('a;b\x00c')).toBe('abc')
     expect(escapeForAppleScript('x'.repeat(300)).length).toBe(240)
+  })
+})
+
+describe('getTerminalBundleId', () => {
+  test('returns Kitty bundle ID when KITTY_WINDOW_ID is set', () => {
+    expect(getTerminalBundleId({ KITTY_WINDOW_ID: '1' })).toBe('net.kovidgoyal.kitty')
+  })
+
+  test('returns iTerm2 bundle ID for iTerm', () => {
+    expect(getTerminalBundleId({ TERM_PROGRAM: 'iTerm.app' })).toBe('com.googlecode.iterm2')
+  })
+
+  test('returns Apple Terminal bundle ID', () => {
+    expect(getTerminalBundleId({ TERM_PROGRAM: 'Apple_Terminal' })).toBe('com.apple.Terminal')
+  })
+
+  test('returns Ghostty bundle ID', () => {
+    expect(getTerminalBundleId({ TERM_PROGRAM: 'ghostty' })).toBe('com.mitchellh.ghostty')
+  })
+
+  test('returns WezTerm bundle ID', () => {
+    expect(getTerminalBundleId({ TERM_PROGRAM: 'WezTerm' })).toBe('com.github.wez.wezterm')
+  })
+
+  test('prefers Kitty over TERM_PROGRAM=tmux (Kitty-inside-tmux case)', () => {
+    expect(getTerminalBundleId({ KITTY_WINDOW_ID: '2', TERM_PROGRAM: 'tmux' })).toBe(
+      'net.kovidgoyal.kitty'
+    )
+  })
+
+  test('returns undefined for unknown terminals', () => {
+    expect(getTerminalBundleId({ TERM_PROGRAM: 'xterm' })).toBeUndefined()
+    expect(getTerminalBundleId({})).toBeUndefined()
   })
 })
