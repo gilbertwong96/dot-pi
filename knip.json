@@ -10,6 +10,7 @@
     "lsof",
     "osascript",
     "powershell.exe",
+    "terminal-notifier",
     "which",
     "rec",
     "expect"
