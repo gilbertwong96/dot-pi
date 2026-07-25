@@ -1,11 +1,36 @@
 /**
  * Native desktop notifications via terminal OSC escape sequences.
  * Supports OSC 777 (Ghostty, WezTerm, foot, urxvt) and OSC 9 (iTerm2-style).
+ * On macOS, falls back to a native osascript notification with sound
+ * unless PI_NOTIFY_OSC forces OSC output.
  */
+import { spawn } from 'node:child_process'
+
 export function notifyDesktop(title: string, body: string): void {
-  for (const sequence of buildDesktopNotificationSequences(title, body)) {
-    process.stdout.write(sequence)
+  const oscOverride = process.env.PI_NOTIFY_OSC?.toLowerCase()
+  if (oscOverride || process.platform !== 'darwin') {
+    for (const sequence of buildDesktopNotificationSequences(title, body)) {
+      process.stdout.write(sequence)
+    }
+    return
   }
+  notifyMacOS(title, body)
+}
+
+function notifyMacOS(title: string, body: string): void {
+  const child = spawn('osascript', ['-e', buildMacOSNotifyScript(title, body)], {
+    stdio: 'ignore',
+    detached: true
+  })
+  child.unref()
+}
+
+export function buildMacOSNotifyScript(title: string, body: string): string {
+  return `display notification "${escapeForAppleScript(body)}" with title "${escapeForAppleScript(title)}" sound name "default"`
+}
+
+export function escapeForAppleScript(text: string): string {
+  return sanitizeNotificationText(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 export function buildDesktopNotificationSequences(

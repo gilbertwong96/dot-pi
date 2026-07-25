@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { buildDesktopNotificationSequences } from './desktop-notify'
+import {
+  buildDesktopNotificationSequences,
+  buildMacOSNotifyScript,
+  escapeForAppleScript
+} from './desktop-notify'
 
 describe('buildDesktopNotificationSequences', () => {
   test('uses only OSC 777 in Ghostty to avoid duplicate notifications', () => {
@@ -58,5 +62,30 @@ describe('buildDesktopNotificationSequences', () => {
 
     expect(sequences).toHaveLength(1)
     expect(sequences[0]).not.toContain(';b')
+  })
+})
+
+describe('buildMacOSNotifyScript', () => {
+  test('emits AppleScript with title, body, and default sound', () => {
+    expect(buildMacOSNotifyScript('π · dot-pi', 'Task completed')).toBe(
+      'display notification "Task completed" with title "π · dot-pi" sound name "default"'
+    )
+  })
+
+  test('escapes embedded quotes and backslashes', () => {
+    expect(buildMacOSNotifyScript('a"b', 'c\\d')).toBe(
+      'display notification "c\\\\d" with title "a\\"b" sound name "default"'
+    )
+  })
+})
+
+describe('escapeForAppleScript', () => {
+  test('escapes backslashes and double quotes', () => {
+    expect(escapeForAppleScript('a"b\\c')).toBe('a\\"b\\\\c')
+  })
+
+  test('preserves sanitization: drops semicolons, control chars, caps length', () => {
+    expect(escapeForAppleScript('a;b\x00c')).toBe('abc')
+    expect(escapeForAppleScript('x'.repeat(300)).length).toBe(240)
   })
 })
