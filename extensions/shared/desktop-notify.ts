@@ -17,17 +17,26 @@ export function buildDesktopNotificationSequences(
   const safeBody = sanitizeNotificationText(body)
   const osc777 = `\x1b]777;notify;${safeTitle};${safeBody}\x1b\\`
   const osc9 = `\x1b]9;${safeTitle ? `${safeTitle}: ${safeBody}` : safeBody}\x1b\\`
+  const osc99 = `\x1b]99;i=notify:${safeTitle}\x1b\\${safeBody}\x1b\\`
 
   switch (env.PI_NOTIFY_OSC?.toLowerCase()) {
     case '777':
       return [osc777]
     case '9':
       return [osc9]
+    case '99':
+      return [osc99]
     case 'both':
       return [osc777, osc9]
   }
 
-  return isITerm(env) ? [osc9] : [osc777]
+  if (isKitty(env)) return [osc99]
+  if (isITerm(env)) return [osc9]
+  return [osc777]
+}
+
+function isKitty(env: Record<string, string | undefined>): boolean {
+  return env.KITTY_WINDOW_ID !== undefined && env.KITTY_WINDOW_ID !== ''
 }
 
 function isITerm(env: Record<string, string | undefined>): boolean {
