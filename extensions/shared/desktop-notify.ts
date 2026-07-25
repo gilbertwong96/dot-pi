@@ -1,10 +1,18 @@
 /**
  * Native desktop notifications via terminal OSC escape sequences.
- * Supports OSC 777 (Ghostty, WezTerm, foot, urxvt) and OSC 9 (iTerm2-style).
- * On macOS, falls back to a native osascript notification with sound
- * unless PI_NOTIFY_OSC forces OSC output.
+ * Supports OSC 777 (Ghostty, WezTerm, foot, urxvt), OSC 9 (iTerm2-style),
+ * and OSC 99 (Kitty). On macOS, falls back to a native notification:
+ *
+ *   - terminal-notifier with `-activate <bundle-id>` is used when available
+ *     and the host terminal's bundle ID can be detected. Click brings the
+ *     terminal to the foreground without running any script, so it cannot
+ *     open Script Editor or any default-app handler.
+ *   - osascript `display notification ... sound name "default"` is the
+ *     built-in fallback when terminal-notifier is missing.
+ *
+ * PI_NOTIFY_OSC forces the OSC path regardless of platform.
  */
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 export function notifyDesktop(title: string, body: string): void {
   const oscOverride = process.env.PI_NOTIFY_OSC?.toLowerCase()
@@ -18,6 +26,43 @@ export function notifyDesktop(title: string, body: string): void {
 }
 
 function notifyMacOS(title: string, body: string): void {
+  const bundleId = getTerminalBundleId(process.env)
+  if (bundleId && hasTerminalNotifier()) {
+    spawnTerminalNotifier(title, body, bundleId)
+  } else {
+    spawnOsascript(title, body)
+  }
+}
+
+export function getTerminalBundleId(env: Record<string, string | undefined>): string | undefined {
+  if (isKitty(env)) return 'net.kovidgoyal.kitty'
+  if (isITerm(env)) return 'com.googlecode.iterm2'
+  const program = env.TERM_PROGRAM
+  if (program === 'Apple_Terminal') return 'com.apple.Terminal'
+  if (program === 'ghostty') return 'com.mitchellh.ghostty'
+  if (program === 'WezTerm') return 'com.github.wez.wezterm'
+  return undefined
+}
+
+function hasTerminalNotifier(): boolean {
+  try {
+    const result = spawnSync('which', ['terminal-notifier'], { stdio: 'ignore' })
+    return result.status === 0
+  } catch {
+    return false
+  }
+}
+
+function spawnTerminalNotifier(title: string, body: string, bundleId: string): void {
+  const child = spawn(
+    'terminal-notifier',
+    ['-title', title, '-message', body, '-group', 'dot-pi', '-activate', bundleId],
+    { stdio: 'ignore', detached: true }
+  )
+  child.unref()
+}
+
+function spawnOsascript(title: string, body: string): void {
   const child = spawn('osascript', ['-e', buildMacOSNotifyScript(title, body)], {
     stdio: 'ignore',
     detached: true
