@@ -82,6 +82,7 @@
       "extensions/question.ts",
       "extensions/rules.ts",
       "extensions/refactor-discipline.ts",
+      "extensions/vision-fallback.ts",
       "extensions/workflow-shortcuts.ts",
       "extensions/webfetch",
       "extensions/websearch",
