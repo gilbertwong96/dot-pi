@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { streamSimpleAnthropic } from '@earendil-works/pi-ai/anthropic'
-import { streamSimpleOpenAICompletions } from '@earendil-works/pi-ai/openai-completions'
-import type { Api, ImageContent, Model } from '@earendil-works/pi-ai'
+import type { Api, Model } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 
@@ -16,11 +14,13 @@ import { Type } from 'typebox'
  * re-analyzed on later turns, and the main model never changes.
  *
  * Vision side-call chain:
- *   1. ollama-cloud/kimi-k2.7-code
- *   2. minimax/MiniMax-M3 (used directly when Ollama Cloud is degraded)
+ *   1. ollama-cloud/kimi-k2.7-code  (OpenAI-compatible)
+ *   2. minimax/MiniMax-M3           (Anthropic-compatible; used when Ollama Cloud is degraded)
  *
- * The `vision_followup` tool re-queries a previously analyzed image for
- * targeted questions. Models that natively support images are never touched.
+ * The side call is a raw HTTP request (the pi-ai provider subpath imports vary
+ * between pi versions, so we construct the payloads ourselves). The
+ * `vision_followup` tool re-queries a previously analyzed image for targeted
+ * questions. Models that natively support images are never touched.
  */
 
 const VISION_CHAIN: ReadonlyArray<{ provider: string; id: string }> = [
@@ -56,11 +56,6 @@ export function hasImageBlocks(message: AgentMessage): boolean {
   return Array.isArray(message.content) && message.content.some((block) => block.type === 'image')
 }
 
-export function isQuotaError(message: AgentMessage): boolean {
-  if (message.role !== 'assistant' || message.stopReason !== 'error') return false
-  return QUOTA_ERROR_PATTERN.test(message.errorMessage ?? '')
-}
-
 export function isQuotaErrorText(text: string): boolean {
   return QUOTA_ERROR_PATTERN.test(text)
 }
@@ -80,9 +75,38 @@ export function buildAnalysisBlock(
   return { type: 'text', text: `[Image analysis (image:${imageId})]: ${analysis}` }
 }
 
+type StoredImage = { data: string; mimeType: string }
 type MessageBlock = { type: string; text?: string; data?: string; mimeType?: string }
 
-type StoredImage = { data: string; mimeType: string }
+interface ApiTextBlock {
+  type?: string
+  text?: unknown
+}
+
+interface ApiPayload {
+  content?: unknown
+  choices?: Array<{ message?: { content?: unknown } }>
+  error?: unknown
+}
+
+function extractTextBlocks(blocks: unknown): string {
+  if (!Array.isArray(blocks)) return ''
+  return (blocks as ApiTextBlock[])
+    .filter((block) => block.type === 'text' && typeof block.text === 'string')
+    .map((block) => block.text as string)
+    .join('\n')
+    .trim()
+}
+
+function formatApiError(status: number, payload: ApiPayload): string {
+  const detail =
+    payload.error !== undefined
+      ? typeof payload.error === 'object'
+        ? JSON.stringify(payload.error).slice(0, 200)
+        : String(payload.error)
+      : ''
+  return `HTTP ${status}${detail ? `: ${detail}` : ''}`
+}
 
 export default function visionFallback(pi: ExtensionAPI) {
   const states = new Map<string, HandoffState>()
@@ -117,49 +141,75 @@ export default function visionFallback(pi: ExtensionAPI) {
     prompt: string,
     signal: AbortSignal | undefined
   ): Promise<string> {
-    const content: Array<{ type: 'text'; text: string } | ImageContent> = [
-      { type: 'text', text: prompt },
-      { type: 'image', data: image.data, mimeType: image.mimeType }
-    ]
-    const context = {
-      messages: [{ role: 'user' as const, content, timestamp: Date.now() }],
-      tools: []
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), ANALYSIS_TIMEOUT_MS)
+    const onAbort = () => ctrl.abort()
+    if (signal) {
+      if (signal.aborted) ctrl.abort()
+      else signal.addEventListener('abort', onAbort, { once: true })
     }
-    const options = {
-      apiKey,
-      signal,
-      maxRetries: 0,
-      maxTokens: ANALYSIS_MAX_TOKENS,
-      timeoutMs: ANALYSIS_TIMEOUT_MS
+    try {
+      const baseUrl = model.baseUrl.replace(/\/+$/, '')
+      if (model.api === 'anthropic-messages') {
+        const res = await fetch(`${baseUrl}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: model.id,
+            max_tokens: ANALYSIS_MAX_TOKENS,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  {
+                    type: 'image',
+                    source: { type: 'base64', media_type: image.mimeType, data: image.data }
+                  }
+                ]
+              }
+            ]
+          }),
+          signal: ctrl.signal
+        })
+        const payload = (await res.json().catch(() => ({}))) as ApiPayload
+        if (!res.ok) throw new Error(formatApiError(res.status, payload))
+        return extractTextBlocks(payload.content) || '(no analysis returned)'
+      }
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: model.id,
+          max_tokens: ANALYSIS_MAX_TOKENS,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:${image.mimeType};base64,${image.data}` }
+                }
+              ]
+            }
+          ]
+        }),
+        signal: ctrl.signal
+      })
+      const payload = (await res.json().catch(() => ({}))) as ApiPayload
+      if (!res.ok) throw new Error(formatApiError(res.status, payload))
+      const content = payload.choices?.[0]?.message?.content
+      const text = typeof content === 'string' ? content.trim() : extractTextBlocks(content)
+      return text || '(no analysis returned)'
+    } finally {
+      clearTimeout(timer)
+      if (signal) signal.removeEventListener('abort', onAbort)
     }
-
-    let stream
-    if (model.api === 'anthropic-messages') {
-      stream = streamSimpleAnthropic(
-        model as unknown as Model<'anthropic-messages'>,
-        context,
-        options
-      )
-    } else {
-      stream = streamSimpleOpenAICompletions(
-        model as unknown as Model<'openai-completions'>,
-        context,
-        options
-      )
-    }
-
-    const message = await stream.result()
-    if (message.stopReason === 'error' || message.stopReason === 'aborted') {
-      throw new Error(
-        message.errorMessage || `Vision model ${model.id} failed (${message.stopReason})`
-      )
-    }
-    const text = message.content
-      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
-      .trim()
-    return text || '(no analysis returned)'
   }
 
   async function transformMessageImages(
