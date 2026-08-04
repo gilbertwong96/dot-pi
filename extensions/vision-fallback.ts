@@ -1,49 +1,50 @@
+import { createHash } from 'node:crypto'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { streamSimpleAnthropic } from '@earendil-works/pi-ai/anthropic'
+import { streamSimpleOpenAICompletions } from '@earendil-works/pi-ai/openai-completions'
+import type { Api, ImageContent, Model } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
-import type { Api, Model } from '@earendil-works/pi-ai'
+import { Type } from 'typebox'
 
 /**
- * Vision fallback: when an image enters the session but the active model
- * cannot accept images, switch to a vision-capable model automatically.
+ * Client-side vision handoff (pattern from pi-provider-umans).
  *
- * Fallback chain (when the active model lacks vision):
+ * When an image enters the session but the active model cannot accept images
+ * (e.g. deepseek-v4-flash:0731), analyze the image with a native-vision model
+ * in a side call and replace the image block with `[Image analysis (image:ID)]:
+ * ...` text. The analysis persists in the conversation, so it is not
+ * re-analyzed on later turns, and the main model never changes.
+ *
+ * Vision side-call chain:
  *   1. ollama-cloud/kimi-k2.7-code
  *   2. minimax/MiniMax-M3 (used directly when Ollama Cloud is degraded)
  *
- * Switches back to the original model when a text-only user message arrives.
- * Manual model changes via /model always cancel the automatic behavior.
+ * The `vision_followup` tool re-queries a previously analyzed image for
+ * targeted questions. Models that natively support images are never touched.
  */
 
-const FALLBACK_CHAIN: ReadonlyArray<{ provider: string; id: string }> = [
+const VISION_CHAIN: ReadonlyArray<{ provider: string; id: string }> = [
   { provider: 'ollama-cloud', id: 'kimi-k2.7-code' },
   { provider: 'minimax', id: 'MiniMax-M3' }
 ]
 
-const OLLAMA_PROVIDER = 'ollama-cloud'
 const QUOTA_ERROR_PATTERN = /rate\s*limit|429|quota|exhausted/i
 const QUOTA_STREAK_THRESHOLD = 2
-const SWITCH_DEBOUNCE_MS = 5000
+const ANALYSIS_MAX_TOKENS = 1024
+const ANALYSIS_TIMEOUT_MS = 60_000
 
-export interface VisionFallbackState {
-  homeModel: { provider: string; id: string } | null
-  fallbackActive: boolean
+const ANALYSIS_PROMPT =
+  'You are a vision assistant for a text-only coding model. Analyze the attached image thoroughly but concisely. ' +
+  'Capture: any visible text (verbatim), UI/layout, code/errors/stack traces, diagrams/charts, and other notable details. ' +
+  'Write a compact structured report. Do not speculate beyond what is visible.'
+
+export interface HandoffState {
   ollamaCloudDegraded: boolean
   ollamaErrorStreak: number
-  pendingSwitchBack: boolean
-  internalSwitch: boolean
-  lastSwitchAt: number
 }
 
-export function createState(): VisionFallbackState {
-  return {
-    homeModel: null,
-    fallbackActive: false,
-    ollamaCloudDegraded: false,
-    ollamaErrorStreak: 0,
-    pendingSwitchBack: false,
-    internalSwitch: false,
-    lastSwitchAt: 0
-  }
+export function createState(): HandoffState {
+  return { ollamaCloudDegraded: false, ollamaErrorStreak: 0 }
 }
 
 export function supportsImages(model: Model<Api> | undefined): boolean {
@@ -60,23 +61,34 @@ export function isQuotaError(message: AgentMessage): boolean {
   return QUOTA_ERROR_PATTERN.test(message.errorMessage ?? '')
 }
 
-export function isFallbackTarget(model: Model<Api> | undefined): boolean {
-  if (!model) return false
-  return FALLBACK_CHAIN.some((t) => t.provider === model.provider && t.id === model.id)
+export function isQuotaErrorText(text: string): boolean {
+  return QUOTA_ERROR_PATTERN.test(text)
 }
 
-export function pickFallbackTargets(
-  state: VisionFallbackState,
-  current: Model<Api> | undefined
-): ReadonlyArray<{ provider: string; id: string }> {
-  const chain = state.ollamaCloudDegraded ? FALLBACK_CHAIN.slice(1) : FALLBACK_CHAIN
-  return chain.filter((t) => !(t.provider === current?.provider && t.id === current?.id))
+export function pickVisionTarget(state: HandoffState): Readonly<{ provider: string; id: string }> {
+  return state.ollamaCloudDegraded ? VISION_CHAIN[1] : VISION_CHAIN[0]
 }
+
+export function hashImageId(data: string): string {
+  return 'img_' + createHash('sha256').update(data).digest('hex').slice(0, 8)
+}
+
+export function buildAnalysisBlock(
+  imageId: string,
+  analysis: string
+): { type: 'text'; text: string } {
+  return { type: 'text', text: `[Image analysis (image:${imageId})]: ${analysis}` }
+}
+
+type MessageBlock = { type: string; text?: string; data?: string; mimeType?: string }
+
+type StoredImage = { data: string; mimeType: string }
 
 export default function visionFallback(pi: ExtensionAPI) {
-  const states = new Map<string, VisionFallbackState>()
+  const states = new Map<string, HandoffState>()
+  const imageStore = new Map<string, StoredImage>()
 
-  function getState(ctx: ExtensionContext): VisionFallbackState {
+  function getState(ctx: ExtensionContext): HandoffState {
     const sessionId = ctx.sessionManager.getSessionId()
     let state = states.get(sessionId)
     if (!state) {
@@ -86,150 +98,230 @@ export default function visionFallback(pi: ExtensionAPI) {
     return state
   }
 
-  async function applyModelSwitch(
-    ctx: ExtensionContext,
-    state: VisionFallbackState,
-    target: { provider: string; id: string },
-    notify: string
-  ): Promise<boolean> {
-    const model = ctx.modelRegistry.find(target.provider, target.id)
-    if (!model) return false
-
-    state.internalSwitch = true
-    try {
-      if (!(await pi.setModel(model))) return false
-    } finally {
-      state.internalSwitch = false
-    }
-    ctx.ui.notify(notify, 'info')
-    return true
-  }
-
-  async function switchToVision(ctx: ExtensionContext, state: VisionFallbackState): Promise<void> {
-    const current = ctx.model
-    if (!current || supportsImages(current) || state.internalSwitch) return
-    if (state.fallbackActive && Date.now() - state.lastSwitchAt < SWITCH_DEBOUNCE_MS) return
-
-    for (const target of pickFallbackTargets(state, current)) {
-      const model = ctx.modelRegistry.find(target.provider, target.id)
-      if (!model || !supportsImages(model)) continue
-      if (!state.homeModel) {
-        state.homeModel = { provider: current.provider, id: current.id }
-      }
-      const switched = await applyModelSwitch(
-        ctx,
-        state,
-        target,
-        `Image detected — switched to ${target.id} (vision)`
-      )
-      if (!switched) continue
-      state.fallbackActive = true
-      state.pendingSwitchBack = false
-      state.lastSwitchAt = Date.now()
+  function recordVisionError(state: HandoffState, provider: string, errorMessage: string): void {
+    if (provider !== VISION_CHAIN[0].provider) return
+    if (!isQuotaErrorText(errorMessage)) {
+      state.ollamaErrorStreak = 0
       return
     }
-    ctx.ui.notify('Image detected but no vision-capable model is available', 'warning')
-  }
-
-  async function switchToHome(ctx: ExtensionContext, state: VisionFallbackState): Promise<void> {
-    const home = state.homeModel
-    if (!home || !state.fallbackActive) return
-    if (!isFallbackTarget(ctx.model)) return
-
-    const switched = await applyModelSwitch(ctx, state, home, `Switched back to ${home.id}`)
-    if (!switched) {
-      ctx.ui.notify(`Could not switch back to ${home.provider}/${home.id}`, 'warning')
+    state.ollamaErrorStreak += 1
+    if (state.ollamaErrorStreak >= QUOTA_STREAK_THRESHOLD) {
+      state.ollamaCloudDegraded = true
     }
-    state.fallbackActive = false
-    state.homeModel = null
-    state.pendingSwitchBack = false
   }
 
-  async function requestSwitchBack(
-    ctx: ExtensionContext,
-    state: VisionFallbackState
-  ): Promise<void> {
-    if (!state.fallbackActive || !state.homeModel) return
-    if (!isFallbackTarget(ctx.model)) return
-    if (ctx.isIdle()) {
-      await switchToHome(ctx, state)
+  async function analyzeImage(
+    model: Model<Api>,
+    apiKey: string,
+    image: StoredImage,
+    prompt: string,
+    signal: AbortSignal | undefined
+  ): Promise<string> {
+    const content: Array<{ type: 'text'; text: string } | ImageContent> = [
+      { type: 'text', text: prompt },
+      { type: 'image', data: image.data, mimeType: image.mimeType }
+    ]
+    const context = {
+      messages: [{ role: 'user' as const, content, timestamp: Date.now() }],
+      tools: []
+    }
+    const options = {
+      apiKey,
+      signal,
+      maxRetries: 0,
+      maxTokens: ANALYSIS_MAX_TOKENS,
+      timeoutMs: ANALYSIS_TIMEOUT_MS
+    }
+
+    let stream
+    if (model.api === 'anthropic-messages') {
+      stream = streamSimpleAnthropic(
+        model as unknown as Model<'anthropic-messages'>,
+        context,
+        options
+      )
     } else {
-      state.pendingSwitchBack = true
+      stream = streamSimpleOpenAICompletions(
+        model as unknown as Model<'openai-completions'>,
+        context,
+        options
+      )
     }
+
+    const message = await stream.result()
+    if (message.stopReason === 'error' || message.stopReason === 'aborted') {
+      throw new Error(
+        message.errorMessage || `Vision model ${model.id} failed (${message.stopReason})`
+      )
+    }
+    const text = message.content
+      .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+      .trim()
+    return text || '(no analysis returned)'
+  }
+
+  async function transformMessageImages(
+    message: AgentMessage,
+    model: Model<Api>,
+    apiKey: string,
+    signal: AbortSignal | undefined,
+    state: HandoffState
+  ): Promise<AgentMessage | undefined> {
+    if (!('content' in message)) return undefined
+    const content = Array.isArray(message.content) ? (message.content as MessageBlock[]) : null
+    if (!content) return undefined
+
+    const replacements = new Map<number, { type: 'text'; text: string }>()
+    await Promise.all(
+      content.map(async (block, index) => {
+        if (block.type !== 'image') return
+        const data = block.data ?? ''
+        const mimeType = block.mimeType ?? 'image/png'
+        const id = hashImageId(data)
+        imageStore.set(id, { data, mimeType })
+        let analysis: string
+        try {
+          analysis = await analyzeImage(model, apiKey, { data, mimeType }, ANALYSIS_PROMPT, signal)
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error)
+          recordVisionError(state, model.provider, detail)
+          analysis = `analysis unavailable (${detail}); call the vision_followup tool with image id ${id} to retry`
+        }
+        replacements.set(index, buildAnalysisBlock(id, analysis))
+      })
+    )
+
+    if (replacements.size === 0) return undefined
+    return {
+      ...message,
+      content: content.map((block, index) => replacements.get(index) ?? block)
+    } as AgentMessage
   }
 
   pi.on('session_start', (event, ctx) => {
     states.set(ctx.sessionManager.getSessionId(), createState())
+    imageStore.clear()
   })
 
   pi.on('session_shutdown', (event, ctx) => {
     states.delete(ctx.sessionManager.getSessionId())
+    imageStore.clear()
   })
 
-  pi.on('input', async (event, ctx) => {
-    const state = getState(ctx)
-    if (event.images?.length) {
-      await switchToVision(ctx, state)
-    } else {
-      await requestSwitchBack(ctx, state)
-    }
-  })
-
-  pi.on('message_start', async (event, ctx) => {
-    const state = getState(ctx)
-    const { message } = event
-    if (message.role === 'user' || message.role === 'toolResult') {
-      if (hasImageBlocks(message)) {
-        await switchToVision(ctx, state)
-      } else if (message.role === 'user') {
-        await requestSwitchBack(ctx, state)
-      }
-    }
-  })
-
+  // Intercept images headed to a text-only model and replace them with
+  // persisted analysis text. Runs on the finalized user / toolResult message
+  // before the next LLM call, so the text model never sees the raw image and
+  // the analysis sticks in history (KV-cache friendly: no re-analysis).
   pi.on('message_end', async (event, ctx) => {
-    const state = getState(ctx)
+    if (supportsImages(ctx.model)) return
     const { message } = event
-    if (message.role !== 'assistant' || message.provider !== OLLAMA_PROVIDER) return
+    if (message.role !== 'user' && message.role !== 'toolResult') return
+    if (!hasImageBlocks(message)) return
 
-    if (isQuotaError(message)) {
-      state.ollamaErrorStreak += 1
-      if (state.ollamaErrorStreak >= QUOTA_STREAK_THRESHOLD && !state.ollamaCloudDegraded) {
-        state.ollamaCloudDegraded = true
-        ctx.ui.notify(
-          'Ollama Cloud rate-limited or out of quota — image fallback will use MiniMax-M3',
-          'warning'
-        )
-        const current = ctx.model
-        if (current?.provider === OLLAMA_PROVIDER && isFallbackTarget(current)) {
-          const switched = await applyModelSwitch(
-            ctx,
-            state,
-            FALLBACK_CHAIN[1],
-            'Ollama Cloud degraded — switched to MiniMax-M3'
+    const state = getState(ctx)
+    const target = pickVisionTarget(state)
+    if (!target) {
+      ctx.ui.notify('Image detected but no vision model is configured', 'warning')
+      return
+    }
+    const model = ctx.modelRegistry.find(target.provider, target.id)
+    if (!model || !supportsImages(model)) {
+      ctx.ui.notify(
+        `Image detected but vision model ${target.provider}/${target.id} is unavailable`,
+        'warning'
+      )
+      return
+    }
+    const apiKey = await ctx.modelRegistry.getApiKeyForProvider(target.provider)
+    if (!apiKey) {
+      ctx.ui.notify(`Image detected but no API key for ${target.provider}`, 'warning')
+      return
+    }
+
+    const imageCount = Array.isArray(message.content)
+      ? message.content.filter((block) => block.type === 'image').length
+      : 0
+    ctx.ui.notify(
+      `Vision handoff: analyzing ${imageCount} image${imageCount > 1 ? 's' : ''} with ${target.id}`,
+      'info'
+    )
+    try {
+      const transformed = await transformMessageImages(message, model, apiKey, ctx.signal, state)
+      if (transformed) {
+        if (state.ollamaCloudDegraded) {
+          ctx.ui.notify(
+            'Ollama Cloud rate-limited or out of quota — vision analysis will use MiniMax-M3',
+            'warning'
           )
-          if (!switched) {
-            ctx.ui.notify('Could not switch to MiniMax-M3', 'warning')
-          }
+        }
+        return { message: transformed }
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      ctx.ui.notify(`Vision handoff failed: ${detail}`, 'error')
+    }
+  })
+
+  pi.registerTool({
+    name: 'vision_followup',
+    label: 'Vision Follow-up',
+    description:
+      'Ask a targeted question about an image that was summarized into an `[Image analysis (image:ID)]` ' +
+      'block. Use when the initial summary omits a specific detail you need (text, region, color, layout). ' +
+      'Pass the image ID from the block and your question.',
+    promptSnippet: 'Ask the vision model a targeted follow-up about an analyzed image',
+    promptGuidelines: [
+      'Use vision_followup to ask a targeted follow-up about any `[Image analysis (image:ID)]` block ' +
+        'when the initial summary lacks a specific detail you need (text, region, color, layout). ' +
+        'Pass the image ID and your question.'
+    ],
+    parameters: Type.Object({
+      image_id: Type.String({
+        description: 'Image ID from the `[Image analysis (image:ID)]` block'
+      }),
+      question: Type.String({ description: 'The specific question to answer about the image' })
+    }),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      const image = imageStore.get(params.image_id)
+      if (!image) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text:
+                `Image ${params.image_id} is not available in this session ` +
+                '(it predates the session or the session was reloaded). ' +
+                'Only the initial analysis in the conversation remains.'
+            }
+          ],
+          details: {}
         }
       }
-    } else {
-      state.ollamaErrorStreak = 0
+      const state = getState(ctx)
+      const target = pickVisionTarget(state)
+      const model = target ? ctx.modelRegistry.find(target.provider, target.id) : undefined
+      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(target?.provider ?? '')
+      if (!model || !apiKey) {
+        return {
+          content: [
+            { type: 'text', text: 'Vision model or API key unavailable; cannot query the image.' }
+          ],
+          details: {}
+        }
+      }
+      try {
+        const answer = await analyzeImage(model, apiKey, image, params.question, signal)
+        return { content: [{ type: 'text', text: answer }], details: {} }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        recordVisionError(state, model.provider, detail)
+        return {
+          content: [{ type: 'text', text: `Vision follow-up failed: ${detail}` }],
+          details: {}
+        }
+      }
     }
-  })
-
-  pi.on('agent_end', async (event, ctx) => {
-    const state = getState(ctx)
-    if (state.pendingSwitchBack) {
-      await switchToHome(ctx, state)
-    }
-  })
-
-  pi.on('model_select', (event, ctx) => {
-    const state = getState(ctx)
-    if (state.internalSwitch) return
-    state.fallbackActive = false
-    state.homeModel = null
-    state.pendingSwitchBack = false
   })
 }
