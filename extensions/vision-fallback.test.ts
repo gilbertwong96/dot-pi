@@ -7,6 +7,7 @@ import {
   createState,
   hasImageBlocks,
   hashImageId,
+  isQuotaError,
   isQuotaErrorText,
   pickVisionTarget,
   supportsImages
@@ -14,6 +15,27 @@ import {
 
 function model(provider: string, id: string, input: ('text' | 'image')[] = ['text']): Model<Api> {
   return { provider, id, input } as Model<Api>
+}
+
+function assistant(overrides: Partial<Parameters<typeof isQuotaError>[0]> = {}) {
+  return {
+    role: 'assistant' as const,
+    provider: 'ollama-cloud',
+    model: 'deepseek-v4-flash:0731',
+    api: 'openai-completions',
+    content: [{ type: 'text' as const, text: 'ok' }],
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    },
+    stopReason: 'stop' as const,
+    timestamp: Date.now(),
+    ...overrides
+  }
 }
 
 describe('supportsImages', () => {
@@ -73,6 +95,26 @@ describe('isQuotaErrorText', () => {
   test('ignores other errors', () => {
     expect(isQuotaErrorText('context_length_exceeded')).toBe(false)
     expect(isQuotaErrorText('connection reset')).toBe(false)
+  })
+})
+
+describe('isQuotaError', () => {
+  test('matches quota patterns on errored assistant messages', () => {
+    expect(
+      isQuotaError(
+        assistant({
+          stopReason: 'error',
+          errorMessage: 'Ollama Cloud rate limited. Try again shortly.'
+        })
+      )
+    ).toBe(true)
+  })
+
+  test('ignores other errors and successful messages', () => {
+    expect(
+      isQuotaError(assistant({ stopReason: 'error', errorMessage: 'context_length_exceeded' }))
+    ).toBe(false)
+    expect(isQuotaError(assistant())).toBe(false)
   })
 })
 

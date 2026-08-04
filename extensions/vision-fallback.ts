@@ -41,10 +41,11 @@ const ANALYSIS_PROMPT =
 export interface HandoffState {
   ollamaCloudDegraded: boolean
   ollamaErrorStreak: number
+  degradedNotified: boolean
 }
 
 export function createState(): HandoffState {
-  return { ollamaCloudDegraded: false, ollamaErrorStreak: 0 }
+  return { ollamaCloudDegraded: false, ollamaErrorStreak: 0, degradedNotified: false }
 }
 
 export function supportsImages(model: Model<Api> | undefined): boolean {
@@ -58,6 +59,11 @@ export function hasImageBlocks(message: AgentMessage): boolean {
 
 export function isQuotaErrorText(text: string): boolean {
   return QUOTA_ERROR_PATTERN.test(text)
+}
+
+export function isQuotaError(message: AgentMessage): boolean {
+  if (message.role !== 'assistant' || message.stopReason !== 'error') return false
+  return isQuotaErrorText(message.errorMessage ?? '')
 }
 
 export function pickVisionTarget(state: HandoffState): Readonly<{ provider: string; id: string }> {
@@ -132,6 +138,15 @@ export default function visionFallback(pi: ExtensionAPI) {
     if (state.ollamaErrorStreak >= QUOTA_STREAK_THRESHOLD) {
       state.ollamaCloudDegraded = true
     }
+  }
+
+  function notifyIfDegraded(ctx: ExtensionContext, state: HandoffState): void {
+    if (!state.ollamaCloudDegraded || state.degradedNotified) return
+    state.degradedNotified = true
+    ctx.ui.notify(
+      'Ollama Cloud rate-limited or out of quota — vision analysis will use MiniMax-M3',
+      'warning'
+    )
   }
 
   async function analyzeImage(
@@ -265,12 +280,24 @@ export default function visionFallback(pi: ExtensionAPI) {
   // before the next LLM call, so the text model never sees the raw image and
   // the analysis sticks in history (KV-cache friendly: no re-analysis).
   pi.on('message_end', async (event, ctx) => {
-    if (supportsImages(ctx.model)) return
     const { message } = event
+    const state = getState(ctx)
+
+    // Consecutive quota/rate-limit errors on Ollama Cloud (main model or vision
+    // side calls) degrade the vision chain to MiniMax-M3 for this session.
+    if (
+      message.role === 'assistant' &&
+      'provider' in message &&
+      message.provider === 'ollama-cloud'
+    ) {
+      recordVisionError(state, message.provider, message.errorMessage ?? '')
+    }
+    notifyIfDegraded(ctx, state)
+
+    if (supportsImages(ctx.model)) return
     if (message.role !== 'user' && message.role !== 'toolResult') return
     if (!hasImageBlocks(message)) return
 
-    const state = getState(ctx)
     const target = pickVisionTarget(state)
     if (!target) {
       ctx.ui.notify('Image detected but no vision model is configured', 'warning')
@@ -299,13 +326,8 @@ export default function visionFallback(pi: ExtensionAPI) {
     )
     try {
       const transformed = await transformMessageImages(message, model, apiKey, ctx.signal, state)
+      notifyIfDegraded(ctx, state)
       if (transformed) {
-        if (state.ollamaCloudDegraded) {
-          ctx.ui.notify(
-            'Ollama Cloud rate-limited or out of quota — vision analysis will use MiniMax-M3',
-            'warning'
-          )
-        }
         return { message: transformed }
       }
     } catch (error) {
