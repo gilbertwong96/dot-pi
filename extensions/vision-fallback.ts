@@ -13,9 +13,15 @@ import { Type } from 'typebox'
  * ...` text. The analysis persists in the conversation, so it is not
  * re-analyzed on later turns, and the main model never changes.
  *
- * Vision side-call chain:
+ * Vision side-call chain (tried in order per image):
  *   1. ollama-cloud/kimi-k2.7-code  (OpenAI-compatible)
  *   2. minimax/MiniMax-M3           (Anthropic-compatible; used when Ollama Cloud is degraded)
+ *
+ * When a provider fails (quota/rate-limit/network), the next provider in the
+ * chain is tried automatically for the same image, so a single failed call
+ * never leaves the analysis permanently unavailable. Quota errors on Ollama
+ * Cloud (main model or vision side calls) degrade the chain to skip Ollama
+ * Cloud for the rest of the session.
  *
  * The side call is a raw HTTP request (the pi-ai provider subpath imports vary
  * between pi versions, so we construct the payloads ourselves). The
@@ -68,6 +74,12 @@ export function isQuotaError(message: AgentMessage): boolean {
 
 export function pickVisionTarget(state: HandoffState): Readonly<{ provider: string; id: string }> {
   return state.ollamaCloudDegraded ? VISION_CHAIN[1] : VISION_CHAIN[0]
+}
+
+export function pickVisionTargets(
+  state: HandoffState
+): ReadonlyArray<{ provider: string; id: string }> {
+  return state.ollamaCloudDegraded ? VISION_CHAIN.slice(1) : VISION_CHAIN
 }
 
 export function hashImageId(data: string): string {
@@ -227,12 +239,45 @@ export default function visionFallback(pi: ExtensionAPI) {
     }
   }
 
+  async function analyzeWithChain(
+    state: HandoffState,
+    ctx: ExtensionContext,
+    image: StoredImage,
+    prompt: string,
+    signal: AbortSignal | undefined,
+    notifyFailure: (provider: string, id: string, detail: string) => void
+  ): Promise<string> {
+    const targets = pickVisionTargets(state)
+    for (const target of targets) {
+      const model = ctx.modelRegistry.find(target.provider, target.id)
+      if (!model || !supportsImages(model)) {
+        notifyFailure(target.provider, target.id, 'model not found or not vision-capable')
+        continue
+      }
+      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(target.provider)
+      if (!apiKey) {
+        notifyFailure(target.provider, target.id, 'no API key configured')
+        continue
+      }
+      try {
+        const analysis = await analyzeImage(model, apiKey, image, prompt, signal)
+        recordVisionError(state, target.provider, '')
+        return analysis
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        recordVisionError(state, target.provider, detail)
+        notifyFailure(target.provider, target.id, detail)
+      }
+    }
+    const details = targets.map((t) => `${t.provider}/${t.id}`).join(', ')
+    throw new Error(`all vision providers failed (${details})`)
+  }
+
   async function transformMessageImages(
     message: AgentMessage,
-    model: Model<Api>,
-    apiKey: string,
-    signal: AbortSignal | undefined,
-    state: HandoffState
+    state: HandoffState,
+    ctx: ExtensionContext,
+    signal: AbortSignal | undefined
   ): Promise<AgentMessage | undefined> {
     if (!('content' in message)) return undefined
     const content = Array.isArray(message.content) ? (message.content as MessageBlock[]) : null
@@ -248,10 +293,21 @@ export default function visionFallback(pi: ExtensionAPI) {
         imageStore.set(id, { data, mimeType })
         let analysis: string
         try {
-          analysis = await analyzeImage(model, apiKey, { data, mimeType }, ANALYSIS_PROMPT, signal)
+          analysis = await analyzeWithChain(
+            state,
+            ctx,
+            { data, mimeType },
+            ANALYSIS_PROMPT,
+            signal,
+            (provider, modelId, detail) => {
+              ctx.ui.notify(
+                `Vision provider ${provider}/${modelId} failed: ${detail.slice(0, 200)}`,
+                'warning'
+              )
+            }
+          )
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error)
-          recordVisionError(state, model.provider, detail)
           analysis = `analysis unavailable (${detail}); call the vision_followup tool with image id ${id} to retry`
         }
         replacements.set(index, buildAnalysisBlock(id, analysis))
@@ -298,34 +354,22 @@ export default function visionFallback(pi: ExtensionAPI) {
     if (message.role !== 'user' && message.role !== 'toolResult') return
     if (!hasImageBlocks(message)) return
 
-    const target = pickVisionTarget(state)
-    if (!target) {
+    const targets = pickVisionTargets(state)
+    if (targets.length === 0) {
       ctx.ui.notify('Image detected but no vision model is configured', 'warning')
       return
     }
-    const model = ctx.modelRegistry.find(target.provider, target.id)
-    if (!model || !supportsImages(model)) {
-      ctx.ui.notify(
-        `Image detected but vision model ${target.provider}/${target.id} is unavailable`,
-        'warning'
-      )
-      return
-    }
-    const apiKey = await ctx.modelRegistry.getApiKeyForProvider(target.provider)
-    if (!apiKey) {
-      ctx.ui.notify(`Image detected but no API key for ${target.provider}`, 'warning')
-      return
-    }
-
     const imageCount = Array.isArray(message.content)
       ? message.content.filter((block) => block.type === 'image').length
       : 0
     ctx.ui.notify(
-      `Vision handoff: analyzing ${imageCount} image${imageCount > 1 ? 's' : ''} with ${target.id}`,
+      `Vision handoff: analyzing ${imageCount} image${imageCount > 1 ? 's' : ''} (chain: ${targets
+        .map((t) => t.id)
+        .join(' → ')})`,
       'info'
     )
     try {
-      const transformed = await transformMessageImages(message, model, apiKey, ctx.signal, state)
+      const transformed = await transformMessageImages(message, state, ctx, ctx.signal)
       notifyIfDegraded(ctx, state)
       if (transformed) {
         return { message: transformed }
@@ -372,23 +416,24 @@ export default function visionFallback(pi: ExtensionAPI) {
         }
       }
       const state = getState(ctx)
-      const target = pickVisionTarget(state)
-      const model = target ? ctx.modelRegistry.find(target.provider, target.id) : undefined
-      const apiKey = await ctx.modelRegistry.getApiKeyForProvider(target?.provider ?? '')
-      if (!model || !apiKey) {
-        return {
-          content: [
-            { type: 'text', text: 'Vision model or API key unavailable; cannot query the image.' }
-          ],
-          details: {}
-        }
-      }
       try {
-        const answer = await analyzeImage(model, apiKey, image, params.question, signal)
+        const answer = await analyzeWithChain(
+          state,
+          ctx,
+          image,
+          params.question,
+          signal,
+          (provider, modelId, detail) => {
+            ctx.ui.notify(
+              `Vision provider ${provider}/${modelId} failed: ${detail.slice(0, 200)}`,
+              'warning'
+            )
+          }
+        )
+        notifyIfDegraded(ctx, state)
         return { content: [{ type: 'text', text: answer }], details: {} }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
-        recordVisionError(state, model.provider, detail)
         return {
           content: [{ type: 'text', text: `Vision follow-up failed: ${detail}` }],
           details: {}

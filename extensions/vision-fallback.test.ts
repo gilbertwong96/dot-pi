@@ -10,6 +10,7 @@ import {
   isQuotaError,
   isQuotaErrorText,
   pickVisionTarget,
+  pickVisionTargets,
   supportsImages
 } from './vision-fallback'
 
@@ -130,6 +131,21 @@ describe('pickVisionTarget', () => {
     const state = createState()
     state.ollamaCloudDegraded = true
     expect(pickVisionTarget(state)).toEqual({ provider: 'minimax', id: 'MiniMax-M3' })
+  })
+})
+
+describe('pickVisionTargets', () => {
+  test('healthy chain tries Ollama Cloud first, then MiniMax', () => {
+    expect(pickVisionTargets(createState())).toEqual([
+      { provider: 'ollama-cloud', id: 'kimi-k2.7-code' },
+      { provider: 'minimax', id: 'MiniMax-M3' }
+    ])
+  })
+
+  test('degraded chain skips Ollama Cloud', () => {
+    const state = createState()
+    state.ollamaCloudDegraded = true
+    expect(pickVisionTargets(state)).toEqual([{ provider: 'minimax', id: 'MiniMax-M3' }])
   })
 })
 
