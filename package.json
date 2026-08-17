@@ -79,6 +79,7 @@
       "extensions/notify.ts",
       "extensions/oracle.ts",
       "extensions/provider-bai.ts",
+      "extensions/provider-commandcode.ts",
       "extensions/quote.ts",
       "extensions/question.ts",
       "extensions/rules.ts",
