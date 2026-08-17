@@ -80,6 +80,7 @@
       "extensions/lsp",
       "extensions/notify.ts",
       "extensions/oracle.ts",
+      "extensions/provider-bai.ts",
       "extensions/quote.ts",
       "extensions/rules.ts",
       "extensions/refactor-discipline.ts",
