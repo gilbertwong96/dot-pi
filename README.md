@@ -321,6 +321,7 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `ghost-tutor.ts`       | Quiet model-generated workflow nudge after the agent stops                        |
 | `permission-gate.ts`   | Opinionated command blocking                                                      |
 | `plan-mode/`           | Experimental read-only planning mode                                              |
+| `provider-bai.ts`      | B.AI gateway provider (`B_AI_API_KEY`); registers deepseek-v4-flash                |
 | `provider/`            | Experimental dynamic provider registration                                        |
 | `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
 | `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |

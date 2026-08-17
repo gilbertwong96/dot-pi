@@ -78,6 +78,7 @@
       "extensions/lsp",
       "extensions/notify.ts",
       "extensions/oracle.ts",
+      "extensions/provider-bai.ts",
       "extensions/quote.ts",
       "extensions/question.ts",
       "extensions/rules.ts",
