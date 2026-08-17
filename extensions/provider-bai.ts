@@ -5,8 +5,8 @@
  * models can be used as pi main/fallback models. B.AI exposes an
  * OpenAI-compatible endpoint, so all models route through openai-completions.
  *
- * Set B_AI_API_KEY environment variable to enable. Get a key from the B.AI
- * API Key management page (https://chat.b.ai).
+ * Set B_AI_API_KEY environment variable, or use /login and sign in with an
+ * API key. Get a key from the B.AI API Key management page (https://chat.b.ai).
  *
  * Cost fields are 0 because B.AI bills in platform Credits, which do not map
  * to USD.
@@ -15,10 +15,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 export default function (pi: ExtensionAPI) {
-  if (!process.env.B_AI_API_KEY) {
-    return
-  }
-
   pi.registerProvider('bai', {
     name: 'B.AI',
     baseUrl: 'https://api.b.ai',
