@@ -27,7 +27,10 @@ export default function (pi: ExtensionAPI) {
         reasoning: true,
         input: ['text'],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 1000000,
+        // Docs advertise 1M context, but the serving layer rejects inputs above
+        // ~256K ("Input token exceed the limit", quota_limit_reached). Declare the
+        // real window so pi auto-compacts before hitting it.
+        contextWindow: 256000,
         maxTokens: 384000,
         thinkingLevelMap: {
           minimal: null,
