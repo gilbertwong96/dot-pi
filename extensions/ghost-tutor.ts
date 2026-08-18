@@ -1,4 +1,5 @@
-import { streamSimple, type AssistantMessageEvent, type Message } from '@earendil-works/pi-ai'
+import { streamSimple } from '@earendil-works/pi-ai/compat'
+import type { AssistantMessageEvent, Message } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { Box, Text } from '@earendil-works/pi-tui'
 import { registerDisplayOnlyMessage } from './shared/display-message'

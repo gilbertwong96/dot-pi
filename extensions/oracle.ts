@@ -429,11 +429,16 @@ async function runCustomCompaction(
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model)
   if (!auth.ok) return
 
+  const headers: Record<string, string> = {}
+  for (const [key, value] of Object.entries(auth.headers ?? {})) {
+    if (value !== null) headers[key] = value
+  }
+
   const result = await compact(
     event.preparation,
     model,
     auth.apiKey,
-    auth.headers,
+    headers,
     compactionInstructions(config),
     event.signal,
     config.precompact.thinking
