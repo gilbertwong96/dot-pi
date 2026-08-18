@@ -37,6 +37,7 @@ export default function (pi: ExtensionAPI) {
           max: 'max'
         },
         compat: {
+          supportsDeveloperRole: false,
           supportsReasoningEffort: true,
           thinkingFormat: 'deepseek'
         }
