@@ -17,7 +17,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 export default function (pi: ExtensionAPI) {
   pi.registerProvider('bai', {
     name: 'B.AI',
-    baseUrl: 'https://api.b.ai',
+    baseUrl: 'https://api.b.ai/v1',
     apiKey: '$B_AI_API_KEY',
     api: 'openai-completions',
     models: [
