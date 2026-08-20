@@ -42,6 +42,11 @@ export default function (pi: ExtensionAPI) {
         compat: {
           supportsDeveloperRole: false,
           supportsReasoningEffort: true,
+          // B.AI is a DeepSeek-family API but its base URL isn't api.deepseek.com,
+          // so pi-ai's auto-detection misses it. Without this, assistant messages
+          // that lack thinking blocks are replayed without reasoning_content and
+          // B.AI rejects the request with 400.
+          requiresReasoningContentOnAssistantMessages: true,
           thinkingFormat: 'deepseek'
         }
       }
