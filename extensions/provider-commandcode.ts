@@ -79,6 +79,15 @@ const MODEL_SPECS: ModelSpec[] = [
     input: ['text', 'image']
   },
   {
+    id: 'z-ai/glm-5.3-flash',
+    name: 'GLM-5.3 Flash',
+    contextWindow: 1048576,
+    maxTokens: 131072,
+    cost: { input: 0.15, output: 0.5, cacheRead: 0.03, cacheWrite: 0 },
+    reasoning: true,
+    input: ['text', 'image']
+  },
+  {
     id: 'zai-org/GLM-5.3',
     name: 'GLM-5.3',
     contextWindow: 1000000,
