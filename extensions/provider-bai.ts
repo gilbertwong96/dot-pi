@@ -49,6 +49,28 @@ export default function (pi: ExtensionAPI) {
           requiresReasoningContentOnAssistantMessages: true,
           thinkingFormat: 'deepseek'
         }
+      },
+      {
+        id: 'glm-5.3-flash',
+        name: 'GLM-5.3 Flash',
+        reasoning: true,
+        input: ['text', 'image'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 1000000,
+        maxTokens: 131072,
+        // Thinking is always on; only reasoning_effort changes (low/high/max).
+        // No thinkingFormat: the default branch sends reasoning_effort without a
+        // thinking field, matching the always-enabled semantics. off is hidden
+        // because reasoning_effort 'none' is not supported.
+        thinkingLevelMap: {
+          off: null,
+          minimal: null,
+          low: 'low',
+          medium: null,
+          high: 'high',
+          xhigh: 'max'
+        },
+        compat: { supportsReasoningEffort: true }
       }
     ]
   })
