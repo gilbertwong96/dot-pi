@@ -70,7 +70,13 @@ export default function (pi: ExtensionAPI) {
           high: 'high',
           xhigh: 'max'
         },
-        compat: { supportsReasoningEffort: true }
+        compat: {
+          supportsReasoningEffort: true,
+          // B.AI rejects the developer role (400001 角色信息不正确); the system
+          // role must be used instead. Without this, pi sends the system prompt
+          // as developer for reasoning models and B.AI rejects the request.
+          supportsDeveloperRole: false
+        }
       }
     ]
   })
