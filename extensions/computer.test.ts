@@ -116,10 +116,9 @@ describe('computer SDK adapter', () => {
     const h = harness()
     computer(h.pi)
     expect(h.tools.some((tool) => tool.name.includes('browser'))).toBe(false)
-    const handler = h.events.get('before_agent_start') as unknown as (event: {
-      systemPrompt: string
-    }) => { systemPrompt: string }
-    const guided = handler({ systemPrompt: 'base' }).systemPrompt
+    expect(h.events.has('before_agent_start')).toBe(false)
+    expect(h.tools.every((tool) => Boolean(tool.promptSnippet))).toBe(true)
+    const guided = h.tools[0].promptGuidelines?.join('\n') ?? ''
     expect(guided).toContain('Use computer tools for native desktop applications')
     expect(guided).toContain('Use agent-browser for webpage DOM')
     expect(guided).toContain('Do not guess process ids')
@@ -203,6 +202,32 @@ describe('computer SDK adapter', () => {
       text: expect.stringContaining('window @w9 is unavailable')
     })
   })
+  test('rejects mixed click addressing without calling the driver', async () => {
+    const h = harness()
+    const f = fakeDriver()
+    registerComputerTools(h.pi, f.factory)
+    const click = h.tools.find((tool) => tool.name === 'computer_click')!
+    const output = await click.execute(
+      'mixed',
+      { element: '@e1', x: 1, y: 2 },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(output.content[0]).toMatchObject({ text: expect.stringContaining('cannot combine') })
+    expect(f.calls).toEqual([])
+  })
+
+  test('does not dispatch an already cancelled desktop action', async () => {
+    const h = harness()
+    const f = fakeDriver()
+    registerComputerTools(h.pi, f.factory)
+    const controller = new AbortController()
+    controller.abort()
+    await h.tools[0].execute('cancelled', {}, controller.signal, undefined, {} as never)
+    expect(f.calls).toEqual([])
+  })
+
   test('exposes concise labels without underscores', () => {
     const h = harness()
     computer(h.pi)

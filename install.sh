@@ -280,14 +280,6 @@ install_companions() {
     "pi-context" \
     "Context history tags and checkouts for resuming or navigating long-running work." \
     n
-
-  if [ "$(os_name)" = "macos" ]; then
-    install_pi_package \
-      "git:github.com/injaneity/pi-computer-use@v0.2.6" \
-      "pi-computer-use" \
-      "macOS visible-app automation with screenshot, window, and accessibility tools." \
-      n
-  fi
 }
 
 print_summary() {

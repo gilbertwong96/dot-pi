@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { registerTool } from '../shared/register-tool'
 import type { TSchema } from 'typebox'
 import type { CuaDriverLike, ToolResult } from '@trycua/cua-driver'
 import { errorMessage } from '../shared/errors'
@@ -72,7 +73,10 @@ function validateClickParams(params: ComputerParams): void {
   const hasElement = typeof params.element === 'string' && params.element.length > 0
   const hasX = typeof params.x === 'number'
   const hasY = typeof params.y === 'number'
-  if (hasElement) return
+  if (hasElement) {
+    if (hasX || hasY) throw new Error('computer click cannot combine element and coordinates')
+    return
+  }
   if (!hasX || !hasY) {
     throw new Error('computer click requires element, or both x and y')
   }
@@ -251,25 +255,34 @@ export function registerComputerTools(
   }
   const getDriver = () => (driver ??= factory.create())
   for (const definition of definitions) {
-    pi.registerTool({
+    registerTool(pi, {
       name: definition.name,
       label: definition.label,
       description: definition.description,
+      promptSnippet: definition.description,
+      promptGuidelines: [...COMPUTER_GUIDANCE],
       parameters: definition.parameters,
       async execute(_id, params, signal) {
         try {
           const paramsValue = params as ComputerParams
-          const value = await schedule(queueKey(paramsValue, state), () =>
-            definition.execute(getDriver(), paramsValue, state.windows, state.elements, signal)
-          )
-          if (definition.operation === 'windows') updateWindows(state, value)
-          if (definition.operation === 'observe') updateElements(state, value, paramsValue)
-          return result(
-            definition.operation,
-            value,
-            [...state.windows.values()],
-            [...state.elements.values()]
-          )
+          return await schedule(queueKey(paramsValue, state), async () => {
+            signal?.throwIfAborted()
+            const value = await definition.execute(
+              getDriver(),
+              paramsValue,
+              state.windows,
+              state.elements,
+              signal
+            )
+            if (definition.operation === 'windows') updateWindows(state, value)
+            if (definition.operation === 'observe') updateElements(state, value, paramsValue)
+            return result(
+              definition.operation,
+              value,
+              [...state.windows.values()],
+              [...state.elements.values()]
+            )
+          })
         } catch (error) {
           return failure(definition.operation, errorMessage(error))
         }
@@ -288,8 +301,5 @@ export function registerComputerTools(
 
 export default function computer(pi: ExtensionAPI) {
   const shutdown = registerComputerTools(pi)
-  pi.on('before_agent_start', (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n${COMPUTER_GUIDANCE.join('\n')}`
-  }))
   pi.on('session_shutdown', shutdown)
 }

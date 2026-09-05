@@ -30,7 +30,7 @@ Convenience one-liner:
 curl -fsSL https://raw.githubusercontent.com/dannote/dot-pi/master/install.sh | sh
 ```
 
-The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, `pi-context`, and `pi-computer-use` on macOS) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
+The bootstrap is a POSIX `sh` script for macOS, Linux, and WSL. It installs Pi if missing, installs dot-pi with `pi install`, offers `agent-browser`, and explains optional companion packages (`pi-elixir`, `pi-subagents`, and `pi-context`) before prompting. `pi-elixir` defaults to yes when Elixir or Mix is detected; other companions default to no.
 
 Headless/non-interactive Linux needs Node.js 22.19.0+ and npm available before Pi can install. Check with `node --version` and `npm --version`; install Node 22+ with your preferred Node manager or distro setup if needed.
 
@@ -87,13 +87,12 @@ ln -s /path/to/dot-pi/prompts/*.md ~/.pi/agent/prompts/
 Useful companion packages, installed separately when you want them:
 
 ```bash
-pi install git:github.com/injaneity/pi-computer-use@v0.2.6  # macOS computer use
 pi install npm:pi-elixir                                    # Elixir/BEAM development
 pi install npm:pi-subagents                                 # subagent delegation
 pi install npm:pi-context                                   # context history tags/checkouts
 ```
 
-`pi-computer-use` is especially useful for visible macOS apps. It adds semantic window/screenshot tools and prefers Accessibility refs over coordinates.
+Native desktop automation is included in dot-pi’s `computer` extension. It provides application/window discovery, observed window and element handles, screenshots, and targeted actions. Use `agent-browser` for webpage content; no companion computer-use package is needed.
 
 `pi-elixir` is recommended for Elixir/Phoenix work. It adds a small BEAM-native tool surface (`elixir_eval`, AST search/replace) so Pi can inspect and change running Mix projects through the Elixir runtime instead of shelling out for everything.
 
