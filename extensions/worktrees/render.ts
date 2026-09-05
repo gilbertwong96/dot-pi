@@ -5,10 +5,10 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 import {
   meta,
-  primary,
   renderEntryList,
   renderErrorOrPartial,
   renderLines,
+  renderTextLinesPreview,
   renderToolCall,
   title
 } from '../shared/render'
@@ -42,13 +42,21 @@ export function renderResult(
   if (!details?.worktrees.length) return renderLines([meta('No worktrees found.', theme)])
   if (details.action === 'status') {
     const worktree = details.worktrees[0]
-    return renderLines([
-      title(worktree?.branch ?? 'Worktree', theme),
-      meta(worktree?.path ?? '', theme),
-      '',
-      details.status ? primary(details.status, theme) : meta('Clean', theme),
-      ...(details.diff ? ['', primary(details.diff, theme)] : [])
-    ])
+    return renderTextLinesPreview(
+      (details.status || 'Clean')
+        .split('\n')
+        .concat(details.diff ? ['', ...details.diff.split('\n')] : []),
+      theme,
+      {
+        expanded: options.expanded,
+        compactLimit: 6,
+        header: [
+          title(worktree?.branch ?? 'Worktree', theme),
+          meta(worktree?.path ?? '', theme),
+          ''
+        ]
+      }
+    )
   }
   return renderEntryList(details.worktrees, theme, {
     expanded: options.expanded,

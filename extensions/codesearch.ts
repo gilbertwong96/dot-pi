@@ -1,3 +1,5 @@
+import { registerTool } from './shared/register-tool'
+
 /**
  * Code Search Tool Extension
  *
@@ -285,7 +287,7 @@ function formatResultsAsText(results: SearchResult[]): string {
 }
 
 export default function (pi: ExtensionAPI) {
-  pi.registerTool({
+  registerTool(pi, {
     name: 'codesearch',
     label: 'Code Search',
     description: DESCRIPTION,
@@ -442,7 +444,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'codefetch',
     label: 'Code Fetch',
     description: CODEFETCH_DESCRIPTION,

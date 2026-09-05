@@ -1,3 +1,5 @@
+import { registerTool } from '../shared/register-tool'
+
 /**
  * LSP Tool Extension
  *
@@ -325,7 +327,7 @@ function lspError(message: string, details: Omit<LspToolDetails, 'success'>) {
 export default function (pi: ExtensionAPI) {
   const cwd = process.cwd()
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'lsp',
     label: 'LSP',
     description: DESCRIPTION,

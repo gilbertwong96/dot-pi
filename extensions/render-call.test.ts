@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
+import computer from './computer'
+import worktrees from './worktrees'
+import { visibleWidth } from '@earendil-works/pi-tui'
 import astGrep from './ast-grep'
 import background from './background'
 import chooseOptions from './choose-options'
@@ -30,13 +33,54 @@ function collectTools(): RegisteredTool[] {
     context7,
     lsp,
     webfetch,
-    websearch
+    websearch,
+    computer,
+    worktrees
   ]) {
     extension(pi)
   }
 
   return tools.filter((tool) => tool.renderCall)
 }
+
+describe('tool renderer row contracts', () => {
+  test('all tools handle partial, empty, multiline and error results at narrow widths', () => {
+    for (const tool of collectTools()) {
+      for (const expanded of [false, true]) {
+        for (const width of [1, 8, 40, 120]) {
+          for (const state of [
+            { isPartial: false, isError: false },
+            { isPartial: true, isError: false },
+            { isPartial: false, isError: true }
+          ]) {
+            const { isPartial } = state
+            const context = { args: {}, state: {}, expanded, ...state } as never
+            const result = {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'BadMapError: expected a map\n  nil\r\nstack\rframe'
+                }
+              ],
+              details: undefined
+            }
+            const component = tool.renderResult?.(
+              result,
+              { expanded, isPartial },
+              testTheme,
+              context
+            )
+            if (!component) continue
+            for (const row of component.render(width)) {
+              expect(row, tool.name).not.toMatch(/[\r\n\t]/u)
+              expect(visibleWidth(row), tool.name).toBeLessThanOrEqual(width)
+            }
+          }
+        }
+      }
+    }
+  })
+})
 
 describe('interactive tool execution', () => {
   test('serializes tools that require exclusive user input', () => {

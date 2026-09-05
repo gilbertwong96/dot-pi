@@ -1,3 +1,5 @@
+import { registerTool } from '../shared/register-tool'
+
 /**
  * Context7 Documentation Search
  *
@@ -166,7 +168,7 @@ Examples:
 Returns relevant documentation snippets with code examples. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}.`
 
 export default function (pi: ExtensionAPI) {
-  pi.registerTool({
+  registerTool(pi, {
     name: 'context7-resolve',
     label: 'Context7 Resolve',
     description: RESOLVE_DESCRIPTION,
@@ -251,7 +253,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'context7-docs',
     label: 'Context7 Docs',
     description: DOCS_DESCRIPTION,

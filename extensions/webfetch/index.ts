@@ -1,3 +1,5 @@
+import { registerTool } from '../shared/register-tool'
+
 /**
  * Webfetch Tool Extension
  *
@@ -253,7 +255,7 @@ const FetchParamsSchema = Type.Object({
 })
 
 export default function (pi: ExtensionAPI) {
-  pi.registerTool({
+  registerTool(pi, {
     name: 'fetch',
     label: 'Fetch URL',
     description: DESCRIPTION,

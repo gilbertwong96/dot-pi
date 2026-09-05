@@ -1,3 +1,5 @@
+import { registerTool } from '../shared/register-tool'
+
 /**
  * Web Search Extension
  *
@@ -406,7 +408,7 @@ function toExaSearchRequest(params: Record<string, unknown>): ExaSearchRequest {
 }
 
 export default function (pi: ExtensionAPI) {
-  pi.registerTool({
+  registerTool(pi, {
     name: 'websearch',
     label: 'Web Search',
     description: DESCRIPTION,

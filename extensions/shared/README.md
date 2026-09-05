@@ -29,7 +29,7 @@ return toolError('API key not set', { error: true })
 onUpdate?.(toolLoading({ loading: true }))
 ```
 
-`toolError()` prefixes `Error:` once and marks `isError: true`.
+`toolError()` prefixes `Error:` once and marks `isError: true`. Register tools that return structured failures with `registerTool(pi, definition)` from `register-tool.ts`: Pi ignores a returned `isError` property, so the helper forwards it through the supported `tool_result` hook while preserving content and details. Plain thrown errors already use Pi’s native error channel.
 
 ## Result rendering
 
@@ -104,6 +104,7 @@ If another `context` hook also transforms messages, call `filterDisplayOnlyMessa
 ## Checklist for new tools
 
 - `renderCall` uses `renderToolCall()` and handles `args ?? {}`.
+- Tools returning structured failures use `registerTool()` from `register-tool.ts`.
 - `execute` returns `toolText()` / `toolError()` / `toolLoading()`.
 - `renderResult` uses `renderError`, `renderMuted`, `renderLines`, and semantic colors.
 - Compact output is short; expanded output contains long bodies/diffs/docs.

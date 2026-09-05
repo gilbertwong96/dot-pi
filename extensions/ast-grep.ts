@@ -15,7 +15,16 @@ import { diffLines } from 'diff'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import pathModule from 'path'
-import { expandHint, firstText, renderLines, renderToolCall, toolText } from './shared/render'
+import {
+  expandHint,
+  firstText,
+  renderLines,
+  renderToolCall,
+  toolText,
+  renderTextLinesPreview,
+  renderEmpty,
+  renderError
+} from './shared/render'
 import { Type } from 'typebox'
 
 const SEARCH_DESCRIPTION = `Search code by AST pattern.
@@ -133,7 +142,8 @@ async function dryRunFileRewrite(
   pi: Pick<ExtensionAPI, 'exec'>,
   sourcePath: string,
   args: string[],
-  cwd: string
+  cwd: string,
+  signal?: AbortSignal
 ): Promise<{ cancelled?: boolean; diff?: string }> {
   const absolutePath = pathModule.isAbsolute(sourcePath)
     ? sourcePath
@@ -145,8 +155,11 @@ async function dryRunFileRewrite(
   try {
     await writeFile(tempFile, oldContent)
     const tempArgs = args.slice(0, -1).concat('-U', tempFile)
-    const result = await pi.exec('sg', tempArgs, { cwd })
+    const result = await pi.exec('sg', tempArgs, { cwd, signal })
     if (result.killed) return { cancelled: true }
+    if (result.code !== 0 && result.code !== 1) {
+      throw new Error(result.stderr || result.stdout || `ast-grep exited with code ${result.code}`)
+    }
 
     const newContent = await readFile(tempFile, 'utf8')
     if (oldContent === newContent) return {}
@@ -171,17 +184,20 @@ export default function (pi: ExtensionAPI) {
       )
     }),
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const { pattern, lang, path } = params as { pattern: string; lang?: string; path?: string }
 
       const args = ['run', '-p', pattern, '--color=never']
       if (lang) args.push('-l', lang)
       args.push(path || '.')
 
-      const result = await pi.exec('sg', args, { cwd: ctx.cwd })
+      const result = await pi.exec('sg', args, { cwd: ctx.cwd, signal })
 
-      if (result.killed) {
-        return toolText('Search cancelled', {})
+      if (result.killed) throw new Error('Search cancelled')
+      if (result.code !== 0 && result.code !== 1) {
+        throw new Error(
+          result.stderr || result.stdout || `ast-grep exited with code ${result.code}`
+        )
       }
 
       const output = result.stdout || result.stderr
@@ -216,7 +232,9 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
+      if (context.isError) return renderError(firstText(result), theme)
+      if (isPartial) return renderEmpty()
       const text = firstText(result).trimEnd()
       const matches = text
         .split('\n')
@@ -224,15 +242,17 @@ export default function (pi: ExtensionAPI) {
         .filter((match): match is RegExpMatchArray => Boolean(match))
 
       if (matches.length > 0) {
-        return renderLines(
+        return renderTextLinesPreview(
           matches.map((match) => {
             const [, file, line, source] = match
             return `${theme.fg('muted', `${file}:${line}:`)} ${theme.fg('toolOutput', source.trim())}`
-          })
+          }),
+          theme,
+          { expanded, compactLimit: 5, styleLine: (line) => line }
         )
       }
 
-      return renderLines(text.split('\n'))
+      return renderTextLinesPreview(text.split('\n'), theme, { expanded, compactLimit: 5 })
     }
   })
 
@@ -256,7 +276,7 @@ export default function (pi: ExtensionAPI) {
       )
     }),
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const { pattern, replacement, lang, path, dryRun } = params as {
         pattern: string
         replacement: string
@@ -272,21 +292,23 @@ export default function (pi: ExtensionAPI) {
 
       if (dryRun && path) {
         try {
-          const preview = await dryRunFileRewrite(pi, path, args, ctx.cwd)
-          if (preview.cancelled) {
-            return toolText('Rewrite cancelled', {})
-          }
+          const preview = await dryRunFileRewrite(pi, path, args, ctx.cwd, signal)
+          if (preview.cancelled) throw new Error('Rewrite cancelled')
           if (preview.diff) return toolText(preview.diff, {})
           return toolText('No matches found', {})
         } catch {
+          signal?.throwIfAborted()
           // Fall back to ast-grep's own dry-run output for non-file paths or unexpected failures.
         }
       }
 
-      const result = await pi.exec('sg', args, { cwd: ctx.cwd })
+      const result = await pi.exec('sg', args, { cwd: ctx.cwd, signal })
 
-      if (result.killed) {
-        return toolText('Rewrite cancelled', {})
+      if (result.killed) throw new Error('Rewrite cancelled')
+      if (result.code !== 0 && result.code !== 1) {
+        throw new Error(
+          result.stderr || result.stdout || `ast-grep exited with code ${result.code}`
+        )
       }
 
       const output = result.stdout || result.stderr
@@ -327,7 +349,9 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded }, theme) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
+      if (context.isError) return renderError(firstText(result), theme)
+      if (isPartial) return renderEmpty()
       const text = firstText(result).trimEnd()
       const renderDiffLine = (line: string) => {
         if (line.startsWith('+')) return theme.fg('success', line)

@@ -1,4 +1,4 @@
-import { rawKeyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
+import { keyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
 import { compactText as compactTextValue } from './format'
 import {
   Markdown,
@@ -86,7 +86,10 @@ export function renderLinesWithMarker(lines: RenderLine[], marker: string): Comp
 
 export function clampRenderedLines(component: Component): Component {
   return {
-    render: (width) => component.render(width).map((line) => truncateLine(line, width)),
+    render: (width) =>
+      component
+        .render(width)
+        .flatMap((line) => line.split(/\r\n|\r|\n/u).map((part) => truncateLine(part, width))),
     invalidate: () => component.invalidate()
   }
 }
@@ -445,7 +448,9 @@ export function renderToolCall(
 
 export function expandHint(theme: Theme): string {
   try {
-    return theme.fg('muted', '(') + rawKeyHint('ctrl+o', 'to expand') + theme.fg('muted', ')')
+    return (
+      theme.fg('muted', '(') + keyHint('app.tools.expand', 'to expand') + theme.fg('muted', ')')
+    )
   } catch {
     return theme.fg('muted', '(ctrl+o to expand)')
   }

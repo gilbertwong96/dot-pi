@@ -229,6 +229,21 @@ describe('renderEntryList', () => {
 })
 
 describe('clampRenderedLines', () => {
+  test('splits embedded line breaks before measuring component rows', () => {
+    const component = clampRenderedLines({
+      render: () => ['BadMapError: expected a map\n  nil\r\nstack\rframe'],
+      invalidate: () => undefined
+    })
+    for (const width of [1, 8, 40, 120]) {
+      const rows = component.render(width)
+      expect(rows).toHaveLength(4)
+      for (const row of rows) {
+        expect(row).not.toMatch(/[\r\n]/u)
+        expect(visibleWidth(row)).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
   test('truncates lines returned by wrapped components', () => {
     const component = clampRenderedLines({
       render: () => ['0123456789abcdef'],

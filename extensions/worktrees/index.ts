@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { registerTool } from '../shared/register-tool'
 import { toolError, toolText } from '../shared/render'
 import { createOperations } from './operations'
 import { renderCall, renderResult, type WorktreeResultDetails } from './render'
@@ -20,7 +21,7 @@ function failure(action: WorktreeResultDetails['action'], error: unknown) {
 }
 
 function registerCreate(pi: ExtensionAPI, operations: ReturnType<typeof createOperations>) {
-  pi.registerTool({
+  registerTool(pi, {
     name: 'worktree_create',
     label: 'Create Worktree',
     description: 'Create an isolated git worktree. Does not edit .gitignore or run project setup.',
@@ -41,7 +42,7 @@ function registerCreate(pi: ExtensionAPI, operations: ReturnType<typeof createOp
 export default function worktrees(pi: ExtensionAPI) {
   const operations = createOperations(pi)
   registerCreate(pi, operations)
-  pi.registerTool({
+  registerTool(pi, {
     name: 'worktree_list',
     label: 'List Worktrees',
     description: 'List Git worktrees from the repository.',
@@ -57,7 +58,7 @@ export default function worktrees(pi: ExtensionAPI) {
     renderCall: (params, theme) => renderCall('list', params, theme),
     renderResult
   })
-  pi.registerTool({
+  registerTool(pi, {
     name: 'worktree_remove',
     label: 'Remove Worktree',
     description: 'Remove a worktree while preserving its branch. Dirty worktrees require force.',
@@ -73,7 +74,7 @@ export default function worktrees(pi: ExtensionAPI) {
     renderCall: (params, theme) => renderCall('remove', params, theme),
     renderResult
   })
-  pi.registerTool({
+  registerTool(pi, {
     name: 'worktree_status',
     label: 'Worktree Status',
     description: 'Show status and diff summary for a worktree.',

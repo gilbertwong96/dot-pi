@@ -1,3 +1,5 @@
+import { registerTool } from './shared/register-tool'
+
 /**
  * Background Process Manager
  *
@@ -480,7 +482,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'background-start',
     label: 'Start Background',
     description:
@@ -535,7 +537,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'background-stop',
     label: 'Stop Background',
     description:
@@ -571,7 +573,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'background-list',
     label: 'List Background',
     description:
@@ -611,7 +613,7 @@ export default function (pi: ExtensionAPI) {
     }
   })
 
-  pi.registerTool({
+  registerTool(pi, {
     name: 'background-logs',
     label: 'Background Logs',
     description:
@@ -659,7 +661,6 @@ export default function (pi: ExtensionAPI) {
         compactLimit: 3,
         mode: 'tail',
         hiddenUnit: 'hidden',
-        inlineHidden: true,
         truncationMarker: theme.fg('toolOutput', '…')
       })
     }
