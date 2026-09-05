@@ -112,6 +112,27 @@ function fakeDriver() {
 }
 
 describe('computer SDK adapter', () => {
+  test('renders explicit empty discovery results and bounded compact lists', () => {
+    const h = harness()
+    computer(h.pi)
+    const windows = h.tools.find((tool) => tool.name === 'computer_windows')!
+    expect(renderToolResult(windows, result('', { structuredJson: '{"windows":[]}' }))).toContain(
+      'No windows found.'
+    )
+    const apps = h.tools.find((tool) => tool.name === 'computer_apps')!
+    const rendered = renderToolResult(
+      apps,
+      result('', {
+        structuredJson: JSON.stringify({
+          apps: Array.from({ length: 20 }, (_, pid) => ({ name: `App ${pid}`, pid }))
+        })
+      })
+    )
+    expect(rendered).toContain('20 apps')
+    expect(rendered.split('\n').length).toBeLessThanOrEqual(11)
+    expect(rendered).toContain('15 more')
+  })
+
   test('adds routing guidance without adding browser tools', () => {
     const h = harness()
     computer(h.pi)

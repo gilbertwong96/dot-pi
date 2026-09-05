@@ -274,7 +274,7 @@ export function registerComputerTools(
               state.elements,
               signal
             )
-            if (definition.operation === 'windows') updateWindows(state, value)
+            if (definition.operation === 'windows') updateWindows(state, value, paramsValue)
             if (definition.operation === 'observe') updateElements(state, value, paramsValue)
             return result(
               definition.operation,

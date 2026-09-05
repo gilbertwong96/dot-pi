@@ -20,14 +20,22 @@ export function queueKey(params: ComputerParams, state: ComputerState): string {
   return element?.window ?? target?.window ?? 'desktop'
 }
 
-export function updateWindows(state: ComputerState, value: ToolResult): void {
+export function updateWindows(
+  state: ComputerState,
+  value: ToolResult,
+  params: ComputerParams = {}
+): void {
   if (!value.structuredJson) return
   try {
     const parsed = JSON.parse(value.structuredJson) as { windows?: Array<Record<string, unknown>> }
     const previous = new Map(
       [...state.windows.values()].map((window) => [`${window.pid}:${window.windowId}`, window])
     )
-    for (const item of parsed.windows ?? []) {
+    if (!Array.isArray(parsed.windows)) throw new Error('Invalid windows response')
+    for (const [ref, window] of state.windows) {
+      if (params.pid === undefined || params.pid === window.pid) state.windows.delete(ref)
+    }
+    for (const item of parsed.windows) {
       if (typeof item.pid !== 'number' || typeof item.window_id !== 'number') continue
       const identity = `${item.pid}:${item.window_id}`
       const window = previous.get(identity) ?? {
@@ -37,8 +45,12 @@ export function updateWindows(state: ComputerState, value: ToolResult): void {
       }
       state.windows.set(window.ref, window)
     }
+    state.elements = new Map(
+      [...state.elements].filter(([, element]) => state.windows.has(element.window))
+    )
   } catch {
     state.windows.clear()
+    state.elements.clear()
   }
 }
 
@@ -47,8 +59,16 @@ export function updateElements(
   value: ToolResult,
   params: ComputerParams
 ): void {
-  if (!value.structuredJson) return
   const target = params.target as { window?: string } | undefined
+  if (target?.window) {
+    const previous = new Map(state.elements)
+    state.elements = new Map(
+      [...state.elements].filter(([, element]) => element.window !== target.window)
+    )
+    if (!value.structuredJson || value.isError) return
+    // Keep previous tokens available only while building a successful observation.
+    state.elements = previous
+  } else return
   try {
     const parsed = JSON.parse(value.structuredJson) as { elements?: Array<Record<string, unknown>> }
     const retained = new Map(
@@ -64,8 +84,21 @@ export function updateElements(
         !target?.window
       )
         continue
-      const ref = `@e${state.nextElementRef++}`
-      retained.set(ref, { ref, window: target.window, token: item.element_token, role, label })
+      const index = typeof item.element_index === 'number' ? item.element_index : undefined
+      // Labels and outline positions are not stable accessibility identities.
+      // Reuse only an exact backend token in the same observed window.
+      const previous = [...state.elements.values()].find(
+        (element) => element.window === target.window && element.token === item.element_token
+      )
+      const ref = previous?.ref ?? `@e${state.nextElementRef++}`
+      retained.set(ref, {
+        ref,
+        window: target.window,
+        token: item.element_token,
+        index,
+        role,
+        label
+      })
     }
     state.elements = retained
   } catch {

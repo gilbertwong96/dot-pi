@@ -6,6 +6,7 @@ import type {
 import {
   meta,
   primary,
+  renderExpandFooter,
   renderEntryList,
   renderErrorOrPartial,
   renderLines,
@@ -20,6 +21,7 @@ export interface ComputerElement {
   ref: string
   window: string
   token: string
+  index?: number
   role?: string
   label?: string
 }
@@ -64,9 +66,20 @@ export function result(
       // Keep malformed or future structured output available as raw details only.
     }
   }
+  const handles =
+    operation === 'windows'
+      ? (windows ?? []).map(
+          (window) => `${window.ref} · pid ${window.pid} · window ${window.windowId}`
+        )
+      : operation === 'observe'
+        ? (elements ?? []).map(
+            (element) =>
+              `${element.ref} · ${element.window} · ${element.role ?? ''} · ${element.label ?? ''}`
+          )
+        : []
   return {
     content: [
-      { type: 'text' as const, text },
+      { type: 'text' as const, text: [text, ...handles].join('\n') },
       ...value.images.map((image) => ({
         type: 'image' as const,
         data: image.dataBase64,
@@ -131,6 +144,8 @@ function callSegments(args: Record<string, unknown>) {
 
 function callTags(args: Record<string, unknown>, hasElement: boolean) {
   return [
+    typeof args.pid === 'number' ? `pid ${args.pid}` : undefined,
+    args.onScreenOnly === true ? 'on-screen' : undefined,
     hasElement ? undefined : displayTarget(args.target),
     typeof args.count === 'number' && args.count > 1 ? `${args.count} clicks` : undefined,
     typeof args.direction === 'string'
@@ -203,10 +218,25 @@ export function renderResult(
   theme: Theme
 ) {
   const details = resultValue.details as ComputerDetails | undefined
-  const guarded = renderErrorOrPartial(resultValue, details, {}, theme)
+  const guarded = renderErrorOrPartial(resultValue, details, _options, theme)
   if (guarded) return guarded
   if (details?.items && (details.operation === 'apps' || details.operation === 'windows')) {
     const items = details.items
+    if (items.length === 0) return renderLines([meta(`No ${details.operation} found.`, theme)])
+    if (!_options.expanded) {
+      const rows = items.slice(0, 5).map((item) => {
+        const entry = discoveryEntry(item, details, theme)
+        return [entry.header, ...(entry.body ?? []), entry.metadata]
+          .filter(Boolean)
+          .join(meta(' · ', theme))
+      })
+      const hidden = items.length - rows.length
+      return renderLines([
+        meta(`${items.length} ${details.operation}`, theme),
+        ...rows,
+        ...(hidden > 0 ? ['', meta(`… ${hidden} more`, theme), ...renderExpandFooter(theme)] : [])
+      ])
+    }
     return renderEntryList(items, theme, {
       expanded: _options.expanded,
       compactLimit: 5,
