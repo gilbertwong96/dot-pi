@@ -318,6 +318,7 @@ export default function (pi: ExtensionAPI) {
   const { shell: shellPath } = getShellConfig()
 
   pi.on('session_start', (_event, ctx) => {
+    if (ctx.mode !== 'tui') return
     ctx.ui.setEditorComponent((tui, theme, keybindings) => {
       return new BashCompletionEditor(tui, theme, keybindings, shellPath)
     })

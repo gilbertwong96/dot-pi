@@ -247,7 +247,11 @@ function startRealtimeRecording(
     }
   })
 
-  ws.on('open', () => {
+  const socket = ws
+  isRecording = true
+
+  socket.on('open', () => {
+    if (ws !== socket) return
     // Start timer
     recordingStartTime = Date.now()
 
@@ -278,9 +282,9 @@ function startRealtimeRecording(
     startBlinking()
 
     recordingProc.stdout?.on('data', (chunk: Buffer) => {
-      if (ws?.readyState === WebSocket.OPEN) {
+      if (ws === socket && socket.readyState === WebSocket.OPEN) {
         // Send audio chunk as base64
-        ws.send(
+        socket.send(
           JSON.stringify({
             message_type: 'input_audio_chunk',
             audio_base_64: chunk.toString('base64')
@@ -290,6 +294,7 @@ function startRealtimeRecording(
     })
 
     recordingProc.on('error', (err) => {
+      if (ws !== socket) return
       onError(`Recording error: ${err.message}`)
       cleanup()
     })
@@ -299,7 +304,8 @@ function startRealtimeRecording(
     })
   })
 
-  ws.on('message', (data) => {
+  socket.on('message', (data) => {
+    if (ws !== socket) return
     try {
       const msg = JSON.parse(String(data)) as RealtimeMessage
 
@@ -319,13 +325,14 @@ function startRealtimeRecording(
     }
   })
 
-  ws.on('error', (err) => {
+  socket.on('error', (err) => {
+    if (ws !== socket) return
     onError(`WebSocket error: ${err.message}`)
     cleanup()
   })
 
-  ws.on('close', () => {
-    // WebSocket closed
+  socket.on('close', () => {
+    if (ws === socket) cleanup()
   })
 }
 
@@ -350,13 +357,10 @@ function stopRecording(): string {
     recordingProc = null
   }
 
-  // Give WebSocket a moment to receive final transcript
-  setTimeout(() => {
-    if (ws) {
-      ws.close()
-      ws = null
-    }
-  }, 500)
+  // Close this recording's socket, never a newer recording's socket.
+  const closingSocket = ws
+  ws = null
+  closingSocket?.close()
 
   isRecording = false
   stopBlinking()
@@ -409,6 +413,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on('session_start', (_event, ctx) => {
+    if (ctx.mode !== 'tui') return
     const apiKey = requireEnv('ELEVENLABS_API_KEY')
     if (!apiKey.ok) {
       ctx.ui.notify(`Voice input disabled: ${apiKey.message}`, 'warning')
@@ -424,6 +429,19 @@ export default function (pi: ExtensionAPI) {
     setEditorTextFn = (text) => ctx.ui.setEditorText(text)
     getEditorTextFn = () => ctx.ui.getEditorText()
     currentTheme = ctx.ui.theme
+  })
+
+  pi.on('session_shutdown', () => {
+    cleanup()
+    currentTranscript = ''
+    prefixText = ''
+    setStatusFn = null
+    setEditorTextFn = null
+    getEditorTextFn = null
+    currentTheme = null
+    onSubmit = null
+    onCancel = null
+    onPause = null
   })
 
   // Set up callbacks
@@ -456,7 +474,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerShortcut('ctrl+shift+r', {
     description: 'Record voice input',
     handler: async (ctx) => {
-      if (!ctx.hasUI) return
+      if (ctx.mode !== 'tui') return
       const config = getVoiceInputConfig()
       if (!config.ok) {
         ctx.ui.notify(config.message, 'error')

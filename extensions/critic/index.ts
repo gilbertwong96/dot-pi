@@ -500,6 +500,12 @@ async function runCritic(
 
       log(ctx, debug, 'info', `Subprocess PID: ${proc.pid}`)
       let buffer = ''
+      const abortHandler = () => {
+        wasAborted = true
+        clearTimeout(timeoutId)
+        log(ctx, debug, 'info', 'Critic aborted by signal')
+        killProcess(proc)
+      }
 
       const timeoutId = setTimeout(() => {
         wasTimedOut = true
@@ -541,24 +547,20 @@ async function runCritic(
       proc.on('close', (code) => {
         log(ctx, debug, 'info', `Subprocess closed with code ${code}`)
         clearTimeout(timeoutId)
+        signal?.removeEventListener('abort', abortHandler)
         if (buffer.trim()) processLine(buffer)
         resolve(code ?? 0)
       })
 
       proc.on('error', (err) => {
         clearTimeout(timeoutId)
+        signal?.removeEventListener('abort', abortHandler)
         log(ctx, debug, 'error', `Process error: ${err.message}`)
         result.error = err.message
         resolve(1)
       })
 
       if (signal) {
-        const abortHandler = () => {
-          wasAborted = true
-          clearTimeout(timeoutId)
-          log(ctx, debug, 'info', 'Critic aborted by signal')
-          killProcess(proc)
-        }
         if (signal.aborted) {
           abortHandler()
         } else {
@@ -892,6 +894,11 @@ export default function criticExtension(pi: ExtensionAPI): void {
         updateStatus(ctx)
         persistState()
         ctx.ui.notify(`Critic model set to: ${state.model}`, 'info')
+        return
+      }
+
+      if (ctx.mode !== 'tui') {
+        ctx.ui.notify('Use /critic-model <model> outside the terminal UI.', 'info')
         return
       }
 
