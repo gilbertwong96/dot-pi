@@ -85,6 +85,27 @@ const response = await fetchJson<MyResponse>(
 
 Use `withTimeoutSignal()` directly when an SDK accepts `AbortSignal` but does its own request.
 
+### API references and maintenance
+
+Keep request schemas synchronized with official documentation rather than copying API details into multiple guides.
+
+| Extension | API reference | Configuration |
+| --- | --- | --- |
+| `codesearch.ts` | [grep.app MCP](https://mcp.grep.app) | No key required |
+| `context7/` | [Context7 OpenAPI](https://context7.com/docs/openapi.json) | `CONTEXT7_API_KEY`, optional `CONTEXT7_ENDPOINT_URL` |
+| `provider/` | Protocol defined in `extensions/provider/index.ts` | `PROVIDER_API_KEY` |
+| `voice-input/` | [ElevenLabs realtime transcription](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime) | `ELEVENLABS_API_KEY`; optional settings in the extension header |
+| `websearch/` | [Exa Search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents.md) | `EXA_API_KEY`, optional `EXA_ENDPOINT_URL` |
+
+- Exa uses direct REST, not `exa-js`. Verify current search types, category restrictions, and contents/freshness fields before changing schemas.
+- Context7 supports text and JSON responses; preserve the documented library ID and response formats.
+- Treat grep.app as an MCP transport: test JSON-RPC and SSE parsing with fixtures rather than assuming a particular event layout.
+- Close voice recording and WebSocket resources on cancellation, errors, and session shutdown. Ignore callbacks from superseded connections.
+- Forward `AbortSignal` to every supported API/SDK call. Bound model-visible output as well as rendered output.
+- Store structured result details; do not reconstruct them by parsing rendered text.
+- Re-read upstream documentation when changing request shapes or dependencies.
+
+
 ## Display-only messages
 
 Use `registerDisplayOnlyMessage()` for UI receipts/nudges that must not enter model context.
@@ -110,3 +131,14 @@ If another `context` hook also transforms messages, call `filterDisplayOnlyMessa
 - Compact output is short; expanded output contains long bodies/diffs/docs.
 - If compact output hides content, show the expand footer via shared helpers.
 - Add a regression test when adding a new shared pattern.
+
+## Known migration gaps
+
+These remain open; the native migration is not exhaustive:
+
+- Bash completion and voice input independently replace the custom editor rather than composing.
+- AST multi-file writes do not yet use Pi's per-file mutation queue; directory dry-run fallback can expose ast-grep pseudo-diffs.
+- Expanded content can still be width-truncated, with incomplete expansion hints.
+- Inline terminal images, live provider-driven streaming, voice transcription, and all optional extension lifecycles need further end-to-end coverage.
+
+Use the [smoke checklist](../../docs/smoke-test.md) for repeatable validation. Keep completed-run details in commit messages or review summaries, not new audit files.

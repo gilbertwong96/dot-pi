@@ -10,7 +10,47 @@ npm test
 
 ## Interactive Pi smoke tests
 
-Start a fresh TUI session from this repo.
+Start a fresh TUI session from this repo. Editing files does not update extensions already loaded in a running session: explicitly reload or start a separate process loading the checkout.
+
+## Native tool rendering
+
+Record the deterministic native-shell fixture:
+
+```bash
+asciinema rec --overwrite -c 'npx tsx demos/tapes/native-render-smoke.ts' /tmp/native-render.cast
+```
+
+Run inside tmux at 80 and 40 columns. It exercises argument updates, partial/settled output, expansion/collapse, and exceptions without details using Pi's actual tool component. It also checks physical rows at widths 8, 40, 80, and 120. The editor sentinel must remain below the output; the run must finish with `NATIVE RENDER SMOKE PASSED`.
+
+The fixture deliberately imports internal Pi components. Update those imports when upgrading Pi; do not use that pattern in production extensions.
+
+For the real editor and footer, create an isolated session:
+
+```bash
+npx tsx demos/tapes/create-render-session.ts
+pi --offline --no-extensions --no-skills --no-prompt-templates --no-context-files \
+  -e ./extensions/background.ts --session <printed-path>
+```
+
+Record the replay, toggle Ctrl+O, resize 80 → 40 → 100 columns, and type an editor sentinel without submitting it. The editor and footer must stay below tool output. The fixture's nonexistent model produces an expected restore warning; no model request is required.
+
+Relevant automated tests: `extensions/render-call.test.ts`, `extensions/shared/render.test.ts`, and `extensions/shared/register-tool.test.ts`. Deterministic renderer tests do not replace live streaming, image-protocol, or service-specific tests.
+
+## Computer replacement
+
+Use a fresh Pi process loading `extensions/computer` explicitly and an isolated disposable desktop window, not a user's document.
+
+- Discover the application, then PID-filtered windows; verify handles appear in model-visible output.
+- Observe the exact window and inspect its screenshot.
+- Perform a reversible action, such as toggling a fixture checkbox; observe again to verify.
+- Retry the old observation's element handle; it must fail safely when its token has expired.
+- Reverse the action using the new handle; verify again.
+- Close the fixture and rediscover windows; the old window handle must be unavailable.
+- Check native tool rows separately: explicit empty states, call filters, bounded compact lists, expansion, and inline images. Notification-only test harnesses do not verify tool rendering.
+- Stop fixture/test processes. Review recordings for desktop or document information before publishing them.
+
+## Workflow behavior
+
 
 ### Workflow commands
 

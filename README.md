@@ -381,11 +381,14 @@ npm run check
 npm test
 ```
 
-Manual workflow smoke test: `docs/smoke-test.md`.
+Documentation has a small set of canonical homes:
 
-Shared extension helper guide: `extensions/shared/README.md`.
+- [Handbook](docs/handbook.md): everyday workflows and shortcuts.
+- [Smoke checklist](docs/smoke-test.md): workflow, renderer, and desktop validation.
+- [Extension development](extensions/shared/README.md): shared helpers, API references, and known migration gaps.
+- [Demos](demos/README.md): recording and publishing demos.
 
-API-backed extension guide: `docs/api-backed-extensions.md`.
+Component READMEs document only component-specific behavior. Keep temporary plans and test-run logs in issues, review summaries, or commit history rather than adding task-specific documentation files.
 
 ## License
 
