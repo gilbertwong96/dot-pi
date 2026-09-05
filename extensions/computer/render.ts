@@ -15,6 +15,7 @@ import {
   toolError
 } from '../shared/render'
 import { ActionEffect, VerificationStatus } from '@trycua/cua-driver'
+import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import type { ComputerResult } from './driver'
 
 export interface ComputerElement {
@@ -226,23 +227,40 @@ export function renderResult(
     if (!_options.expanded) {
       const rows = items.slice(0, 5).map((item) => {
         const entry = discoveryEntry(item, details, theme)
-        return [entry.header, ...(entry.body ?? []), entry.metadata]
+        return [entry.header, entry.metadata, ...(entry.body ?? [])]
           .filter(Boolean)
           .join(meta(' · ', theme))
       })
       const hidden = items.length - rows.length
-      return renderLines([
-        meta(`${items.length} ${details.operation}`, theme),
-        ...rows,
-        ...(hidden > 0 ? ['', meta(`… ${hidden} more`, theme), ...renderExpandFooter(theme)] : [])
-      ])
+      return {
+        render: (width: number) =>
+          renderLines([
+            meta(
+              `${items.length} ${details.operation === 'windows' && items.length === 1 ? 'window' : details.operation}`,
+              theme
+            ),
+            ...rows,
+            ...(hidden > 0 ? ['', meta(`… ${hidden} more`, theme)] : []),
+            ...(hidden > 0 || rows.some((line) => visibleWidth(line) > width)
+              ? renderExpandFooter(theme)
+              : [])
+          ]).render(width),
+        invalidate() {}
+      }
     }
-    return renderEntryList(items, theme, {
-      expanded: _options.expanded,
-      compactLimit: 5,
-      renderEntry: (item) => discoveryEntry(item, details, theme),
-      hiddenLines: (hidden) => (hidden > 0 ? [meta(`… ${hidden} more`, theme)] : [])
+    const expandedLines = items.flatMap((item, index) => {
+      const entry = discoveryEntry(item, details, theme)
+      return [...(index ? [''] : []), entry.header, entry.metadata ?? '', ...(entry.body ?? [])]
     })
+    return {
+      render: (width: number) => [
+        '',
+        ...expandedLines.flatMap((line) =>
+          line.split(/\r\n|\r|\n/u).flatMap((part) => wrapTextWithAnsi(part, Math.max(1, width)))
+        )
+      ],
+      invalidate() {}
+    }
   }
   if (details?.operation === 'observe' && details.elements?.length) {
     return renderEntryList(details.elements, theme, {

@@ -20,7 +20,7 @@ Record the deterministic native-shell fixture:
 asciinema rec --overwrite -c 'npx tsx demos/tapes/native-render-smoke.ts' /tmp/native-render.cast
 ```
 
-Run inside tmux at 80 and 40 columns. It exercises argument updates, partial/settled output, expansion/collapse, and exceptions without details using Pi's actual tool component. It also checks physical rows at widths 8, 40, 80, and 120. The editor sentinel must remain below the output; the run must finish with `NATIVE RENDER SMOKE PASSED`.
+Run inside tmux at 80 and 40 columns. Add `--computer` after the script path to cover computer window filters, empty discovery, long titles, compact limits, and expansion. The fixture initializes Pi's keybindings as well as its theme so expansion hints match a real session. It exercises argument updates, partial/settled output, expansion/collapse, and exceptions without details using Pi's actual tool component. It also checks physical rows at widths 8, 40, 80, and 120. The editor sentinel must remain below the output; the run must finish with `NATIVE RENDER SMOKE PASSED`.
 
 The fixture deliberately imports internal Pi components. Update those imports when upgrading Pi; do not use that pattern in production extensions.
 

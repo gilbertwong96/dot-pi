@@ -10,6 +10,8 @@ import {
 import { renderComponentText, testTheme } from './shared/test-utils'
 import computer, { registerComputerTools, type ComputerDriverFactory } from './computer/index'
 import { sdkTarget } from './computer/driver'
+import { renderResult as renderComputerResult } from './computer/render'
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { schemas } from './computer/schemas'
 
 type Tool = Parameters<ExtensionAPI['registerTool']>[0]
@@ -131,6 +133,31 @@ describe('computer SDK adapter', () => {
     expect(rendered).toContain('20 apps')
     expect(rendered.split('\n').length).toBeLessThanOrEqual(11)
     expect(rendered).toContain('15 more')
+  })
+
+  test('reveals width-hidden discovery content when expanded', () => {
+    const value = {
+      content: [],
+      details: {
+        operation: 'windows',
+        items: [
+          { app_name: 'Fixture', pid: 42, window_id: 1, title: 'long title '.repeat(20) + 'END' }
+        ],
+        windows: [{ ref: '@w1', pid: 42, windowId: 1 }]
+      }
+    }
+    const compact = renderComputerResult(value, { expanded: false, isPartial: false }, testTheme)
+      .render(40)
+      .join('\n')
+    expect(compact).toContain('@w1')
+    expect(compact).toContain('ctrl+o')
+    const expanded = renderComputerResult(
+      value,
+      { expanded: true, isPartial: false },
+      testTheme
+    ).render(40)
+    expect(expanded.join('\n')).toContain('END')
+    expect(expanded.every((line) => visibleWidth(line) <= 40)).toBe(true)
   })
 
   test('adds routing guidance without adding browser tools', () => {
