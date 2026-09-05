@@ -34,7 +34,9 @@ pi --offline --no-extensions --no-skills --no-prompt-templates --no-context-file
 
 Record the replay, toggle Ctrl+O, resize 80 → 40 → 100 columns, and type an editor sentinel without submitting it. The editor and footer must stay below tool output. The fixture's nonexistent model produces an expected restore warning; no model request is required.
 
-Relevant automated tests: `extensions/render-call.test.ts`, `extensions/shared/render.test.ts`, and `extensions/shared/register-tool.test.ts`. Deterministic renderer tests do not replace live streaming, image-protocol, or service-specific tests.
+Relevant automated tests: `extensions/render-call.test.ts`, `extensions/shared/render.test.ts`, and `extensions/shared/register-tool.test.ts`. `extensions/native-image.test.ts` exercises Pi's native image component entirely in memory with a synthetic PNG: Kitty/iTerm2 encoding, unsupported-terminal fallback, expansion, show/hide, and image removal when a text result replaces it. These tests do not open a terminal or access the desktop; they verify emitted protocol data, not visible pixels.
+
+For an explicitly approved isolated terminal only, the existing native-shell fixture accepts `--image=/path/to/fixture.png`. Never launch or manipulate a user's working terminal application for validation. Deterministic renderer tests do not replace live streaming, visual image-protocol, or service-specific tests.
 
 ## Computer replacement
 
