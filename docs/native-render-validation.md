@@ -17,6 +17,22 @@ Automated regression coverage:
 - `extensions/shared/register-tool.test.ts`: structured failure propagation, call isolation, and shutdown cleanup.
 - `pi-elixir/packages/extension/test/render-rows.test.ts` in the companion checkout: multiline exception rows.
 
+## Fresh-process native desktop check
+
+Verified on 2026-09-05 in a separate Pi 0.85.0 process with discovery disabled and the checkout's `registerComputerTools` loaded explicitly. A temporary test command invoked the newly registered tools with a concrete abort signal; no model calls or tools from the parent conversation were used.
+
+An isolated AppKit window containing one checkbox was used:
+
+- Discover application, then PID-filtered windows; window handle appears in model-visible content.
+- Observe exact window; inspect screenshot showing checkbox off.
+- Click returned semantic handle; observe screenshot showing checkbox on.
+- Retry the previous observation's handle; rejected as unavailable.
+- Click the newly observed handle; screenshot confirms checkbox off again.
+- Stop fixture; filtered discovery returns zero windows and clears the handle.
+- Observe the closed window handle; rejected as unavailable.
+
+Recording: `/tmp/computer-fresh-pi.cast` (local, includes desktop discovery information; do not publish without review). Fixture and Pi process were stopped. Screenshot capture was verified, not terminal inline-image rendering. The command harness displayed notifications rather than native tool rows, so this does not independently verify the latest compact computer renderer.
+
 ## Interactive session replay
 
 `npx tsx demos/tapes/create-render-session.ts` creates an isolated fixture session under `/tmp/dot-pi-interactive-smoke-sessions` and prints its path. Resume it with:

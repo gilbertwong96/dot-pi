@@ -22,7 +22,7 @@ Scope: dot-pi model-facing tools and optional extension UI/lifecycle boundaries,
 - Bash completion and voice input still replace the custom editor independently; they are not yet a composable shared editor integration.
 - AST multi-file mutation is not yet integrated with Pi's per-file mutation queue. Directory dry-run fallback can still expose ast-grep's native pseudo-diff.
 - Expanded single-line content can still be width-truncated. Full-width-aware wrapping and accurate expansion hints need a separate renderer pass.
-- Computer handle lifetime/identity behavior, especially the pre-existing semantic-ref reuse changes, needs real desktop interaction coverage. Image-protocol rendering has not been verified.
+- Computer discovery, semantic checkbox actions, screenshot capture, stale-element rejection after re-observation, and closed-window rejection passed in a fresh Pi 0.85.0 process loading the checkout explicitly. See `native-render-validation.md`. Terminal image-protocol rendering remains unverified.
 - Voice microphone/transcription behavior has not been exercised against ElevenLabs; no recording was started for this audit.
 - Critic, provider, plan-mode, coaching/tutor workflows, and other optional integrations have not all received full end-to-end lifecycle tests.
 - Live provider-driven streaming remains distinct from deterministic native-shell streaming tests.
