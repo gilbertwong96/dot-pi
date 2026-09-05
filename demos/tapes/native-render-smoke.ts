@@ -12,7 +12,8 @@ import { registeredTool } from '../../extensions/shared/test-utils'
 initTheme('dark')
 setKeybindings(new KeybindingsManager())
 setHostKeybindings(new KeybindingsManager())
-const ui = new TuiMainScreen(new ProcessTerminal())
+const terminal = new ProcessTerminal()
+const ui = new TuiMainScreen(terminal)
 const computerMode = process.argv.includes('--computer')
 const tool = computerMode
   ? registeredTool(computer, 'computer_windows')
@@ -79,5 +80,9 @@ for (const phase of phases) {
   ui.requestRender()
   await new Promise((resolve) => setTimeout(resolve, computerMode ? 1000 : 300))
 }
-ui.stop()
+// Pi parks the cursor in the final component. Its default shutdown writes a
+// space there; logging at that position also overwrites the rendered sentinel.
+// Preserve the verified frame, then move below it before printing completion.
+ui.stop({ preserveScreen: true })
+terminal.write('\x1b[999B\r\n')
 console.log('NATIVE RENDER SMOKE PASSED')
