@@ -1,6 +1,6 @@
 ---
 description: Next N bounded steps
-argument-hint: "[N]"
+argument-hint: '[N]'
 ---
 
 State briefly. List exactly ${1:-7} prioritized next steps.

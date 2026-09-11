@@ -15,11 +15,11 @@ The user's primary model is `ollama-cloud/deepseek-v4-flash:0731`, which does no
 
 ## Model Landscape (verified)
 
-| Model | Provider | API | Vision |
-|---|---|---|---|
-| `deepseek-v4-flash:0731` (primary) | ollama-cloud | openai-completions | No |
-| `kimi-k2.7-code` (handoff 1) | ollama-cloud | openai-completions | Yes |
-| `MiniMax-M3` (handoff 2) | minimax | anthropic-messages | Yes |
+| Model                              | Provider     | API                | Vision |
+| ---------------------------------- | ------------ | ------------------ | ------ |
+| `deepseek-v4-flash:0731` (primary) | ollama-cloud | openai-completions | No     |
+| `kimi-k2.7-code` (handoff 1)       | ollama-cloud | openai-completions | Yes    |
+| `MiniMax-M3` (handoff 2)           | minimax      | anthropic-messages | Yes    |
 
 Both handoff providers have API keys configured. Ollama Cloud quota exhaustion surfaces as HTTP 429 / "rate limited" errors; there is no public quota query API, so detection is reactive.
 
@@ -33,7 +33,7 @@ New extension `extensions/vision-fallback.ts` (with `extensions/vision-fallback.
 
 ```ts
 function supportsImages(model): boolean {
-  return model?.input?.includes("image") ?? false
+  return model?.input?.includes('image') ?? false
 }
 ```
 
