@@ -49,10 +49,30 @@ describe('buildCommandCodeModel', () => {
       name: 'DeepSeek V4 Flash',
       reasoning: true,
       input: ['text'],
-      cost: { input: 0.22, output: 0.66, cacheRead: 0.007, cacheWrite: 0 },
+      cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       contextWindow: 1_000_000,
       maxTokens: 384_000,
       thinkingLevelMap: COMMANDCODE_OVERRIDES['deepseek/deepseek-v4-flash']!.thinkingLevelMap,
+      compat: { supportsReasoningEffort: true }
+    })
+  })
+
+  test('deepseek v4.1-flash supports reasoning with off-peak pricing', () => {
+    const result = buildCommandCodeModel({
+      id: 'deepseek/deepseek-v4.1-flash',
+      name: 'DeepSeek V4.1 Flash',
+      context_length: 1_000_000
+    })
+
+    expect(result).toEqual({
+      id: 'deepseek/deepseek-v4.1-flash',
+      name: 'DeepSeek V4.1 Flash',
+      reasoning: true,
+      input: ['text'],
+      cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
+      contextWindow: 1_000_000,
+      maxTokens: 384_000,
+      thinkingLevelMap: COMMANDCODE_OVERRIDES['deepseek/deepseek-v4.1-flash']!.thinkingLevelMap,
       compat: { supportsReasoningEffort: true }
     })
   })
@@ -174,7 +194,7 @@ describe('commandcode provider registration', () => {
     expect(models[0]).toMatchObject({
       id: 'deepseek/deepseek-v4-flash',
       reasoning: true,
-      cost: { input: 0.22, output: 0.66, cacheRead: 0.007, cacheWrite: 0 },
+      cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       maxTokens: 384_000
     })
     expect(models[1]).toMatchObject({
