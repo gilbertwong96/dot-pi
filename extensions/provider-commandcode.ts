@@ -53,7 +53,22 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   'deepseek/deepseek-v4-flash': {
     reasoning: true,
     input: ['text'],
-    cost: { input: 0.22, output: 0.66, cacheRead: 0.007, cacheWrite: 0 },
+    cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
+    maxTokens: 384_000,
+    thinkingLevelMap: {
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: 'max'
+    },
+    compat: { supportsReasoningEffort: true }
+  },
+  'deepseek/deepseek-v4.1-flash': {
+    reasoning: true,
+    input: ['text'],
+    cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
     maxTokens: 384_000,
     thinkingLevelMap: {
       minimal: null,
