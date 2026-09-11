@@ -325,7 +325,7 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `decision-guidance.ts` | Experimental trajectory guidance                                                  |
 | `ghost-tutor.ts`       | Quiet model-generated workflow nudge after the agent stops                        |
 | `plan-mode/`           | Experimental read-only planning mode                                              |
-| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); DeepSeek/Kimi/GLM models       |
+| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); auto-discovers models from `/v1/models` with overrides for known quirks |
 | `provider/`            | Experimental dynamic provider registration                                        |
 | `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
 | `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
