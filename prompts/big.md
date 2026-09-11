@@ -1,6 +1,6 @@
 ---
 description: Next N big work chunks
-argument-hint: "[N]"
+argument-hint: '[N]'
 ---
 
 State briefly. List exactly ${1:-7} big future work chunks.
