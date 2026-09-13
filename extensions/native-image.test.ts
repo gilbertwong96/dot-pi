@@ -3,8 +3,22 @@ import type { TUI } from '@earendil-works/pi-tui'
 import { ToolExecutionComponent } from '../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tool-execution.js'
 import { initTheme } from '../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js'
 import { resetCapabilitiesCache, setCapabilities } from '@earendil-works/pi-tui'
-import computer from './computer'
-import { registeredTool } from './shared/test-utils'
+import { Type } from 'typebox'
+import { primary, renderLines, resultText } from './shared/render'
+import type { RegisteredTool } from './shared/test-utils'
+
+const imageTool: RegisteredTool = {
+  name: 'image-fixture',
+  label: 'Image Fixture',
+  description: 'Synthetic image result fixture',
+  parameters: Type.Object({}),
+  async execute() {
+    return { content: [], details: {} }
+  },
+  renderResult(result, _options, theme) {
+    return renderLines([primary(resultText(result), theme)])
+  }
+}
 
 // Synthetic 1×1 PNG: no screen capture, terminal process, or desktop access.
 const png =
@@ -14,7 +28,7 @@ afterEach(() => resetCapabilitiesCache())
 test.each([null, 'kitty', 'iterm2'] as const)('native image contract: %s', (images) => {
   initTheme('dark')
   setCapabilities({ images, trueColor: true, hyperlinks: true })
-  const tool = registeredTool(computer, 'computer_observe')
+  const tool = imageTool
   const row = new ToolExecutionComponent(
     tool.name,
     'image-fixture',

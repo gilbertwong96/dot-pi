@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-import computer from './computer'
 import worktrees from './worktrees'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import astGrep from './ast-grep'
@@ -34,7 +33,6 @@ function collectTools(): RegisteredTool[] {
     lsp,
     webfetch,
     websearch,
-    computer,
     worktrees
   ]) {
     extension(pi)

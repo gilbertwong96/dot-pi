@@ -25,7 +25,6 @@
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {
-    "@trycua/cua-driver": "^0.23.2",
     "cheerio": "^1.2.0",
     "glob": "^11.0.0",
     "jsonc-parser": "^3.3.1",
@@ -73,7 +72,6 @@
       "extensions/command-priority.ts",
       "extensions/codesearch.ts",
       "extensions/confirm-actions.ts",
-      "extensions/computer",
       "extensions/context7",
       "extensions/env-json",
       "extensions/lsp",

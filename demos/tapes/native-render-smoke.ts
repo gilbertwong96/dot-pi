@@ -2,7 +2,6 @@ import { readFile } from 'node:fs/promises'
 import { TuiMainScreen, ProcessTerminal, Text, visibleWidth } from '@earendil-works/pi-tui'
 import { ToolExecutionComponent } from '../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tool-execution.js'
 import { initTheme } from '../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js'
-import computer from '../../extensions/computer'
 import { setKeybindings } from '@earendil-works/pi-tui'
 import { KeybindingsManager } from '../../node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js'
 import background from '../../extensions/background'
@@ -15,40 +14,16 @@ const terminal = new ProcessTerminal()
 const ui = new TuiMainScreen(terminal)
 const imagePath = process.argv.find((arg) => arg.startsWith('--image='))?.slice(8)
 const image = imagePath ? (await readFile(imagePath)).toString('base64') : undefined
-const computerMode = process.argv.includes('--computer')
-const tool = image
-  ? registeredTool(computer, 'computer_observe')
-  : computerMode
-    ? registeredTool(computer, 'computer_windows')
-    : registeredTool(background, 'background-logs')
+const tool = registeredTool(background, 'background-logs')
 const row = new ToolExecutionComponent(tool.name, 'smoke', {}, {}, tool, ui, process.cwd())
 ui.addChild(row)
 ui.addChild(new Text('EDITOR SENTINEL — must remain below tool output', 0, 0))
 ui.start()
 const text =
   'BadMapError: expected a map\n  nil\r\nstack frame\rnext frame\n' + 'long output '.repeat(40)
-const computerItems = Array.from({ length: 7 }, (_, index) => ({
-  app_name: 'Fixture',
-  pid: 42,
-  window_id: index + 1,
-  title: `Window ${index + 1}: ${'long title '.repeat(8)}`
-}))
-const computerResult = (items: typeof computerItems) => ({
-  content: [{ type: 'text', text: `Found ${items.length} windows` }],
-  details: {
-    operation: 'windows',
-    items,
-    windows: items.map((item) => ({
-      ref: `@w${item.window_id}`,
-      pid: 42,
-      windowId: item.window_id
-    }))
-  },
-  isError: false
-})
 const phases = image
   ? [
-      () => row.updateArgs({ target: { kind: 'window', window: '@w1' } }),
+      () => row.updateArgs({ name: 'image-fixture' }),
       () => row.markExecutionStarted(),
       () =>
         row.updateResult({
@@ -56,7 +31,7 @@ const phases = image
             { type: 'text', text: 'Isolated fixture screenshot' },
             { type: 'image', mimeType: 'image/png', data: image }
           ],
-          details: { operation: 'observe' },
+          details: { name: 'image-fixture', logs: 'Isolated fixture screenshot' },
           isError: false
         }),
       () => row.setExpanded(true),
@@ -64,18 +39,7 @@ const phases = image
       () => row.setShowImages(false),
       () => row.setShowImages(true)
     ]
-  : computerMode
-    ? [
-        () => row.updateArgs({ pid: 42, onScreenOnly: true }),
-        () => row.markExecutionStarted(),
-        () => row.updateResult({ content: [], isError: false }, true),
-        () => row.updateResult(computerResult([])),
-        () => row.updateResult(computerResult(computerItems)),
-        () => row.setExpanded(true),
-        () => row.setExpanded(false),
-        () => row.updateResult(computerResult(computerItems.slice(0, 1)))
-      ]
-    : [
+  : [
         () => row.updateArgs({ name: 'renderer-smoke' }),
         () => row.markExecutionStarted(),
         () => row.updateResult({ content: [], isError: false }, true),
@@ -87,9 +51,9 @@ const phases = image
           }),
         () => row.setExpanded(true),
         () => row.setExpanded(false),
-        () => row.updateResult({ content: [{ type: 'text', text }], isError: true }),
-        () => row.setExpanded(true)
-      ]
+      () => row.updateResult({ content: [{ type: 'text', text }], isError: true }),
+      () => row.setExpanded(true)
+    ]
 for (const phase of phases) {
   phase()
   for (const width of image ? [] : [8, 40, 80, 120]) {
@@ -99,7 +63,7 @@ for (const phase of phases) {
     }
   }
   ui.requestRender()
-  await new Promise((resolve) => setTimeout(resolve, image ? 2000 : computerMode ? 1000 : 300))
+  await new Promise((resolve) => setTimeout(resolve, image ? 2000 : 300))
 }
 if (image) await new Promise((resolve) => setTimeout(resolve, 20000))
 // Pi parks the cursor in the final component. Its default shutdown writes a
