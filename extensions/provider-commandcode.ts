@@ -67,7 +67,7 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   },
   'deepseek/deepseek-v4.1-flash': {
     reasoning: true,
-    input: ['text'],
+    input: ['text', 'image'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
     maxTokens: 384_000,
     thinkingLevelMap: {

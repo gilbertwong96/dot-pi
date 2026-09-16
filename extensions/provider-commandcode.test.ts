@@ -68,7 +68,7 @@ describe('buildCommandCodeModel', () => {
       id: 'deepseek/deepseek-v4.1-flash',
       name: 'DeepSeek V4.1 Flash',
       reasoning: true,
-      input: ['text'],
+      input: ['text', 'image'],
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       contextWindow: 1_000_000,
       maxTokens: 384_000,
