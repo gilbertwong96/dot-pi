@@ -44,7 +44,7 @@ When adding new extensions, skills, or rules:
 
 Providers shipped with the package register themselves by extension:
 
-- **Extension** (`extensions/provider-bai.ts`, `extensions/provider-commandcode.ts`): registers the provider programmatically via `pi.registerProvider()`. `pi install` plus the provider's API key env var is enough to use it.
+- **Extension** (`extensions/provider-commandcode.ts`): registers the provider programmatically via `pi.registerProvider()`. `pi install` plus the provider's API key env var is enough to use it.
 
 Pi also supports a standalone `~/.pi/agent/models.json` for providers configured outside this package. dot-pi does not ship one.
 
