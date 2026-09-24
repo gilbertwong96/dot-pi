@@ -317,19 +317,19 @@ Enable them by replacing the package entry in `~/.pi/agent/settings.json` with a
 pi -e /path/to/dot-pi/extensions/coach.ts
 ```
 
-| Extension              | Why optional                                                                      |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `bash-completion/`     | Advanced terminal completion; can be noisy while editing prompts                  |
-| `coach.ts`             | Recommended for newcomers copying this setup; explains habits and first workflows |
-| `critic/`              | Experimental shadow-review loop                                                   |
-| `decision-guidance.ts` | Experimental trajectory guidance                                                  |
-| `ghost-tutor.ts`       | Quiet model-generated workflow nudge after the agent stops                        |
-| `plan-mode/`           | Experimental read-only planning mode                                              |
-| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); auto-discovers models from `/v1/models` with overrides for known quirks |
-| `provider/`            | Experimental dynamic provider registration                                        |
-| `rules.ts`             | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
-| `tutor.ts`             | In-place Dan-style workflow hints for the current session                         |
-| `voice-input/`         | Requires ElevenLabs key and audio setup                                           |
+| Extension                 | Why optional                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `bash-completion/`        | Advanced terminal completion; can be noisy while editing prompts                  |
+| `coach.ts`                | Recommended for newcomers copying this setup; explains habits and first workflows |
+| `critic/`                 | Experimental shadow-review loop                                                   |
+| `decision-guidance.ts`    | Experimental trajectory guidance                                                  |
+| `ghost-tutor.ts`          | Quiet model-generated workflow nudge after the agent stops                        |
+| `plan-mode/`              | Experimental read-only planning mode                                              |
+| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); pins probed reasoning levels       |
+| `provider/`               | Experimental dynamic provider registration                                        |
+| `rules.ts`                | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
+| `tutor.ts`                | In-place Dan-style workflow hints for the current session                         |
+| `voice-input/`            | Requires ElevenLabs key and audio setup                                           |
 
 `voice-input/` uses `ELEVENLABS_API_KEY` and `rec` from sox. Optional environment variables: `ELEVENLABS_LANGUAGE`, `ELEVENLABS_KEYTERMS` (comma/newline-separated), `ELEVENLABS_COMMIT_STRATEGY` (`manual` or `vad`), `ELEVENLABS_VAD_SILENCE_THRESHOLD_SECS`, `ELEVENLABS_VAD_THRESHOLD`, `ELEVENLABS_MIN_SPEECH_DURATION_MS`, and `ELEVENLABS_MIN_SILENCE_DURATION_MS`.
 
@@ -403,6 +403,13 @@ npm test
 ```
 
 Manual workflow smoke test: `docs/smoke-test.md`.
+
+Command Code model capabilities (reasoning levels, `/messages`-only Claude models) are measured,
+not documented upstream. After upstream adds or changes models:
+
+```bash
+COMMANDCODE_API_KEY=... node scripts/probe-commandcode-capabilities.mjs
+```
 
 Shared extension helper guide: `extensions/shared/README.md`.
 

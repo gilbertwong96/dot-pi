@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { ExtensionAPI, ProviderConfigInput } from '@earendil-works/pi-coding-agent'
 
-import commandcode, { buildCommandCodeModel, COMMANDCODE_OVERRIDES } from './provider-commandcode'
+import commandcode, { buildCommandCodeModel } from './provider-commandcode'
 
 const originalFetch = globalThis.fetch
 
@@ -52,7 +52,15 @@ describe('buildCommandCodeModel', () => {
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       contextWindow: 1_000_000,
       maxTokens: 384_000,
-      thinkingLevelMap: COMMANDCODE_OVERRIDES['deepseek/deepseek-v4-flash']!.thinkingLevelMap,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh',
+        max: 'max'
+      },
       compat: { supportsReasoningEffort: true }
     })
   })
@@ -72,7 +80,15 @@ describe('buildCommandCodeModel', () => {
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       contextWindow: 1_000_000,
       maxTokens: 384_000,
-      thinkingLevelMap: COMMANDCODE_OVERRIDES['deepseek/deepseek-v4.1-flash']!.thinkingLevelMap,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh',
+        max: 'max'
+      },
       compat: { supportsReasoningEffort: true }
     })
   })
@@ -126,7 +142,9 @@ describe('buildCommandCodeModel', () => {
     expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
     expect(Object.prototype.hasOwnProperty.call(result, 'compat')).toBe(false)
   })
+})
 
+describe('reasoning capability metadata', () => {
   test('marks multimodal overrides with text+image input', () => {
     const result = buildCommandCodeModel({
       id: 'moonshotai/Kimi-K3',
@@ -135,7 +153,89 @@ describe('buildCommandCodeModel', () => {
     })
 
     expect(result.input).toEqual(['text', 'image'])
+    expect(result.reasoning).toBe(true)
+  })
+
+  test('marks a probed reasoning model that has no override entry', () => {
+    const result = buildCommandCodeModel({
+      id: 'gpt-6-luna',
+      name: 'GPT-6 Luna',
+      context_length: 1_050_000
+    })
+
+    expect(result.reasoning).toBe(true)
+    expect(result.thinkingLevelMap).toEqual({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max'
+    })
+    expect(result.compat).toEqual({ supportsReasoningEffort: true })
+  })
+
+  test('hides the max level for models whose upstream rejects effort=max', () => {
+    const result = buildCommandCodeModel({
+      id: 'Qwen/Qwen3.7-Max',
+      name: 'Qwen 3.7 Max',
+      context_length: 1_000_000
+    })
+
+    expect(result.reasoning).toBe(true)
+    expect(result.thinkingLevelMap).toEqual({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: null
+    })
+  })
+
+  test('hides medium for the Highspeed Kimi variant whose upstream rejects it', () => {
+    const result = buildCommandCodeModel({
+      id: 'moonshotai/Kimi-K2.7-Code-Highspeed',
+      name: 'Kimi K2.7 Code HighSpeed',
+      context_length: 262_000
+    })
+
+    expect(result.thinkingLevelMap).toMatchObject({
+      low: 'low',
+      medium: null,
+      high: 'high',
+      max: 'max'
+    })
+  })
+
+  test('leaves models with no measured reasoning without thinking levels', () => {
+    const result = buildCommandCodeModel({
+      id: 'moonshotai/Kimi-K2.5',
+      name: 'Kimi K2.5',
+      context_length: 256_000
+    })
+
     expect(result.reasoning).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
+  })
+})
+
+describe('Claude routing', () => {
+  test('routes Claude models through the Anthropic Messages API', () => {
+    const result = buildCommandCodeModel({
+      id: 'claude-opus-5',
+      name: 'Claude Opus 5',
+      context_length: 1_000_000
+    })
+
+    expect(result.api).toBe('anthropic-messages')
+    expect(result.baseUrl).toBe('https://api.commandcode.ai/provider')
+    expect(result.reasoning).toBe(true)
+    expect(result.thinkingLevelMap).toEqual({ off: null, xhigh: 'xhigh', max: 'max' })
+    expect(result.compat).toEqual({ forceAdaptiveThinking: true, supportsTemperature: false })
+    expect(result.input).toEqual(['text', 'image'])
   })
 })
 
