@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { ExtensionAPI, ProviderConfigInput } from '@earendil-works/pi-coding-agent'
 
-import commandcode, { buildCommandCodeModel } from './provider-commandcode'
+import commandcode, { buildCommandCodeModel, knownCommandCodeModels } from './provider-commandcode'
 
 const originalFetch = globalThis.fetch
 
@@ -240,17 +240,23 @@ describe('Claude routing', () => {
 })
 
 describe('commandcode provider registration', () => {
-  test('registers with the commandcode id, openai-completions api, and empty seed list', () => {
+  test('registers with the commandcode id, openai-completions api, and a seeded model list', () => {
     const { config } = captureProviderConfig()
 
     expect(config).toMatchObject({
       name: 'Command Code',
       baseUrl: 'https://api.commandcode.ai/provider/v1',
       apiKey: '$COMMANDCODE_API_KEY',
-      api: 'openai-completions',
-      models: []
+      api: 'openai-completions'
     })
     expect(typeof config.refreshModels).toBe('function')
+
+    // A registry that enumerates providers at session start must see the known
+    // models, or it cannot resolve one by id before the picker has refreshed.
+    const ids = (config.models ?? []).map((model) => model.id)
+    expect(ids).toContain('deepseek/deepseek-v4.1-flash')
+    expect(ids.length).toBeGreaterThan(1)
+    expect(config.models).toEqual(knownCommandCodeModels().map(buildCommandCodeModel))
   })
 
   test('refreshModels returns an empty list when no api_key credential is available', async () => {

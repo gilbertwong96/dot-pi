@@ -335,13 +335,28 @@ export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCode
   return result
 }
 
+/**
+ * The models this provider ships metadata for, so a registry that enumerates the
+ * provider at start-up sees them — `refreshModels` only fills the list once the
+ * model picker opens, which leaves a provider with `models: []` (and therefore no
+ * resolvable models) to anything that reads the registry at session start.
+ */
+export function knownCommandCodeModels(): NormalizedOpenAIModel[] {
+  const ids = new Set<string>([
+    ...Object.keys(COMMANDCODE_OVERRIDES),
+    ...Object.keys(CLAUDE_MODELS),
+    ...REASONING_MODEL_IDS
+  ])
+  return [...ids].map((id) => ({ id, name: id }))
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerProvider('commandcode', {
     name: 'Command Code',
     baseUrl: COMMANDCODE_BASE_URL,
     apiKey: '$COMMANDCODE_API_KEY',
     api: 'openai-completions',
-    models: [],
+    models: knownCommandCodeModels().map(buildCommandCodeModel),
     async refreshModels(context) {
       if (context.credential?.type !== 'api_key') return []
       const apiKey = context.credential.key
