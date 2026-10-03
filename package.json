@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:dupes": "jscpd --config .jscpd.json",
     "deps:check": "knip --config knip.json --reporter compact",
+    "generate:commandcode-catalog": "node scripts/generate-commandcode-catalog.mjs",
     "smoke:tutor": "expect demos/tapes/tutor-smoke.expect"
   },
   "dependencies": {

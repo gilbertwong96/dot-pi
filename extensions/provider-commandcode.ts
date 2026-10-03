@@ -2,25 +2,35 @@
  * Command Code Provider Extension
  *
  * Registers the Command Code Provider API (https://api.commandcode.ai) as a
- * model provider. The model catalog is discovered from the upstream
- * `/v1/models` endpoint on demand (lazy refresh when the model picker is
- * opened); COMMANDCODE_OVERRIDES layers model-specific metadata on top of
- * what the upstream exposes, since the upstream only returns identity fields
- * and `context_length`.
+ * model provider.
  *
- * The upstream exposes no capability metadata, so reasoning support and the
- * per-model `reasoning_effort` values are pinned from measurements:
- * `scripts/probe-commandcode-capabilities.mjs` re-runs the probe. Claude is
- * only served through the Anthropic Messages shape, so those models carry an
- * `api`/`baseUrl` override.
+ * Catalog behavior mirrors pi-ollama-cloud:
+ *   - COMMANDCODE_CATALOG is a baked-in snapshot of upstream `/v1/models`
+ *     (regenerate with `node scripts/generate-commandcode-catalog.mjs`). The
+ *     upstream is the only source of `context_length`, and pi reads the
+ *     provider before `refreshModels` runs at session start, so the seed has to
+ *     carry the real context windows instead of the 128K default.
+ *   - `refreshModels` rehydrates that snapshot, or the catalog persisted by a
+ *     previous session, in its cache-only phase and persists a fresh fetch, so
+ *     a session normally never falls back to the generated file.
+ *
+ * COMMANDCODE_OVERRIDES layers model-specific metadata on top of what the
+ * upstream exposes, since the upstream only returns identity fields and
+ * `context_length`. The upstream exposes no capability metadata, so reasoning
+ * support and the per-model `reasoning_effort` values are pinned from
+ * measurements: `scripts/probe-commandcode-capabilities.mjs` re-runs the probe.
+ * Claude is only served through the Anthropic Messages shape, so those models
+ * carry an `api`/`baseUrl` override.
  *
  * Use /login or the COMMANDCODE_API_KEY environment variable to authenticate
  * and /model to pick a model. Get an API key from Command Code Studio
  * (https://commandcode.ai/settings/keys).
  */
 
+import type { RefreshModelsContext } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 
+import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 import { fetchOpenAIModels, type NormalizedOpenAIModel } from './shared/openai-models'
 
 const COMMANDCODE_BASE_URL = 'https://api.commandcode.ai/provider/v1'
@@ -188,6 +198,19 @@ const CLAUDE_MODELS: Record<string, CommandCodeClaudeSpec> = {
     maxTokens: 128_000,
     thinkingLevelMap: { xhigh: 'xhigh', max: 'max' },
     forceAdaptiveThinking: true
+  },
+  'claude-sonnet-5-5': {
+    maxTokens: 128_000,
+    thinkingLevelMap: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max'
+    },
+    forceAdaptiveThinking: true
   }
 }
 
@@ -280,6 +303,14 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
 const DEFAULT_CONTEXT_WINDOW = 128_000
 const DEFAULT_MAX_TOKENS = 8_192
 
+/** Skip a network fetch while the persisted catalog is this fresh (mirrors pi's remote catalog provider). */
+const REFRESH_COOLDOWN_MS = 4 * 60 * 60 * 1000
+/**
+ * pi's model selector aborts a catalog refresh after 15s, so a cold fetch has to
+ * fit inside that budget or the first picker-open misses the fresh list.
+ */
+const CATALOG_FETCH_TIMEOUT_MS = 15_000
+
 interface CommandCodeBuildModel {
   id: string
   name: string
@@ -336,18 +367,92 @@ export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCode
 }
 
 /**
- * The models this provider ships metadata for, so a registry that enumerates the
- * provider at start-up sees them — `refreshModels` only fills the list once the
- * model picker opens, which leaves a provider with `models: []` (and therefore no
- * resolvable models) to anything that reads the registry at session start.
+ * The catalog this provider ships, so a registry that enumerates the provider
+ * at start-up sees it — `refreshModels` only fills the list once a refresh
+ * runs, which leaves a provider with `models: []` (and therefore no resolvable
+ * models) to anything that reads the registry at session start.
+ *
+ * COMMANDCODE_CATALOG is the upstream snapshot and already contains every model
+ * the hand-maintained tables reference; the union keeps those metadata entries
+ * resolvable if a regeneration drops one upstream.
  */
 export function knownCommandCodeModels(): NormalizedOpenAIModel[] {
-  const ids = new Set<string>([
+  const byId = new Map(COMMANDCODE_CATALOG.map((entry) => [entry.id, entry]))
+  for (const id of [
     ...Object.keys(COMMANDCODE_OVERRIDES),
     ...Object.keys(CLAUDE_MODELS),
     ...REASONING_MODEL_IDS
-  ])
-  return [...ids].map((id) => ({ id, name: id }))
+  ]) {
+    if (!byId.has(id)) byId.set(id, { id, name: id })
+  }
+  return [...byId.values()]
+}
+
+/**
+ * The `refreshModels` callback pi invokes for "commandcode". Pi calls it twice
+ * per refresh: a restore phase (`allowNetwork: false`) before auth resolution,
+ * then a network phase (`allowNetwork: true`) once a credential resolves. The
+ * composer swaps the return value into the model list on every invocation, so
+ * this must always return a usable catalog — never `[]` — and must persist what
+ * it fetched, or the next session starts from the seed again.
+ */
+export async function refreshCommandCodeCatalog(
+  context: RefreshModelsContext
+): Promise<ProviderModelConfig[]> {
+  const fallback = context.stored?.models.length
+    ? [...context.stored.models]
+    : knownCommandCodeModels().map(buildCommandCodeModel)
+
+  if (!context.allowNetwork || context.signal.aborted) return fallback
+
+  const checkedAt = context.stored?.checkedAt
+  if (!context.force && checkedAt !== undefined && Date.now() - checkedAt < REFRESH_COOLDOWN_MS) {
+    return fallback
+  }
+
+  const credential = context.credential
+  if (credential?.type !== 'api_key' || !credential.key) return fallback
+
+  let remote: NormalizedOpenAIModel[]
+  try {
+    remote = await fetchOpenAIModels(COMMANDCODE_BASE_URL, credential.key, {
+      signal: context.signal,
+      timeoutMs: CATALOG_FETCH_TIMEOUT_MS
+    })
+  } catch (error) {
+    // An aborted refresh keeps the last good catalog; anything else propagates so
+    // pi reports it and keeps the previous list.
+    if (context.signal.aborted) return fallback
+    throw error
+  }
+  if (context.signal.aborted) return fallback
+
+  const models = remote.map(buildCommandCodeModel)
+  // Guard: an empty result must not be published or persisted, or it would leave
+  // the provider with no models for the duration of the cooldown.
+  if (models.length === 0) return fallback
+
+  // The store is typed to pi-ai's internal Model shape, so rehydrate the
+  // provider identity fields that the composer otherwise fills in.
+  const persisted = models.map((model) => ({
+    ...model,
+    provider: 'commandcode',
+    api: model.api ?? 'openai-completions',
+    baseUrl: model.baseUrl ?? COMMANDCODE_BASE_URL
+  }))
+
+  // Best-effort persistence: the in-memory list already updates from the return
+  // value, so a rejected or failed store write must not lose the fresh catalog.
+  try {
+    const published = await context.publish({
+      persist: { models: persisted, checkedAt: Date.now() }
+    })
+    if (!published) console.warn('[commandcode] Catalog persist rejected (refresh superseded).')
+  } catch {
+    // Ignored: the catalog above is still returned.
+  }
+
+  return persisted
 }
 
 export default function (pi: ExtensionAPI) {
@@ -357,15 +462,6 @@ export default function (pi: ExtensionAPI) {
     apiKey: '$COMMANDCODE_API_KEY',
     api: 'openai-completions',
     models: knownCommandCodeModels().map(buildCommandCodeModel),
-    async refreshModels(context) {
-      if (context.credential?.type !== 'api_key') return []
-      const apiKey = context.credential.key
-      if (!apiKey) return []
-      const remote = await fetchOpenAIModels(COMMANDCODE_BASE_URL, apiKey, {
-        signal: context.signal,
-        timeoutMs: 15_000
-      })
-      return remote.map(buildCommandCodeModel)
-    }
+    refreshModels: refreshCommandCodeCatalog
   })
 }

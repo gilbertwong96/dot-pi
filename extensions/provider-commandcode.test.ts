@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import type { ExtensionAPI, ProviderConfigInput } from '@earendil-works/pi-coding-agent'
+import type { RefreshModelsContext } from '@earendil-works/pi-ai'
+import type {
+  ExtensionAPI,
+  ProviderConfig,
+  ProviderModelConfig
+} from '@earendil-works/pi-coding-agent'
 
 import commandcode, { buildCommandCodeModel, knownCommandCodeModels } from './provider-commandcode'
+import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
 const originalFetch = globalThis.fetch
 
@@ -17,12 +23,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function captureProviderConfig(): {
-  config: ProviderConfigInput
-  refreshModels: NonNullable<ProviderConfigInput['refreshModels']>
+  config: ProviderConfig
+  refreshModels: NonNullable<ProviderConfig['refreshModels']>
 } {
-  const captured: { config: ProviderConfigInput | undefined } = { config: undefined }
+  const captured: { config: ProviderConfig | undefined } = { config: undefined }
   const pi = {
-    registerProvider: (_id: string, config: ProviderConfigInput) => {
+    registerProvider: (_id: string, config: ProviderConfig) => {
       captured.config = config
     }
   } as unknown as ExtensionAPI
@@ -32,6 +38,78 @@ function captureProviderConfig(): {
   const config = captured.config!
   if (!config.refreshModels) throw new Error('refreshModels not registered')
   return { config, refreshModels: config.refreshModels }
+}
+
+function seedBuiltModel(id: string) {
+  return knownCommandCodeModels()
+    .map(buildCommandCodeModel)
+    .find((model) => model.id === id)
+}
+
+function makeContext(overrides: Partial<RefreshModelsContext> = {}): {
+  context: RefreshModelsContext
+  persisted: NonNullable<Parameters<RefreshModelsContext['publish']>[0]['persist']>[]
+} {
+  const persisted: NonNullable<Parameters<RefreshModelsContext['publish']>[0]['persist']>[] = []
+  const context: RefreshModelsContext = {
+    allowNetwork: true,
+    signal: new AbortController().signal,
+    publish: async (publication) => {
+      if (publication.persist) persisted.push(publication.persist)
+      return true
+    },
+    ...overrides
+  }
+  return { context, persisted }
+}
+
+function seedModels(): ProviderModelConfig[] {
+  return knownCommandCodeModels().map(buildCommandCodeModel)
+}
+
+function apiKeyCredential() {
+  return { type: 'api_key' as const, key: 'test-key' }
+}
+
+function stubCatalog(ids: string[]): void {
+  globalThis.fetch = Object.assign(
+    async () =>
+      jsonResponse({
+        data: ids.map((id) => ({ id, name: id, context_length: 1_000_000 }))
+      }),
+    { preconnect: originalFetch.preconnect }
+  ) as typeof fetch
+}
+
+function stubFetchFailure(): void {
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw new Error('unexpected network request')
+    },
+    { preconnect: originalFetch.preconnect }
+  ) as typeof fetch
+}
+
+/** A persisted catalog entry as pi's FileModelsStore would hand it back. */
+function storedCatalog(
+  ids: string[],
+  checkedAt: number
+): NonNullable<RefreshModelsContext['stored']> {
+  return {
+    checkedAt,
+    models: ids.map((id) => ({
+      id,
+      name: id,
+      api: 'openai-completions',
+      provider: 'commandcode',
+      baseUrl: 'https://api.commandcode.ai/provider/v1',
+      reasoning: false,
+      input: ['text'],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 999_000,
+      maxTokens: 1_000
+    }))
+  } as NonNullable<RefreshModelsContext['stored']>
 }
 
 describe('buildCommandCodeModel', () => {
@@ -237,6 +315,14 @@ describe('Claude routing', () => {
     expect(result.compat).toEqual({ forceAdaptiveThinking: true, supportsTemperature: false })
     expect(result.input).toEqual(['text', 'image'])
   })
+
+  test('routes every catalog Claude model through the Anthropic Messages API', () => {
+    const unrouted = COMMANDCODE_CATALOG.filter((entry) => entry.id.startsWith('claude-'))
+      .map((entry) => entry.id)
+      .filter((id) => seedBuiltModel(id)?.api !== 'anthropic-messages')
+
+    expect(unrouted).toEqual([])
+  })
 })
 
 describe('commandcode provider registration', () => {
@@ -256,49 +342,71 @@ describe('commandcode provider registration', () => {
     const ids = (config.models ?? []).map((model) => model.id)
     expect(ids).toContain('deepseek/deepseek-v4.1-flash')
     expect(ids.length).toBeGreaterThan(1)
-    expect(config.models).toEqual(knownCommandCodeModels().map(buildCommandCodeModel))
+    expect(config.models).toEqual(seedModels())
   })
 
-  test('refreshModels returns an empty list when no api_key credential is available', async () => {
-    const { refreshModels } = captureProviderConfig()
+  test('seeds the whole baked catalog', () => {
+    const ids = new Set((captureProviderConfig().config.models ?? []).map((model) => model.id))
 
-    const result = await refreshModels({
-      allowNetwork: true,
-      signal: new AbortController().signal,
-      publish: async () => true
-    })
-
-    expect(result).toEqual([])
+    expect(COMMANDCODE_CATALOG.filter((entry) => !ids.has(entry.id))).toEqual([])
   })
 
-  test('refreshModels fetches upstream models and applies overrides', async () => {
-    globalThis.fetch = Object.assign(
-      async () =>
-        jsonResponse({
-          data: [
-            {
-              id: 'deepseek/deepseek-v4-flash',
-              name: 'DeepSeek V4 Flash',
-              context_length: 1_000_000
-            },
-            { id: 'moonshotai/Kimi-K3', name: 'Kimi K3', context_length: 1_000_000 },
-            { id: 'fresh/upstream-only', name: 'Fresh', context_length: 64_000 }
-          ]
-        }),
-      { preconnect: originalFetch.preconnect }
-    ) as typeof fetch
+  test('seeds the upstream context window instead of the 128K default', () => {
+    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.contextWindow).toBe(1_000_000)
+    expect(seedBuiltModel('claude-haiku-4-5-20251001')?.contextWindow).toBe(200_000)
+    expect(seedBuiltModel('gpt-5.5')?.contextWindow).toBe(400_000)
+  })
+})
 
+describe('refreshModels fallback', () => {
+  test('returns the seed catalog instead of an empty list when no credential resolves', async () => {
+    stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
-    const models = await refreshModels({
-      credential: { type: 'api_key', key: 'test-key' },
-      allowNetwork: true,
-      signal: new AbortController().signal,
-      publish: async () => true
+    const { context } = makeContext()
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+  })
+
+  test('returns the seed catalog without touching the network in the cache-only phase', async () => {
+    stubFetchFailure()
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext({ allowNetwork: false, credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+  })
+
+  test('restores the catalog persisted by an earlier session', async () => {
+    stubFetchFailure()
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['stored/from-disc'], Date.now())
+    const { context } = makeContext({
+      allowNetwork: false,
+      credential: apiKeyCredential(),
+      stored
     })
+
+    const models = await refreshModels(context)
+
+    expect(models).toEqual(stored.models)
+  })
+})
+
+describe('refreshModels network', () => {
+  test('fetches the upstream models and applies overrides', async () => {
+    stubCatalog(['deepseek/deepseek-v4-flash', 'moonshotai/Kimi-K3', 'fresh/upstream-only'])
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
 
     expect(models).toHaveLength(3)
     expect(models[0]).toMatchObject({
       id: 'deepseek/deepseek-v4-flash',
+      contextWindow: 1_000_000,
       reasoning: true,
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
       maxTokens: 384_000
@@ -313,8 +421,97 @@ describe('commandcode provider registration', () => {
       reasoning: false,
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 64_000,
+      contextWindow: 1_000_000,
       maxTokens: 8_192
     })
+  })
+
+  test('persists the fetched catalog so the next session starts from it', async () => {
+    stubCatalog(['deepseek/deepseek-v4.1-flash', 'claude-sonnet-5-5'])
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(persisted).toHaveLength(1)
+    expect(persisted[0].checkedAt).toBeTypeOf('number')
+    expect(persisted[0].models.map((model) => model.id)).toEqual(models.map((model) => model.id))
+    // The store is typed to pi-ai's Model shape, so the provider identity
+    // fields the composer otherwise fills in have to be written with it.
+    expect(persisted[0].models[0]).toMatchObject({
+      provider: 'commandcode',
+      api: 'openai-completions',
+      baseUrl: 'https://api.commandcode.ai/provider/v1'
+    })
+    expect(persisted[0].models[1]).toMatchObject({
+      provider: 'commandcode',
+      api: 'anthropic-messages',
+      baseUrl: 'https://api.commandcode.ai/provider'
+    })
+  })
+
+  test('keeps the persisted catalog while it is fresh instead of refetching', async () => {
+    stubFetchFailure()
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['stored/fresh'], Date.now())
+    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['stored/fresh'])
+  })
+
+  test('refetches a stale persisted catalog', async () => {
+    stubCatalog(['fresh/upstream'])
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['stored/stale'], Date.now() - 5 * 60 * 60 * 1000)
+    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['fresh/upstream'])
+  })
+
+  test('refetches a fresh persisted catalog when the refresh is forced', async () => {
+    stubCatalog(['fresh/upstream'])
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['stored/fresh'], Date.now())
+    const { context } = makeContext({ credential: apiKeyCredential(), stored, force: true })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['fresh/upstream'])
+  })
+
+  test('keeps the fallback when the upstream reports no models', async () => {
+    stubCatalog([])
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+    expect(persisted).toEqual([])
+  })
+
+  test('keeps the fallback when the refresh is aborted mid-flight', async () => {
+    const controller = new AbortController()
+    globalThis.fetch = Object.assign(
+      async () => {
+        controller.abort()
+        throw new Error('aborted')
+      },
+      { preconnect: originalFetch.preconnect }
+    ) as typeof fetch
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({
+      credential: apiKeyCredential(),
+      signal: controller.signal
+    })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+    expect(persisted).toEqual([])
   })
 })
