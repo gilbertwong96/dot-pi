@@ -325,7 +325,7 @@ pi -e /path/to/dot-pi/extensions/coach.ts
 | `decision-guidance.ts`    | Experimental trajectory guidance                                                  |
 | `ghost-tutor.ts`          | Quiet model-generated workflow nudge after the agent stops                        |
 | `plan-mode/`              | Experimental read-only planning mode                                              |
-| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); pins probed reasoning levels       |
+| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); baked catalog and probed reasoning |
 | `provider/`               | Experimental dynamic provider registration                                        |
 | `rules.ts`                | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
 | `tutor.ts`                | In-place Dan-style workflow hints for the current session                         |
@@ -409,7 +409,12 @@ not documented upstream. After upstream adds or changes models:
 
 ```bash
 COMMANDCODE_API_KEY=... node scripts/probe-commandcode-capabilities.mjs
+node scripts/generate-commandcode-catalog.mjs && npm run format
 ```
+
+The catalog script snapshots upstream `/v1/models` into
+`extensions/provider-commandcode-catalog.generated.ts`, the seed the provider reports before a
+refresh. Refresh a live session's persisted catalog with `pi update --models`.
 
 Shared extension helper guide: `extensions/shared/README.md`.
 
