@@ -25,12 +25,17 @@
  * Use /login or the COMMANDCODE_API_KEY environment variable to authenticate
  * and /model to pick a model. Get an API key from Command Code Studio
  * (https://commandcode.ai/settings/keys).
+ *
+ * Premium models are gated per plan, and the gateway lists the gated ones
+ * alongside the rest, so a refresh probes entitlement and persists only the
+ * models the account can run (see findExcludedModelIds).
  */
 
 import type { RefreshModelsContext } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
+import { fetchText } from './shared/http'
 import { fetchOpenAIModels, type NormalizedOpenAIModel } from './shared/openai-models'
 
 const COMMANDCODE_BASE_URL = 'https://api.commandcode.ai/provider/v1'
@@ -161,6 +166,19 @@ const CLAUDE_MODELS: Record<string, CommandCodeClaudeSpec> = {
     forceAdaptiveThinking: true
   },
   'claude-haiku-4-5-20251001': { maxTokens: 64_000 },
+  'claude-haiku-5-5': {
+    maxTokens: 128_000,
+    thinkingLevelMap: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max'
+    },
+    forceAdaptiveThinking: true
+  },
   'claude-opus-4-7': {
     maxTokens: 128_000,
     thinkingLevelMap: { xhigh: 'xhigh', max: 'max' },
@@ -322,6 +340,16 @@ const REFRESH_COOLDOWN_MS = 4 * 60 * 60 * 1000
  * fit inside that budget or the first picker-open misses the fresh list.
  */
 const CATALOG_FETCH_TIMEOUT_MS = 15_000
+/**
+ * Entitlement probing. The gate answers a model the plan excludes before any
+ * upstream call, but not instantly: a burst of probes lands on a ~1s floor, so
+ * the timeout has to clear that while the whole pass still fits inside the 15s
+ * refresh budget alongside the catalog fetch. Measured against the live gateway
+ * a full 92-model pass at this concurrency takes about 6s.
+ */
+const ENTITLEMENT_PROBE_TIMEOUT_MS = 3_000
+const ENTITLEMENT_PROBE_CONCURRENCY = 24
+const ENTITLEMENT_PROBE_MAX_TOKENS = 16
 
 interface CommandCodeBuildModel {
   id: string
@@ -418,6 +446,96 @@ export function knownCommandCodeModels(): NormalizedOpenAIModel[] {
 }
 
 /**
+ * Whether the account may run `model`.
+ *
+ * Command Code exposes no plan, credit or entitlement route — `/provider/v1`
+ * only serves chat/completions, messages, models and responses — and it lists
+ * every model it can serve, gated or not, so the only way to learn what a plan
+ * covers is to ask for each model once. A model the plan excludes is turned away
+ * by the gateway's own gate with `403 permission_error`: either
+ * `MODEL_NOT_IN_PLAN: <model> available in <tier> and above plans or extra on
+ * demand usage`, or the mis-worded `Authentication failed. Please check your
+ * credentials.` that a model with no upstream plan gate returns instead.
+ *
+ * Only that error type hides a model. A 200, a 429, an upstream 5xx, a gateway
+ * validation error or the timeout all count as entitled, because an
+ * inconclusive probe must never hide a model that works.
+ *
+ * The probe follows the model's own shape (see CLAUDE_MODELS): Claude only
+ * answers on `/messages`, and anything else on `/chat/completions`.
+ */
+async function isEntitled(
+  model: CommandCodeBuildModel,
+  apiKey: string,
+  signal: AbortSignal
+): Promise<boolean> {
+  const anthropic = model.api === 'anthropic-messages'
+  const url = anthropic
+    ? `${COMMANDCODE_ANTHROPIC_BASE_URL}/v1/messages`
+    : `${COMMANDCODE_BASE_URL}/chat/completions`
+  const headers: Record<string, string> = anthropic
+    ? { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+    : { 'content-type': 'application/json', Authorization: `Bearer ${apiKey}` }
+  const body = JSON.stringify({
+    model: model.id,
+    max_tokens: ENTITLEMENT_PROBE_MAX_TOKENS,
+    messages: [{ role: 'user', content: 'hi' }]
+  })
+
+  try {
+    const result = await fetchText(
+      url,
+      { method: 'POST', headers, body },
+      { signal, timeoutMs: ENTITLEMENT_PROBE_TIMEOUT_MS }
+    )
+    return !isPlanDenial(result.text)
+  } catch {
+    return true
+  }
+}
+
+/** Both endpoint shapes wrap the gate's answer as `error.type`. */
+function isPlanDenial(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text) as { error?: { type?: unknown } }
+    return parsed.error?.type === 'permission_error'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The ids this account's plan excludes. Probing is the only way to learn them
+ * (see isEntitled) and it is what makes the picker honest: the persisted catalog
+ * is the filtered one, so the exclusions are paid for once per refresh cooldown
+ * instead of showing up as a 403 the first time someone picks the model. That
+ * also means a dropped model is not addressable until the next refresh, so a
+ * session that already used one has to be refreshed (or pi run with a forced
+ * catalog refresh) before it can be resumed on the same model.
+ */
+async function findExcludedModelIds(
+  models: CommandCodeBuildModel[],
+  apiKey: string,
+  signal: AbortSignal
+): Promise<Set<string>> {
+  const excluded = new Set<string>()
+  let next = 0
+
+  const worker = async () => {
+    while (!signal.aborted) {
+      const model = models[next++]
+      if (model === undefined) return
+      if (!(await isEntitled(model, apiKey, signal))) excluded.add(model.id)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(ENTITLEMENT_PROBE_CONCURRENCY, models.length) }, worker)
+  )
+  return excluded
+}
+
+/**
  * The `refreshModels` callback pi invokes for "commandcode". Pi calls it twice
  * per refresh: a restore phase (`allowNetwork: false`) before auth resolution,
  * then a network phase (`allowNetwork: true`) once a credential resolves. The
@@ -456,9 +574,17 @@ export async function refreshCommandCodeCatalog(
   }
   if (context.signal.aborted) return fallback
 
-  const models = remote.map(buildCommandCodeModel)
+  const built = remote.map(buildCommandCodeModel)
   // Guard: an empty result must not be published or persisted, or it would leave
   // the provider with no models for the duration of the cooldown.
+  if (built.length === 0) return fallback
+
+  const excluded = await findExcludedModelIds(built, credential.key, context.signal)
+  if (context.signal.aborted) return fallback
+
+  const models = built.filter((model) => !excluded.has(model.id))
+  // A plan that excludes everything (or a gate that misfires) must not empty the
+  // provider, so keep the unfiltered catalog rather than publish nothing.
   if (models.length === 0) return fallback
 
   // The store is typed to pi-ai's internal Model shape, so rehydrate the
