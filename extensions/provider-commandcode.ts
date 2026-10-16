@@ -242,7 +242,24 @@ export interface CommandCodeModelSpec {
   input?: ('text' | 'image')[]
   cost?: { input: number; output: number; cacheRead: number; cacheWrite: number }
   maxTokens?: number
+  headers?: Record<string, string>
 }
+
+/**
+ * Four models are unreachable on their own: the gateway routes them through an
+ * upstream preference that names providers this account cannot use (`No
+ * available providers match the 'only' filter: deepinfra, fireworks`), and the
+ * `/provider/v1` schema has no routing field to override it with. Asking for
+ * zero data retention makes the gateway route by its ZDR-capable upstreams
+ * instead, and those do answer.
+ *
+ * The trade-off is real: the request only ever reaches a ZDR provider and bills
+ * at that provider's rate, and a model with no ZDR upstream is refused with a
+ * 422 instead of being served. `xiaomi/mimo-v2.5-pro` is one of those, so it
+ * stays unreachable. Drop the headers here if the routing preference is fixed
+ * upstream.
+ */
+const ZDR_ROUTING_HEADERS: Record<string, string> = { 'x-cmd-zdr': '1' }
 
 /**
  * Metadata overrides applied to known models on top of the auto-discovered
@@ -316,12 +333,16 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   },
   'zai-org/GLM-5.1': {
     cost: { input: 1.4, output: 4.4, cacheRead: 0.26, cacheWrite: 0 },
-    maxTokens: 32_000
+    maxTokens: 32_000,
+    headers: ZDR_ROUTING_HEADERS
   },
   'zai-org/GLM-5': {
     cost: { input: 1.0, output: 3.2, cacheRead: 0.2, cacheWrite: 0 },
     maxTokens: 32_000
-  }
+  },
+  'MiniMaxAI/MiniMax-M2.7': { headers: ZDR_ROUTING_HEADERS },
+  'thinkingmachines/inkling': { headers: ZDR_ROUTING_HEADERS },
+  'thinkingmachines/inkling-small': { headers: ZDR_ROUTING_HEADERS }
 }
 
 const DEFAULT_CONTEXT_WINDOW = 128_000
@@ -361,6 +382,7 @@ interface CommandCodeBuildModel {
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number }
   contextWindow: number
   maxTokens: number
+  headers?: Record<string, string>
   thinkingLevelMap?: ProviderModelConfig['thinkingLevelMap']
   compat?: ProviderModelConfig['compat']
 }
@@ -401,6 +423,8 @@ export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCode
     contextWindow,
     maxTokens
   }
+
+  if (override.headers) result.headers = override.headers
 
   if (claude) {
     result.api = 'anthropic-messages'
