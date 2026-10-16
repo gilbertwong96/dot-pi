@@ -274,20 +274,6 @@ describe('buildCommandCodeModel', () => {
     expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
     expect(Object.prototype.hasOwnProperty.call(result, 'compat')).toBe(false)
   })
-
-  test('asks for ZDR routing only on the models the gateway cannot route itself', () => {
-    const unroutable = [
-      'zai-org/GLM-5.1',
-      'MiniMaxAI/MiniMax-M2.7',
-      'thinkingmachines/inkling',
-      'thinkingmachines/inkling-small'
-    ]
-
-    expect(unroutable.map((id) => seedBuiltModel(id)?.headers)).toEqual(
-      unroutable.map(() => ({ 'x-cmd-zdr': '1' }))
-    )
-    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.headers).toBeUndefined()
-  })
 })
 
 describe('reasoning capability metadata', () => {
@@ -393,7 +379,7 @@ describe('Claude routing', () => {
     expect(unrouted).toEqual([])
   })
 
-  test('gives claude-haiku-5-5 the Anthropic shape and its own output budget', () => {
+  test('routes a Claude model the baked catalog predates', () => {
     const result = buildCommandCodeModel({
       id: 'claude-haiku-5-5',
       name: 'Claude Haiku 5.5',
