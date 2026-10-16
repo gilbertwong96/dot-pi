@@ -128,8 +128,8 @@ describe('buildCommandCodeModel', () => {
       reasoning: true,
       input: ['text'],
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      contextWindow: 1_000_000,
-      maxTokens: 384_000,
+      contextWindow: 934_464,
+      maxTokens: 65_536,
       thinkingLevelMap: {
         off: null,
         minimal: null,
@@ -156,8 +156,8 @@ describe('buildCommandCodeModel', () => {
       reasoning: true,
       input: ['text', 'image'],
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      contextWindow: 1_000_000,
-      maxTokens: 384_000,
+      contextWindow: 934_464,
+      maxTokens: 65_536,
       thinkingLevelMap: {
         off: null,
         minimal: null,
@@ -171,28 +171,29 @@ describe('buildCommandCodeModel', () => {
     })
   })
 
-  test('lifts context_length from upstream when no override provides one', () => {
+  test('advertises the upstream budget minus the completion budget', () => {
     const result = buildCommandCodeModel({
       id: 'unknown/model',
       name: 'Unknown Model',
       context_length: 500_000
     })
 
-    expect(result.contextWindow).toBe(500_000)
+    expect(result.contextWindow).toBe(500_000 - result.maxTokens)
   })
 
   test('falls back to the default context window when upstream omits context_length', () => {
     const result = buildCommandCodeModel({ id: 'm', name: 'M' })
 
-    expect(result.contextWindow).toBe(128_000)
+    expect(result.contextWindow).toBe(128_000 - result.maxTokens)
   })
 
   test('caps default maxTokens at the smaller of context window and 8192', () => {
-    const small = buildCommandCodeModel({ id: 'm', name: 'M', context_length: 4_000 })
-    expect(small.maxTokens).toBe(4_000)
-
     const big = buildCommandCodeModel({ id: 'm', name: 'M', context_length: 1_000_000 })
     expect(big.maxTokens).toBe(8_192)
+
+    const small = buildCommandCodeModel({ id: 'm', name: 'M', context_length: 4_000 })
+    expect(small.maxTokens).toBe(4_000 - 1_024)
+    expect(small.contextWindow).toBe(1_024)
   })
 
   test('prefers the override maxTokens over the default cap', () => {
@@ -202,7 +203,7 @@ describe('buildCommandCodeModel', () => {
       context_length: 1_000_000
     })
 
-    expect(result.maxTokens).toBe(384_000)
+    expect(result.maxTokens).toBe(65_536)
   })
 
   test('uses safe defaults when no override exists', () => {
@@ -214,7 +215,7 @@ describe('buildCommandCodeModel', () => {
       reasoning: false,
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 128_000,
+      contextWindow: 119_808,
       maxTokens: 8_192
     })
     expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
@@ -351,10 +352,36 @@ describe('commandcode provider registration', () => {
     expect(COMMANDCODE_CATALOG.filter((entry) => !ids.has(entry.id))).toEqual([])
   })
 
-  test('seeds the upstream context window instead of the 128K default', () => {
-    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.contextWindow).toBe(1_000_000)
-    expect(seedBuiltModel('claude-haiku-4-5-20251001')?.contextWindow).toBe(200_000)
-    expect(seedBuiltModel('gpt-5.5')?.contextWindow).toBe(400_000)
+  test('seeds the upstream context budget instead of the 128K default', () => {
+    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.contextWindow).toBe(934_464)
+    expect(seedBuiltModel('claude-haiku-4-5-20251001')?.contextWindow).toBe(136_000)
+    expect(seedBuiltModel('gpt-5.5')?.contextWindow).toBe(391_808)
+  })
+})
+
+describe('context budget', () => {
+  /** pi compacts once the conversation passes `contextWindow - reserveTokens`. */
+  const PI_RESERVE_TOKENS = 16_384
+
+  test('leaves a full context plus its completion inside the upstream budget', () => {
+    const model = buildCommandCodeModel({
+      id: 'deepseek/deepseek-v4.1-flash',
+      name: 'DeepSeek V4.1 Flash',
+      context_length: 1_000_000
+    })
+
+    expect(model.contextWindow - PI_RESERVE_TOKENS + model.maxTokens).toBeLessThanOrEqual(1_000_000)
+  })
+
+  test('never advertises a window that overruns an upstream context_length', () => {
+    const overrunning = knownCommandCodeModels().flatMap((entry) => {
+      const model = buildCommandCodeModel(entry)
+      const budget = entry.context_length ?? model.contextWindow + model.maxTokens
+      const worstCase = model.contextWindow - PI_RESERVE_TOKENS + model.maxTokens
+      return worstCase > budget ? [model.id] : []
+    })
+
+    expect(overrunning).toEqual([])
   })
 })
 
@@ -406,10 +433,10 @@ describe('refreshModels network', () => {
     expect(models).toHaveLength(3)
     expect(models[0]).toMatchObject({
       id: 'deepseek/deepseek-v4-flash',
-      contextWindow: 1_000_000,
+      contextWindow: 934_464,
       reasoning: true,
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      maxTokens: 384_000
+      maxTokens: 65_536
     })
     expect(models[1]).toMatchObject({
       id: 'moonshotai/Kimi-K3',
@@ -421,7 +448,7 @@ describe('refreshModels network', () => {
       reasoning: false,
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 1_000_000,
+      contextWindow: 991_808,
       maxTokens: 8_192
     })
   })

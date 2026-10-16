@@ -231,22 +231,28 @@ export interface CommandCodeModelSpec {
  * `context_length`. Add an entry when a model needs image input, specific max
  * output, or pricing that the upstream /models endpoint does not expose.
  * Reasoning support is derived from REASONING_MODEL_IDS, not from this table.
+ *
+ * A `maxTokens` entry spends the model's context budget, not extra room: the
+ * provider counts the completion against the same `context_length` as the
+ * prompt (see buildCommandCodeModel). The deepseek models are capped far below
+ * the 393_216 the endpoint accepts so a session still has most of the
+ * advertised million tokens to grow into.
  */
 export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   'deepseek/deepseek-v4-pro': {
     input: ['text'],
     cost: { input: 0.66, output: 1.98, cacheRead: 0.022, cacheWrite: 0 },
-    maxTokens: 384_000
+    maxTokens: 65_536
   },
   'deepseek/deepseek-v4-flash': {
     input: ['text'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-    maxTokens: 384_000
+    maxTokens: 65_536
   },
   'deepseek/deepseek-v4.1-flash': {
     input: ['text', 'image'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-    maxTokens: 384_000
+    maxTokens: 65_536
   },
   'moonshotai/Kimi-K3': {
     input: ['text', 'image'],
@@ -302,6 +308,12 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
 
 const DEFAULT_CONTEXT_WINDOW = 128_000
 const DEFAULT_MAX_TOKENS = 8_192
+/**
+ * Floor for the input window an override may leave once its completion budget
+ * is taken out of `context_length`, so a model with a tiny budget still
+ * advertises a usable one.
+ */
+const MIN_INPUT_WINDOW = 1_024
 
 /** Skip a network fetch while the persisted catalog is this fresh (mirrors pi's remote catalog provider). */
 const REFRESH_COOLDOWN_MS = 4 * 60 * 60 * 1000
@@ -325,15 +337,32 @@ interface CommandCodeBuildModel {
   compat?: ProviderModelConfig['compat']
 }
 
+/**
+ * Command Code spends one `context_length` budget on prompt and completion
+ * together, and rejects the request when `prompt_tokens + max_tokens` exceeds
+ * it: deepseek-v4.1-flash serves a sum of exactly 1_048_576 and answers
+ * 1_048_577 with a 400. The gateway relays that rejection as either `invalid
+ * request error` or `the configured rewrite value still does not satisfy the
+ * rule`, each suffixed with the failing request's trace id.
+ *
+ * pi holds back only its own `reserveTokens` (16_384 by default) before it
+ * compacts, so a model that advertises the whole budget as its context window
+ * leaves the session a tail it can grow into but never complete a request in —
+ * every turn fails with that 400 until the conversation compacts. Advertising
+ * the budget minus the completion keeps the worst case at the advertised
+ * length, which is the most pi may send once it has compacted.
+ */
 export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCodeBuildModel {
   const override = COMMANDCODE_OVERRIDES[entry.id] ?? {}
   const claude = CLAUDE_MODELS[entry.id]
-  const contextWindow = entry.context_length ?? DEFAULT_CONTEXT_WINDOW
-  const maxTokens =
+  const contextBudget = entry.context_length ?? DEFAULT_CONTEXT_WINDOW
+  const requestedMaxTokens =
     claude?.maxTokens ??
     (typeof override.maxTokens === 'number'
       ? override.maxTokens
-      : Math.min(contextWindow, DEFAULT_MAX_TOKENS))
+      : Math.min(contextBudget, DEFAULT_MAX_TOKENS))
+  const maxTokens = Math.min(requestedMaxTokens, Math.max(contextBudget - MIN_INPUT_WINDOW, 1))
+  const contextWindow = contextBudget - maxTokens
 
   const result: CommandCodeBuildModel = {
     id: entry.id,
