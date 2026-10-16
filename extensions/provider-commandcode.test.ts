@@ -90,6 +90,59 @@ function stubFetchFailure(): void {
   ) as typeof fetch
 }
 
+interface ProbeCall {
+  url: string
+  model: string
+  headers: Record<string, string>
+}
+
+/**
+ * Stub `/models` plus the entitlement probes that follow it. Every model answers
+ * 200 unless `respond` claims it, so a test states only the outcomes it cares
+ * about.
+ */
+function stubProbedCatalog(
+  ids: string[],
+  respond: (model: string) => Response | 'throw' | undefined = () => undefined
+): { calls: ProbeCall[] } {
+  const calls: ProbeCall[] = []
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.endsWith('/models')) {
+        return jsonResponse({
+          data: ids.map((id) => ({ id, name: id, context_length: 1_000_000 }))
+        })
+      }
+
+      const headers = new Headers(init?.headers)
+      const body = JSON.parse(String(init?.body ?? '{}')) as { model?: string }
+      const model = body.model ?? ''
+      calls.push({ url, model, headers: Object.fromEntries(headers.entries()) })
+
+      const response = respond(model)
+      if (response === 'throw') throw new Error('probe failed')
+      return (
+        response ?? jsonResponse({ choices: [{ message: { role: 'assistant', content: '' } }] })
+      )
+    },
+    { preconnect: originalFetch.preconnect }
+  ) as typeof fetch
+  return { calls }
+}
+
+/** The gate's answer for a model the account's plan excludes. */
+function planDenial(url: string, message: string): Response {
+  return url.endsWith('/messages')
+    ? jsonResponse({ type: 'error', error: { type: 'permission_error', message } }, 403)
+    : jsonResponse({ error: { message, type: 'permission_error', code: 'FORBIDDEN' } }, 403)
+}
+
+function modelNotInPlan(model: string): string {
+  return `MODEL_NOT_IN_PLAN: ${model} available in Pro and above plans or extra on demand usage`
+}
+
 /** A persisted catalog entry as pi's FileModelsStore would hand it back. */
 function storedCatalog(
   ids: string[],
@@ -317,12 +370,28 @@ describe('Claude routing', () => {
     expect(result.input).toEqual(['text', 'image'])
   })
 
-  test('routes every catalog Claude model through the Anthropic Messages API', () => {
-    const unrouted = COMMANDCODE_CATALOG.filter((entry) => entry.id.startsWith('claude-'))
+  test('routes every Claude model the provider knows through the Anthropic Messages API', () => {
+    const unrouted = knownCommandCodeModels()
       .map((entry) => entry.id)
+      .filter((id) => id.startsWith('claude-'))
       .filter((id) => seedBuiltModel(id)?.api !== 'anthropic-messages')
 
     expect(unrouted).toEqual([])
+  })
+
+  test('routes a Claude model the baked catalog predates', () => {
+    const result = buildCommandCodeModel({
+      id: 'claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
+      context_length: 1_000_000
+    })
+
+    expect(result).toMatchObject({
+      api: 'anthropic-messages',
+      baseUrl: 'https://api.commandcode.ai/provider',
+      maxTokens: 128_000,
+      contextWindow: 872_000
+    })
   })
 })
 
@@ -540,5 +609,109 @@ describe('refreshModels network', () => {
 
     expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
     expect(persisted).toEqual([])
+  })
+})
+
+describe('plan entitlement', () => {
+  const OPENAI_PROBE = 'https://api.commandcode.ai/provider/v1/chat/completions'
+  const MESSAGES_PROBE = 'https://api.commandcode.ai/provider/v1/messages'
+
+  test('drops the models the account plan excludes and persists the rest', async () => {
+    const { calls } = stubProbedCatalog(['deepseek/deepseek-v4.1-flash', 'gpt-5.4'], (model) =>
+      model === 'gpt-5.4' ? planDenial(OPENAI_PROBE, modelNotInPlan(model)) : undefined
+    )
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['deepseek/deepseek-v4.1-flash'])
+    // Persisting the filtered list is what stops every session from re-probing.
+    expect(persisted[0].models.map((model) => model.id)).toEqual(['deepseek/deepseek-v4.1-flash'])
+    expect(calls.map((call) => call.url)).toEqual([OPENAI_PROBE, OPENAI_PROBE])
+  })
+
+  test('probes Claude through the Anthropic Messages shape with its own header', async () => {
+    const { calls } = stubProbedCatalog(
+      ['claude-sonnet-5', 'deepseek/deepseek-v4.1-flash'],
+      (model) =>
+        model === 'claude-sonnet-5' ? planDenial(MESSAGES_PROBE, modelNotInPlan(model)) : undefined
+    )
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['deepseek/deepseek-v4.1-flash'])
+    const claude = calls.find((call) => call.model === 'claude-sonnet-5')
+    expect(claude).toMatchObject({ url: MESSAGES_PROBE, headers: { 'x-api-key': 'test-key' } })
+    const deepseek = calls.find((call) => call.model === 'deepseek/deepseek-v4.1-flash')
+    expect(deepseek).toMatchObject({
+      url: OPENAI_PROBE,
+      headers: { authorization: 'Bearer test-key' }
+    })
+  })
+
+  test('honours the mis-worded gate a model with no upstream plan entry returns', async () => {
+    const { calls } = stubProbedCatalog(
+      ['claude-sonnet-5-5', 'deepseek/deepseek-v4.1-flash'],
+      (model) =>
+        model === 'claude-sonnet-5-5'
+          ? planDenial(MESSAGES_PROBE, 'Authentication failed. Please check your credentials.')
+          : undefined
+    )
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(['deepseek/deepseek-v4.1-flash'])
+    expect(calls).toHaveLength(2)
+  })
+
+  test('keeps a model whose probe is inconclusive', async () => {
+    const inconclusive: Record<string, Response | 'throw'> = {
+      'gated/model': planDenial(OPENAI_PROBE, modelNotInPlan('gated/model')),
+      'rate-limited/model': jsonResponse({ error: { message: 'slow down' } }, 429),
+      'upstream/model': jsonResponse({ error: { message: 'invalid request error' } }, 400),
+      'broken/model': jsonResponse({ error: { message: 'upstream exploded' } }, 500),
+      'throwing/model': 'throw'
+    }
+    stubProbedCatalog(Object.keys(inconclusive), (model) => inconclusive[model])
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual([
+      'rate-limited/model',
+      'upstream/model',
+      'broken/model',
+      'throwing/model'
+    ])
+  })
+
+  test('keeps the seed catalog when the plan excludes every upstream model', async () => {
+    stubProbedCatalog(['gpt-5.4', 'claude-sonnet-5'], (model) =>
+      planDenial(model.startsWith('claude-') ? MESSAGES_PROBE : OPENAI_PROBE, modelNotInPlan(model))
+    )
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+    expect(persisted).toEqual([])
+  })
+
+  test('keeps the fallback when the catalog is refreshed without a credential', async () => {
+    const { calls } = stubProbedCatalog(['deepseek/deepseek-v4.1-flash'])
+    const { refreshModels } = captureProviderConfig()
+    const { context } = makeContext()
+
+    const models = await refreshModels(context)
+
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+    expect(calls).toEqual([])
   })
 })
