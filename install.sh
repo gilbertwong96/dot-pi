@@ -309,11 +309,6 @@ install_companions() {
     "Token speed: measures tokens per second via a sliding window." \
     n
   install_pi_package \
-    "npm:pi-provider-umans" \
-    "pi-provider-umans" \
-    "Umans.ai model provider: OpenAI-compatible endpoint with dynamic model discovery." \
-    n
-  install_pi_package \
     "npm:@sting8k/pi-vcc" \
     "pi-vcc" \
     "Conversation compactor: transcript-preserving structured summaries with no LLM calls." \
