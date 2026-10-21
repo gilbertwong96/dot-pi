@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RefreshModelsContext } from '@earendil-works/pi-ai'
 import type {
+  BeforeProviderRequestEvent,
   ExtensionAPI,
+  ExtensionContext,
+  MessageEndEvent,
   ProviderConfig,
   ProviderModelConfig
 } from '@earendil-works/pi-coding-agent'
 
-import commandcode, { buildCommandCodeModel, knownCommandCodeModels } from './provider-commandcode'
+import commandcode, {
+  asBudgetOverflow,
+  buildCommandCodeModel,
+  clampCompletionBudget,
+  knownCommandCodeModels
+} from './provider-commandcode'
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
 const originalFetch = globalThis.fetch
@@ -30,7 +38,8 @@ function captureProviderConfig(): {
   const pi = {
     registerProvider: (_id: string, config: ProviderConfig) => {
       captured.config = config
-    }
+    },
+    on: () => () => undefined
   } as unknown as ExtensionAPI
 
   commandcode(pi)
@@ -44,6 +53,92 @@ function seedBuiltModel(id: string) {
   return knownCommandCodeModels()
     .map(buildCommandCodeModel)
     .find((model) => model.id === id)
+}
+
+type RequestPayloadHandler = (event: BeforeProviderRequestEvent, ctx: ExtensionContext) => unknown
+type MessageEndHandler = (event: MessageEndEvent, ctx: ExtensionContext) => unknown
+
+function captureHandlers(): {
+  beforeProviderRequest: RequestPayloadHandler
+  messageEnd: MessageEndHandler
+} {
+  const handlers: {
+    beforeProviderRequest: RequestPayloadHandler | undefined
+    messageEnd: MessageEndHandler | undefined
+  } = { beforeProviderRequest: undefined, messageEnd: undefined }
+
+  const pi = {
+    registerProvider: () => undefined,
+    on: (name: string, handler: unknown) => {
+      if (name === 'before_provider_request') {
+        handlers.beforeProviderRequest = handler as RequestPayloadHandler
+      }
+      if (name === 'message_end') handlers.messageEnd = handler as MessageEndHandler
+      return () => undefined
+    }
+  } as unknown as ExtensionAPI
+
+  commandcode(pi)
+
+  const { beforeProviderRequest, messageEnd } = handlers
+  if (!beforeProviderRequest) throw new Error('before_provider_request not registered')
+  if (!messageEnd) throw new Error('message_end not registered')
+  return { beforeProviderRequest, messageEnd }
+}
+
+/** An id outside the shipped catalog, so the handler trusts the model's own numbers. */
+function testModel(contextWindow: number, maxTokens: number): ExtensionContext['model'] {
+  return {
+    id: 'test/model',
+    provider: 'commandcode',
+    contextWindow,
+    maxTokens
+  } as unknown as ExtensionContext['model']
+}
+
+function runPayload(payload: unknown, model: ExtensionContext['model']): Record<string, unknown> {
+  const { beforeProviderRequest } = captureHandlers()
+  const event: BeforeProviderRequestEvent = { type: 'before_provider_request', payload }
+  return beforeProviderRequest(event, { model } as ExtensionContext) as Record<string, unknown>
+}
+
+function assistantError(options: {
+  errorMessage: string
+  provider?: string
+  stopReason?: 'error' | 'stop'
+}): MessageEndEvent['message'] {
+  return {
+    role: 'assistant',
+    content: [],
+    api: 'openai-completions',
+    provider: options.provider ?? 'commandcode',
+    model: 'deepseek/deepseek-v4.1-flash',
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    stopReason: options.stopReason ?? 'error',
+    errorMessage: options.errorMessage,
+    timestamp: 0
+  } as MessageEndEvent['message']
+}
+
+function runMessageEnd(message: MessageEndEvent['message']) {
+  const { messageEnd } = captureHandlers()
+  const event: MessageEndEvent = { type: 'message_end', message }
+  return messageEnd(event, {} as ExtensionContext) as
+    | { message?: MessageEndEvent['message'] }
+    | undefined
+}
+
+/** A prompt of `chars` characters: `ceil(chars / 3)` tokens plus the key overhead. */
+function promptPayload(
+  field: 'max_tokens' | 'max_completion_tokens',
+  chars: number,
+  maxTokens: number
+) {
+  return {
+    [field]: maxTokens,
+    model: 'test/model',
+    messages: [{ role: 'user', content: 'a'.repeat(chars) }]
+  }
 }
 
 function makeContext(overrides: Partial<RefreshModelsContext> = {}): {
@@ -181,8 +276,8 @@ describe('buildCommandCodeModel', () => {
       reasoning: true,
       input: ['text'],
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      contextWindow: 934_464,
-      maxTokens: 65_536,
+      contextWindow: 1_000_000,
+      maxTokens: 393_216,
       thinkingLevelMap: {
         off: null,
         minimal: null,
@@ -209,8 +304,8 @@ describe('buildCommandCodeModel', () => {
       reasoning: true,
       input: ['text', 'image'],
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      contextWindow: 934_464,
-      maxTokens: 65_536,
+      contextWindow: 1_000_000,
+      maxTokens: 393_216,
       thinkingLevelMap: {
         off: null,
         minimal: null,
@@ -224,20 +319,20 @@ describe('buildCommandCodeModel', () => {
     })
   })
 
-  test('advertises the upstream budget minus the completion budget', () => {
+  test('advertises the whole upstream budget as the context window', () => {
     const result = buildCommandCodeModel({
       id: 'unknown/model',
       name: 'Unknown Model',
       context_length: 500_000
     })
 
-    expect(result.contextWindow).toBe(500_000 - result.maxTokens)
+    expect(result.contextWindow).toBe(500_000)
   })
 
   test('falls back to the default context window when upstream omits context_length', () => {
     const result = buildCommandCodeModel({ id: 'm', name: 'M' })
 
-    expect(result.contextWindow).toBe(128_000 - result.maxTokens)
+    expect(result.contextWindow).toBe(128_000)
   })
 
   test('caps default maxTokens at the smaller of context window and 8192', () => {
@@ -246,7 +341,7 @@ describe('buildCommandCodeModel', () => {
 
     const small = buildCommandCodeModel({ id: 'm', name: 'M', context_length: 4_000 })
     expect(small.maxTokens).toBe(4_000 - 1_024)
-    expect(small.contextWindow).toBe(1_024)
+    expect(small.contextWindow).toBe(4_000)
   })
 
   test('prefers the override maxTokens over the default cap', () => {
@@ -256,7 +351,7 @@ describe('buildCommandCodeModel', () => {
       context_length: 1_000_000
     })
 
-    expect(result.maxTokens).toBe(65_536)
+    expect(result.maxTokens).toBe(393_216)
   })
 
   test('uses safe defaults when no override exists', () => {
@@ -268,7 +363,7 @@ describe('buildCommandCodeModel', () => {
       reasoning: false,
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 119_808,
+      contextWindow: 128_000,
       maxTokens: 8_192
     })
     expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
@@ -390,7 +485,7 @@ describe('Claude routing', () => {
       api: 'anthropic-messages',
       baseUrl: 'https://api.commandcode.ai/provider',
       maxTokens: 128_000,
-      contextWindow: 872_000
+      contextWindow: 1_000_000
     })
   })
 })
@@ -422,35 +517,29 @@ describe('commandcode provider registration', () => {
   })
 
   test('seeds the upstream context budget instead of the 128K default', () => {
-    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.contextWindow).toBe(934_464)
-    expect(seedBuiltModel('claude-haiku-4-5-20251001')?.contextWindow).toBe(136_000)
-    expect(seedBuiltModel('gpt-5.5')?.contextWindow).toBe(391_808)
+    expect(seedBuiltModel('deepseek/deepseek-v4.1-flash')?.contextWindow).toBe(1_000_000)
+    expect(seedBuiltModel('claude-haiku-4-5-20251001')?.contextWindow).toBe(200_000)
+    expect(seedBuiltModel('gpt-5.5')?.contextWindow).toBe(400_000)
   })
 })
 
 describe('context budget', () => {
-  /** pi compacts once the conversation passes `contextWindow - reserveTokens`. */
-  const PI_RESERVE_TOKENS = 16_384
-
-  test('leaves a full context plus its completion inside the upstream budget', () => {
-    const model = buildCommandCodeModel({
-      id: 'deepseek/deepseek-v4.1-flash',
-      name: 'DeepSeek V4.1 Flash',
-      context_length: 1_000_000
+  test('advertises every model`s whole upstream budget', () => {
+    const overcounting = knownCommandCodeModels().flatMap((entry) => {
+      const model = buildCommandCodeModel(entry)
+      return model.contextWindow === (entry.context_length ?? 128_000) ? [] : [model.id]
     })
 
-    expect(model.contextWindow - PI_RESERVE_TOKENS + model.maxTokens).toBeLessThanOrEqual(1_000_000)
+    expect(overcounting).toEqual([])
   })
 
-  test('never advertises a window that overruns an upstream context_length', () => {
-    const overrunning = knownCommandCodeModels().flatMap((entry) => {
+  test('never claims a completion the budget cannot pay for', () => {
+    const overcommitted = knownCommandCodeModels().flatMap((entry) => {
       const model = buildCommandCodeModel(entry)
-      const budget = entry.context_length ?? model.contextWindow + model.maxTokens
-      const worstCase = model.contextWindow - PI_RESERVE_TOKENS + model.maxTokens
-      return worstCase > budget ? [model.id] : []
+      return model.maxTokens > model.contextWindow - 1_024 ? [model.id] : []
     })
 
-    expect(overrunning).toEqual([])
+    expect(overcommitted).toEqual([])
   })
 })
 
@@ -502,10 +591,10 @@ describe('refreshModels network', () => {
     expect(models).toHaveLength(3)
     expect(models[0]).toMatchObject({
       id: 'deepseek/deepseek-v4-flash',
-      contextWindow: 934_464,
+      contextWindow: 1_000_000,
       reasoning: true,
       cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-      maxTokens: 65_536
+      maxTokens: 393_216
     })
     expect(models[1]).toMatchObject({
       id: 'moonshotai/Kimi-K3',
@@ -517,7 +606,7 @@ describe('refreshModels network', () => {
       reasoning: false,
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 991_808,
+      contextWindow: 1_000_000,
       maxTokens: 8_192
     })
   })
@@ -713,5 +802,121 @@ describe('plan entitlement', () => {
 
     expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
     expect(calls).toEqual([])
+  })
+})
+
+describe('completion budget', () => {
+  /**
+   * Budget 10_000, completion allowance 8_192. The 21_000-char prompt costs
+   * ceil(21_000 / 3) = 7_000 tokens plus 16 tokens of keys and short values, so
+   * the room left is 10_000 - 7_016 - 1_024 = 1_960.
+   */
+  test('cuts the completion down to the room the prompt leaves', () => {
+    const payload = promptPayload('max_tokens', 21_000, 8_192)
+
+    const result = runPayload(payload, testModel(10_000, 8_192))
+
+    expect(result.max_tokens).toBe(1_960)
+    expect(payload.max_tokens).toBe(8_192)
+  })
+
+  test('keeps a floor when the prompt has eaten the whole budget', () => {
+    const result = runPayload(promptPayload('max_tokens', 33_000, 8_192), testModel(10_000, 8_192))
+
+    expect(result.max_tokens).toBe(1_024)
+  })
+
+  test('leaves a short prompt alone', () => {
+    const payload = promptPayload('max_tokens', 2, 8_192)
+
+    expect(runPayload(payload, testModel(1_000_000, 393_216))).toBe(payload)
+  })
+
+  test('never asks for more than the model advertises', () => {
+    const result = runPayload(promptPayload('max_tokens', 2, 500_000), testModel(1_000_000, 8_192))
+
+    expect(result.max_tokens).toBe(8_192)
+  })
+
+  test('clamps max_completion_tokens the same way', () => {
+    const result = runPayload(
+      promptPayload('max_completion_tokens', 21_000, 8_192),
+      testModel(10_000, 8_192)
+    )
+
+    expect(result.max_completion_tokens).toBe(1_960)
+    expect(result.max_tokens).toBeUndefined()
+  })
+
+  test('prices an inlined image instead of counting its bytes', () => {
+    const payload = {
+      max_tokens: 8_192,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'what is this?' },
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/png;base64,${'A'.repeat(3_000_000)}` }
+            }
+          ]
+        }
+      ]
+    }
+
+    expect(runPayload(payload, testModel(1_000_000, 8_192))).toBe(payload)
+  })
+
+  test('reads the shipped budget for a catalog model', () => {
+    const seeded = seedBuiltModel('deepseek/deepseek-v4.1-flash')!
+    const model = {
+      ...testModel(seeded.contextWindow, seeded.maxTokens),
+      id: seeded.id
+    } as ExtensionContext['model']
+
+    const tight = runPayload(promptPayload('max_tokens', 3_000_000, seeded.maxTokens), model)
+    const roomy = runPayload(promptPayload('max_tokens', 2, seeded.maxTokens), model)
+
+    expect(tight.max_tokens).toBe(1_024)
+    expect(roomy.max_tokens).toBe(seeded.maxTokens)
+  })
+
+  test('ignores a request without a completion field', () => {
+    const payload = { model: 'test/model', messages: [] }
+
+    expect(clampCompletionBudget(payload, { budget: 10_000, maxOutput: 8_192 })).toBe(payload)
+  })
+})
+
+describe('budget rejection', () => {
+  const rewriteRelay =
+    '400: {"message":"{\\"message\\":\\"the configured rewrite value still does not satisfy the rule trace_id: 2de317daecc9b6a8e79a8e5ad4f96cc1\\",\\"type\\":\\"invalid_request_error\\"}","type":"invalid_request_error"}'
+
+  test('restates the rejection as the overflow pi recovers from', () => {
+    const result = runMessageEnd(assistantError({ errorMessage: rewriteRelay }))
+    const errorMessage = (result?.message as { errorMessage?: string } | undefined)?.errorMessage
+
+    expect(errorMessage).toContain('prompt is too long')
+    expect(errorMessage).toContain('the configured rewrite value still does not satisfy the rule')
+    expect(errorMessage).toContain('2de317daecc9b6a8e79a8e5ad4f96cc1')
+  })
+
+  test('restates the explicit input-length wording', () => {
+    expect(asBudgetOverflow("The input is longer than the model's context length")).toBeDefined()
+  })
+
+  test('leaves the generic relay alone so a malformed request stays visible', () => {
+    expect(asBudgetOverflow('400: {"error":{"message":"invalid request error"}}')).toBeUndefined()
+    expect(runMessageEnd(assistantError({ errorMessage: 'invalid request error' }))).toBeUndefined()
+  })
+
+  test('leaves other providers and finished messages alone', () => {
+    expect(
+      runMessageEnd(assistantError({ errorMessage: rewriteRelay, provider: 'anthropic' }))
+    ).toBeUndefined()
+    expect(
+      runMessageEnd(assistantError({ errorMessage: rewriteRelay, stopReason: 'stop' }))
+    ).toBeUndefined()
   })
 })

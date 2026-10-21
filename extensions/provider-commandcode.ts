@@ -29,6 +29,11 @@
  * Premium models are gated per plan, and the gateway lists the gated ones
  * alongside the rest, so a refresh probes entitlement and persists only the
  * models the account can run (see findExcludedModelIds).
+ *
+ * Because the gateway charges prompt and completion against one budget, the
+ * extension also clamps each request's completion to the room the prompt leaves
+ * (see clampCompletionBudget) and, if a request still overshoots, restates the
+ * gateway's rejection as the overflow phrase pi recovers from.
  */
 
 import type { RefreshModelsContext } from '@earendil-works/pi-ai'
@@ -250,27 +255,28 @@ export interface CommandCodeModelSpec {
  * output, or pricing that the upstream /models endpoint does not expose.
  * Reasoning support is derived from REASONING_MODEL_IDS, not from this table.
  *
- * A `maxTokens` entry spends the model's context budget, not extra room: the
- * provider counts the completion against the same `context_length` as the
- * prompt (see buildCommandCodeModel). The deepseek models are capped far below
- * the 393_216 the endpoint accepts so a session still has most of the
- * advertised million tokens to grow into.
+ * A `maxTokens` entry is the model's native output limit. The provider counts the
+ * completion against the same `context_length` as the prompt (see
+ * buildCommandCodeModel), so an allowance this large only stays legal because
+ * clampCompletionBudget cuts it back to the room the prompt leaves. The deepseek
+ * family accepts 393_216 (probed 2026-10), matching what Ollama Cloud ships for the
+ * same model.
  */
 export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   'deepseek/deepseek-v4-pro': {
     input: ['text'],
     cost: { input: 0.66, output: 1.98, cacheRead: 0.022, cacheWrite: 0 },
-    maxTokens: 65_536
+    maxTokens: 393_216
   },
   'deepseek/deepseek-v4-flash': {
     input: ['text'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-    maxTokens: 65_536
+    maxTokens: 393_216
   },
   'deepseek/deepseek-v4.1-flash': {
     input: ['text', 'image'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-    maxTokens: 65_536
+    maxTokens: 393_216
   },
   'moonshotai/Kimi-K3': {
     input: ['text', 'image'],
@@ -327,9 +333,8 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
 const DEFAULT_CONTEXT_WINDOW = 128_000
 const DEFAULT_MAX_TOKENS = 8_192
 /**
- * Floor for the input window an override may leave once its completion budget
- * is taken out of `context_length`, so a model with a tiny budget still
- * advertises a usable one.
+ * Floor for the input window an override may leave, so a model whose completion
+ * allowance approaches its whole budget still advertises a readable window.
  */
 const MIN_INPUT_WINDOW = 1_024
 
@@ -373,12 +378,13 @@ interface CommandCodeBuildModel {
  * request error` or `the configured rewrite value still does not satisfy the
  * rule`, each suffixed with the failing request's trace id.
  *
- * pi holds back only its own `reserveTokens` (16_384 by default) before it
- * compacts, so a model that advertises the whole budget as its context window
- * leaves the session a tail it can grow into but never complete a request in —
- * every turn fails with that 400 until the conversation compacts. Advertising
- * the budget minus the completion keeps the worst case at the advertised
- * length, which is the most pi may send once it has compacted.
+ * That makes the window and the completion independent: the window is what the
+ * model can read and `maxTokens` is what it may write, exactly as every other
+ * provider advertises them (Ollama Cloud ships the same deepseek model as
+ * 1_048_576 in and 393_216 out). The shared budget is respected per request
+ * instead — clampCompletionBudget shrinks the completion to the room the prompt
+ * leaves — which keeps a long session inside the budget without giving up most of
+ * its window to a completion allowance a turn never uses.
  */
 export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCodeBuildModel {
   const override = COMMANDCODE_OVERRIDES[entry.id] ?? {}
@@ -390,7 +396,7 @@ export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCode
       ? override.maxTokens
       : Math.min(contextBudget, DEFAULT_MAX_TOKENS))
   const maxTokens = Math.min(requestedMaxTokens, Math.max(contextBudget - MIN_INPUT_WINDOW, 1))
-  const contextWindow = contextBudget - maxTokens
+  const contextWindow = contextBudget
 
   const result: CommandCodeBuildModel = {
     id: entry.id,
@@ -443,6 +449,120 @@ export function knownCommandCodeModels(): NormalizedOpenAIModel[] {
     if (!byId.has(id)) byId.set(id, { id, name: id })
   }
   return [...byId.values()]
+}
+
+/**
+ * Chars per token assumed when sizing a prompt. Prose runs about four and code
+ * about three, so counting three over-estimates: the clamp then errs towards a
+ * shorter completion instead of a rejected request.
+ */
+const PAYLOAD_CHARS_PER_TOKEN = 3
+/**
+ * An image costs far more than its payload length implies, so its bytes are
+ * replaced with a flat estimate rather than counted as text — an inlined base64
+ * attachment would otherwise claim the whole budget by itself.
+ */
+const IMAGE_TOKEN_ESTIMATE = 4_000
+/** A completion shorter than this cannot carry a tool call worth sending. */
+const MIN_COMPLETION_TOKENS = 1_024
+/** Room left for the tokenizer's own margin over the estimate. */
+const BUDGET_SAFETY_TOKENS = 1_024
+
+interface CompletionBudget {
+  /** The model's `context_length`, which its context window advertises. */
+  budget: number
+  /** The completion allowance the model advertises. */
+  maxOutput: number
+}
+
+/** Add the tokens `value` occupies, treating image blocks as a flat estimate. */
+function countPayloadTokens(value: unknown, total: { tokens: number }): void {
+  if (typeof value === 'string') {
+    total.tokens += Math.ceil(value.length / PAYLOAD_CHARS_PER_TOKEN)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) countPayloadTokens(item, total)
+    return
+  }
+  if (typeof value !== 'object' || value === null) return
+
+  const record = value as Record<string, unknown>
+  if (record.type === 'image' || record.type === 'image_url') {
+    total.tokens += IMAGE_TOKEN_ESTIMATE
+    return
+  }
+  for (const [key, child] of Object.entries(record)) {
+    total.tokens += Math.ceil(key.length / PAYLOAD_CHARS_PER_TOKEN)
+    countPayloadTokens(child, total)
+  }
+}
+
+/**
+ * Shrink a request's completion so prompt plus completion fit the model's one
+ * shared budget.
+ *
+ * pi sizes `max_tokens` from the model alone and never from what the prompt
+ * already spent, so a request is only in range while the conversation is short
+ * of the model's limit. Returning a smaller completion keeps the request legal
+ * instead of trading it for a 400 the session cannot finish in.
+ */
+export function clampCompletionBudget(payload: unknown, limits: CompletionBudget): unknown {
+  if (typeof payload !== 'object' || payload === null) return payload
+
+  const body = payload as Record<string, unknown>
+  const field = ['max_tokens', 'max_completion_tokens'].find(
+    (name) => typeof body[name] === 'number'
+  )
+  if (field === undefined) return payload
+
+  const requested = body[field] as number
+  const total = { tokens: 0 }
+  for (const [key, child] of Object.entries(body)) {
+    if (key === field) continue
+    total.tokens += Math.ceil(key.length / PAYLOAD_CHARS_PER_TOKEN)
+    countPayloadTokens(child, total)
+  }
+
+  const room = limits.budget - total.tokens - BUDGET_SAFETY_TOKENS
+  const allowed = Math.max(MIN_COMPLETION_TOKENS, Math.min(requested, limits.maxOutput, room))
+  return allowed >= requested ? payload : { ...body, [field]: allowed }
+}
+
+/**
+ * The gateway's ways of relaying a prompt + completion rejection. The bare
+ * `invalid request error` relay also covers malformed requests, where cutting the
+ * context would hide the real cause, so it is left alone.
+ */
+const BUDGET_REJECTION_PATTERNS = [
+  /the configured rewrite value still does not satisfy the rule/i,
+  /input is longer than the model'?s? context length/i
+]
+
+/**
+ * pi recovers from a context overflow by compacting once and retrying, but it
+ * only recognizes that from the error text, and none of the gateway's wordings
+ * appear in its patterns. Restating the rejection with pi's own overflow phrase in
+ * front of it turns the stuck session into a compaction, and keeps the gateway's
+ * text visible for when the recovery does not help.
+ */
+export function asBudgetOverflow(errorMessage: string): string | undefined {
+  if (!BUDGET_REJECTION_PATTERNS.some((pattern) => pattern.test(errorMessage))) return undefined
+  return `prompt is too long: Command Code rejected prompt + max_tokens against the model's context_length. Upstream: ${errorMessage}`
+}
+
+/**
+ * Each model's own budget, keyed by the id a request names. The seed is
+ * authoritative over the model in flight: a catalog persisted by an older build
+ * carries a window that already had the completion taken out of it.
+ */
+function completionBudgets(): Map<string, CompletionBudget> {
+  const budgets = new Map<string, CompletionBudget>()
+  for (const entry of knownCommandCodeModels()) {
+    const model = buildCommandCodeModel(entry)
+    budgets.set(model.id, { budget: model.contextWindow, maxOutput: model.maxTokens })
+  }
+  return budgets
 }
 
 /**
@@ -611,6 +731,8 @@ export async function refreshCommandCodeCatalog(
 }
 
 export default function (pi: ExtensionAPI) {
+  const budgets = completionBudgets()
+
   pi.registerProvider('commandcode', {
     name: 'Command Code',
     baseUrl: COMMANDCODE_BASE_URL,
@@ -618,5 +740,26 @@ export default function (pi: ExtensionAPI) {
     api: 'openai-completions',
     models: knownCommandCodeModels().map(buildCommandCodeModel),
     refreshModels: refreshCommandCodeCatalog
+  })
+
+  pi.on('before_provider_request', (event, ctx) => {
+    const model = ctx.model
+    if (model?.provider !== 'commandcode') return
+
+    const limits = budgets.get(model.id) ?? {
+      budget: model.contextWindow,
+      maxOutput: model.maxTokens
+    }
+    return clampCompletionBudget(event.payload, limits)
+  })
+
+  pi.on('message_end', (event) => {
+    const message = event.message
+    if (message.role !== 'assistant' || message.stopReason !== 'error') return
+    if (message.provider !== 'commandcode' || !message.errorMessage) return
+
+    const errorMessage = asBudgetOverflow(message.errorMessage)
+    if (errorMessage === undefined) return
+    return { message: { ...message, errorMessage } }
   })
 }
