@@ -354,6 +354,17 @@ describe('buildCommandCodeModel', () => {
     expect(result.maxTokens).toBe(393_216)
   })
 
+  test('gives every deepseek variant the family output limit', () => {
+    const limited = COMMANDCODE_CATALOG.filter((entry) => entry.id.startsWith('deepseek/')).flatMap(
+      (entry) => {
+        const model = buildCommandCodeModel(entry)
+        return model.maxTokens === 393_216 ? [] : [model.id]
+      }
+    )
+
+    expect(limited).toEqual([])
+  })
+
   test('uses safe defaults when no override exists', () => {
     const result = buildCommandCodeModel({ id: 'some/new-model', name: 'Some New Model' })
 
