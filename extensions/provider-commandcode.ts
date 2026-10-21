@@ -261,6 +261,10 @@ export interface CommandCodeModelSpec {
  * clampCompletionBudget cuts it back to the room the prompt leaves. The deepseek
  * family accepts 393_216 (probed 2026-10), matching what Ollama Cloud ships for the
  * same model.
+ *
+ * The `-fast` and vision deepseek variants take their output limit from here too,
+ * but their cost stays unset: the upstream exposes no pricing and there is nothing
+ * measured to fill in.
  */
 export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   'deepseek/deepseek-v4-pro': {
@@ -273,11 +277,14 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
     maxTokens: 393_216
   },
+  'deepseek/deepseek-v4-flash-fast': { maxTokens: 393_216 },
+  'deepseek/deepseek-v4-flash-vision-exp': { maxTokens: 393_216 },
   'deepseek/deepseek-v4.1-flash': {
     input: ['text', 'image'],
     cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
     maxTokens: 393_216
   },
+  'deepseek/deepseek-v4.1-flash-fast': { maxTokens: 393_216 },
   'moonshotai/Kimi-K3': {
     input: ['text', 'image'],
     cost: { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 0 },
