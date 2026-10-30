@@ -86,6 +86,7 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
   'deepseek/deepseek-v4-flash-vision-exp',
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4.1-flash',
+  'deepseek/deepseek-v4.1-flash-fast',
   'google/gemini-3.1-flash-lite',
   'google/gemini-3.5-flash',
   'google/gemini-3.5-flash-lite',

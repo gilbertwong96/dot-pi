@@ -414,6 +414,26 @@ describe('reasoning capability metadata', () => {
     expect(result.compat).toEqual({ supportsReasoningEffort: true })
   })
 
+  test('marks the v4.1 flash-fast deepseek variant as supporting thinking levels', () => {
+    const result = buildCommandCodeModel({
+      id: 'deepseek/deepseek-v4.1-flash-fast',
+      name: 'DeepSeek V4.1 Flash Fast',
+      context_length: 393_216
+    })
+
+    expect(result.reasoning).toBe(true)
+    expect(result.thinkingLevelMap).toEqual({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max'
+    })
+    expect(result.compat).toEqual({ supportsReasoningEffort: true })
+  })
+
   test('hides the max level for models whose upstream rejects effort=max', () => {
     const result = buildCommandCodeModel({
       id: 'Qwen/Qwen3.7-Max',
