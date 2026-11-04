@@ -9,5 +9,8 @@ describe('process helpers', () => {
 
   test('formats command failures with exit code', () => {
     expect(commandFailure({ code: 2, stderr: 'bad' }, 'Failed')).toBe('Failed (exit 2): bad')
+    expect(commandFailure({ truncated: true, code: 1, stdout: 'partial' }, 'Failed')).toBe(
+      'Failed: output exceeded the limit and was truncated'
+    )
   })
 })

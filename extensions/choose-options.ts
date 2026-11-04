@@ -1,5 +1,8 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from '@earendil-works/pi-coding-agent'
+import { getSelectListTheme } from '@earendil-works/pi-coding-agent'
 import {
+  getKeybindings,
+  getSelectPageIndex,
   isKeyRelease,
   Key,
   matchesKey,
@@ -227,14 +230,15 @@ function runNativeEditorChooser(
       { placement: 'belowEditor' }
     )
 
+    const keys = getKeybindings()
     unsubscribeInput = ctx.ui.onTerminalInput((data) => {
       if (isKeyRelease(data)) return { consume: true }
       if (getActiveChooserToken() !== chooserToken) return undefined
-      if (matchesKey(data, Key.enter)) {
+      if (keys.matches(data, 'tui.select.confirm')) {
         finish(false)
         return { consume: true }
       }
-      if (matchesKey(data, Key.escape)) {
+      if (keys.matches(data, 'tui.select.cancel')) {
         finish(true)
         return { consume: true }
       }
@@ -251,9 +255,24 @@ function runNativeEditorChooser(
           return { consume: true }
         }
       }
-      if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
-        move(config, state, matchesKey(data, Key.up) ? -1 : 1)
+      if (keys.matches(data, 'tui.select.up') || keys.matches(data, 'tui.select.down')) {
+        move(config, state, keys.matches(data, 'tui.select.up') ? -1 : 1)
         refresh()
+        return { consume: true }
+      }
+      const pageIndex = getSelectPageIndex(
+        keys,
+        data,
+        state.optionIndex,
+        optionCount(config),
+        MAX_VISIBLE_OPTIONS
+      )
+      if (pageIndex !== undefined) {
+        if (optionCount(config) > 0 && pageIndex !== state.optionIndex) {
+          state.optionIndex = pageIndex
+          if (!config.allowMultiple) selectOnlyCurrent(config, state)
+          refresh()
+        }
         return { consume: true }
       }
       if (matchesKey(data, Key.tab)) {
@@ -372,7 +391,7 @@ function createChoiceSelectList(config: PickerConfig, state: ChooserState, theme
     }
   })
 
-  const list = new SelectList(items, MAX_VISIBLE_OPTIONS, selectListTheme(theme), {
+  const list = new SelectList(items, MAX_VISIBLE_OPTIONS, getSelectListTheme(), {
     minPrimaryColumnWidth: 28,
     maxPrimaryColumnWidth: 48
   })
@@ -388,16 +407,6 @@ function formatChooseCall(args: unknown, theme: Theme): string {
   return `${theme.fg('toolTitle', theme.bold('choose'))}${question ? ` ${theme.fg('muted', question)}` : ''}${suffix}`
 }
 
-function selectListTheme(theme: Theme) {
-  return {
-    selectedPrefix: (text: string) => theme.fg('accent', text),
-    selectedText: (text: string) => theme.fg('accent', text),
-    description: (text: string) => theme.fg('muted', text),
-    scrollInfo: (text: string) => theme.fg('muted', text),
-    noMatch: (text: string) => theme.fg('muted', text)
-  }
-}
-
 function renderChoiceFooter(
   config: PickerConfig,
   state: ChooserState,
@@ -407,10 +416,19 @@ function renderChoiceFooter(
   const total = optionCount(config)
   const position = `${state.optionIndex + 1}/${total}`
   const action = currentAction(config, state)
+  const moveKeys = `${selectKeyLabel('tui.select.up')}/${selectKeyLabel('tui.select.down')}`
+  const confirmKey = selectKeyLabel('tui.select.confirm')
+  const cancelKey = selectKeyLabel('tui.select.cancel')
   const hint = config.allowMultiple
-    ? `  (${position}) ${action} · ↑↓ move · Space/1-9 toggle · Enter confirm · Esc cancel · type comment`
-    : `  (${position}) ${action} · ↑↓/1-9 select · Enter confirm · Esc cancel · type comment`
+    ? `  (${position}) ${action} · ${moveKeys} move · Space/1-9 toggle · ${confirmKey} confirm · ${cancelKey} cancel · type comment`
+    : `  (${position}) ${action} · ${moveKeys}/1-9 select · ${confirmKey} confirm · ${cancelKey} cancel · type comment`
   return truncateToWidth(theme.fg('dim', hint), width)
+}
+
+function selectKeyLabel(
+  id: 'tui.select.up' | 'tui.select.down' | 'tui.select.confirm' | 'tui.select.cancel'
+): string {
+  return getKeybindings().getKeys(id).join('/') || id
 }
 
 function optionCount(config: PickerConfig): number {

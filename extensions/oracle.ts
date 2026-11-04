@@ -552,6 +552,7 @@ export default function oracle(pi: ExtensionAPI) {
   })
 
   pi.on('before_agent_start', (event) => {
+    if (event.messageType !== 'user') return
     if (!activeRun || event.prompt !== oracleUserPrompt(activeRun.question)) return
     return { systemPrompt: `${event.systemPrompt}\n\n${oracleSystemPrompt(activeRun.config)}` }
   })

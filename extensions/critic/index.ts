@@ -34,12 +34,15 @@ import {
   DynamicBorder,
   type ExtensionAPI,
   type ExtensionContext,
+  getSelectListTheme,
   type TurnEndEvent
 } from '@earendil-works/pi-coding-agent'
 import {
   Container,
+  getSelectPageIndex,
   Input,
   Key,
+  type KeybindingsManager,
   matchesKey,
   type SelectItem,
   SelectList,
@@ -644,6 +647,13 @@ async function runCritic(
   }
 }
 
+function selectKeyLabel(
+  keybindings: KeybindingsManager,
+  id: 'tui.select.up' | 'tui.select.down' | 'tui.select.confirm' | 'tui.select.cancel'
+): string {
+  return keybindings.getKeys(id).join('/') || id
+}
+
 export default function criticExtension(pi: ExtensionAPI): void {
   logToFile('init', 'Critic extension loaded')
 
@@ -922,63 +932,98 @@ export default function criticExtension(pi: ExtensionAPI): void {
         }))
       ]
 
-      const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-        const container = new Container()
+      const result = await ctx.ui.custom<string | null>(
+        (tui, theme, keybindings, done) => {
+          const container = new Container()
 
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)))
-        container.addChild(new Text(theme.fg('accent', theme.bold('Select Critic Model')), 1, 0))
-        container.addChild(new Spacer(1))
+          container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)))
+          container.addChild(new Text(theme.fg('accent', theme.bold('Select Critic Model')), 1, 0))
+          container.addChild(new Spacer(1))
 
-        const searchInput = new Input()
-        container.addChild(searchInput)
-        container.addChild(new Spacer(1))
+          const searchInput = new Input()
+          container.addChild(searchInput)
+          container.addChild(new Spacer(1))
 
-        const selectList = new SelectList(items, Math.min(items.length, 12), {
-          selectedPrefix: (t) => theme.fg('accent', t),
-          selectedText: (t) => theme.fg('accent', t),
-          description: (t) => theme.fg('muted', t),
-          scrollInfo: (t) => theme.fg('dim', t),
-          noMatch: (t) => theme.fg('warning', t)
-        })
-        selectList.onSelect = (item) => done(item.value)
-        selectList.onCancel = () => done(null)
-        searchInput.onSubmit = () => {
-          const selected = selectList.getSelectedItem()
-          if (selected) done(selected.value)
-        }
-        container.addChild(selectList)
-
-        container.addChild(new Spacer(1))
-        container.addChild(
-          new Text(
-            theme.fg('dim', '↑↓ navigate • type to filter • enter select • esc cancel'),
-            1,
-            0
-          )
-        )
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)))
-
-        return {
-          render: (w) => container.render(w),
-          invalidate: () => container.invalidate(),
-          handleInput: (data) => {
-            // Pass navigation/action keys to selectList, text input to searchInput
-            if (
-              matchesKey(data, Key.up) ||
-              matchesKey(data, Key.down) ||
-              matchesKey(data, Key.enter) ||
-              matchesKey(data, Key.escape) ||
-              matchesKey(data, Key.ctrl('c'))
-            ) {
-              selectList.handleInput(data)
-            } else {
-              searchInput.handleInput(data)
-              selectList.setFilter(searchInput.getValue())
-            }
-            tui.requestRender()
+          const selectList = new SelectList(items, Math.min(items.length, 12), getSelectListTheme())
+          selectList.onSelect = (item) => done(item.value)
+          selectList.onCancel = () => done(null)
+          searchInput.onSubmit = () => {
+            const selected = selectList.getSelectedItem()
+            if (selected) done(selected.value)
           }
-        }
-      })
+          container.addChild(selectList)
+
+          container.addChild(new Spacer(1))
+          const hint = theme.fg(
+            'dim',
+            `${selectKeyLabel(keybindings, 'tui.select.up')}/${selectKeyLabel(keybindings, 'tui.select.down')} navigate • type to filter • ${selectKeyLabel(keybindings, 'tui.select.confirm')} select • ${selectKeyLabel(keybindings, 'tui.select.cancel')} cancel`
+          )
+          container.addChild(new Text(hint, 1, 0))
+          container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)))
+
+          const pageSize = Math.min(items.length, 12)
+          let selectedIndex = 0
+          let focused = false
+          const filteredCount = () => {
+            const filter = searchInput.getValue().toLowerCase()
+            if (!filter) return items.length
+            return items.filter((item) => item.value.toLowerCase().startsWith(filter)).length
+          }
+          const component = {
+            get focused() {
+              return focused
+            },
+            set focused(value: boolean) {
+              focused = value
+              searchInput.focused = value
+            },
+            render: (w: number) => container.render(w),
+            invalidate: () => container.invalidate(),
+            handleInput: (data: string) => {
+              const pageIndex = getSelectPageIndex(
+                keybindings,
+                data,
+                selectedIndex,
+                filteredCount(),
+                pageSize
+              )
+              const selectKey =
+                keybindings.matches(data, 'tui.select.up') ||
+                keybindings.matches(data, 'tui.select.down') ||
+                keybindings.matches(data, 'tui.select.confirm') ||
+                keybindings.matches(data, 'tui.select.cancel') ||
+                pageIndex !== undefined ||
+                matchesKey(data, Key.ctrl('c'))
+              if (selectKey) {
+                if (pageIndex !== undefined) {
+                  selectedIndex = pageIndex
+                  selectList.setSelectedIndex(pageIndex)
+                } else {
+                  selectList.handleInput(
+                    matchesKey(data, Key.ctrl('c')) &&
+                      !keybindings.matches(data, 'tui.select.cancel')
+                      ? Key.escape
+                      : data
+                  )
+                  const selected = selectList.getSelectedItem()
+                  selectedIndex = Math.max(
+                    0,
+                    items.findIndex((item) => item.value === selected?.value)
+                  )
+                }
+              } else {
+                searchInput.handleInput(data)
+                selectList.setFilter(searchInput.getValue())
+                selectedIndex = 0
+              }
+              tui.requestRender()
+            }
+          }
+          component.focused = true
+          return component
+        },
+        { blocked: { kind: 'question', message: 'Select critic model' } }
+      )
 
       if (result !== null) {
         state.model = result || undefined
@@ -1080,13 +1125,12 @@ export default function criticExtension(pi: ExtensionAPI): void {
 
   // Reset review counter on new user prompt (but not on critic feedback or steer)
   pi.on('before_agent_start', async (event, ctx) => {
-    // Only reset if this is a real user prompt, not critic feedback/steer
-    if (!event.prompt.startsWith('[Critic')) {
-      runtime.reviewsThisPrompt = 0
-      runtime.lastUserPromptTime = Date.now()
-      runtime.lastVerdictApproved = null
-      log(ctx, state.debug, 'info', 'New user prompt detected, reset review counter')
-    }
+    // Custom triggerTurn runs have no prompt. Critic feedback is a user message, not a new request.
+    if (event.messageType !== 'user' || event.prompt.startsWith('[Critic')) return
+    runtime.reviewsThisPrompt = 0
+    runtime.lastUserPromptTime = Date.now()
+    runtime.lastVerdictApproved = null
+    log(ctx, state.debug, 'info', 'New user prompt detected, reset review counter')
   })
 
   // Trigger critic after turn_end (default mode)

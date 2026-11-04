@@ -2,10 +2,7 @@ import { afterEach, expect, test } from 'vitest'
 import type { TUI } from '@earendil-works/pi-tui'
 import { ToolExecutionComponent } from '../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tool-execution.js'
 import { initTheme } from '../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js'
-import {
-  resetCapabilitiesCache,
-  setCapabilities
-} from '../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/terminal-image.js'
+import { resetCapabilitiesCache, setCapabilities } from '@earendil-works/pi-tui'
 import computer from './computer'
 import { registeredTool } from './shared/test-utils'
 

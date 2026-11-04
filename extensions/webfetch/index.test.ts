@@ -62,7 +62,7 @@ describe('webfetch binary handling', () => {
       context
     )
 
-    expect(firstText(result)).toBe('Binary content not displayed: audio/mpeg · 6 B')
+    expect(firstText(result)).toBe('Binary content not displayed: audio/mpeg · 6B')
     expect((result.details as { format?: string }).format).toBe('binary')
   })
 
@@ -81,7 +81,7 @@ describe('webfetch binary handling', () => {
       context
     )
 
-    expect(firstText(result)).toBe('Binary content not displayed: application/octet-stream · 4 B')
+    expect(firstText(result)).toBe('Binary content not displayed: application/octet-stream · 4B')
     expect((result.details as { format?: string }).format).toBe('binary')
   })
 })

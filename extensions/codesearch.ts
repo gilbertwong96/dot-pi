@@ -28,8 +28,8 @@ import {
   renderEntryList,
   renderError,
   renderErrorOrPartial,
-  renderLines,
   renderMuted,
+  reuseLines,
   renderToolCall,
   title,
   toolError,
@@ -507,7 +507,7 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded }, theme) {
+    renderResult(result, { expanded }, theme, context) {
       const details = result.details as CodeFetchDetails | undefined
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
 
@@ -517,45 +517,51 @@ export default function (pi: ExtensionAPI) {
           ? text.slice(0, -`\n\n${details.truncationNotice}`.length)
           : text
       const startLine = details?.startLine ?? 1
-      const codeLines = codeText.split('\n')
-      const visibleLines = expanded ? codeLines : codeLines.slice(0, CODEFETCH_PREVIEW_LINES)
-      const lineNumberWidth = String(startLine + visibleLines.length - 1).length
-      const renderedCode = visibleLines.map((line, offset) => {
-        const lineNumber = String(startLine + offset).padStart(lineNumberWidth, ' ')
-        return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
-      })
-
-      const header = details
-        ? title(details.repo, theme) + renderMeta(` · ${details.path}`, theme)
-        : title('Fetched code', theme)
-      const metaParts: string[] = []
-      if (details?.ref) metaParts.push(`ref:${details.ref}`)
-      if (details?.startLine && details?.endLine) {
-        metaParts.push(`lines:${details.startLine}-${details.endLine}`)
-      }
-      if (details) {
-        const shownLines = details.truncation?.outputLines ?? details.lineCount
-        metaParts.push(
-          `${shownLines}/${details.lineCount} requested lines · ${details.totalLines} total`
-        )
-      }
-
-      const lines = [
-        header,
-        ...(metaParts.length ? [renderMeta(metaParts.join(' · '), theme)] : []),
-        '',
-        ...renderedCode
-      ]
-      const hidden = codeLines.length - visibleLines.length
-      if (!expanded && hidden > 0) {
-        lines.push('', renderMeta(`… ${hidden} more lines`, theme), ...renderExpandFooter(theme))
-      }
-
-      if (expanded && details?.truncationNotice) {
-        lines.push('', renderMeta(details.truncationNotice, theme))
-      }
-
-      return renderLines(lines)
+      return reuseLines(
+        context.lastComponent,
+        `${expanded}\0${startLine}\0${codeText}\0${details?.truncationNotice ?? ''}`,
+        () => {
+          const codeLines = codeText.split('\n')
+          const visibleLines = expanded ? codeLines : codeLines.slice(0, CODEFETCH_PREVIEW_LINES)
+          const lineNumberWidth = String(startLine + visibleLines.length - 1).length
+          const renderedCode = visibleLines.map((line, offset) => {
+            const lineNumber = String(startLine + offset).padStart(lineNumberWidth, ' ')
+            return theme.fg('muted', `${lineNumber} `) + primary(line, theme)
+          })
+          const header = details
+            ? title(details.repo, theme) + renderMeta(` · ${details.path}`, theme)
+            : title('Fetched code', theme)
+          const metaParts: string[] = []
+          if (details?.ref) metaParts.push(`ref:${details.ref}`)
+          if (details?.startLine && details?.endLine) {
+            metaParts.push(`lines:${details.startLine}-${details.endLine}`)
+          }
+          if (details) {
+            const shownLines = details.truncation?.outputLines ?? details.lineCount
+            metaParts.push(
+              `${shownLines}/${details.lineCount} requested lines · ${details.totalLines} total`
+            )
+          }
+          const lines = [
+            header,
+            ...(metaParts.length ? [renderMeta(metaParts.join(' · '), theme)] : []),
+            '',
+            ...renderedCode
+          ]
+          const hidden = codeLines.length - visibleLines.length
+          if (!expanded && hidden > 0) {
+            lines.push(
+              '',
+              renderMeta(`… ${hidden} more lines`, theme),
+              ...renderExpandFooter(theme, context)
+            )
+          }
+          if (expanded && details?.truncationNotice) {
+            lines.push('', renderMeta(details.truncationNotice, theme))
+          }
+          return lines
+        }
+      )
     }
   })
 }

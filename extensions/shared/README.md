@@ -29,7 +29,7 @@ return toolError('API key not set', { error: true })
 onUpdate?.(toolLoading({ loading: true }))
 ```
 
-`toolError()` prefixes `Error:` once and marks `isError: true`. Register tools that return structured failures with `registerTool(pi, definition)` from `register-tool.ts`: Pi ignores a returned `isError` property, so the helper forwards it through the supported `tool_result` hook while preserving content and details. Plain thrown errors already use Pi’s native error channel.
+`toolError()` prefixes `Error:` once and marks `isError: true`. Pi reports that flag to the model. Register tools with `registerTool(pi, definition)` when they need the shared streaming result renderer.
 
 ## Result rendering
 
@@ -89,13 +89,13 @@ Use `withTimeoutSignal()` directly when an SDK accepts `AbortSignal` but does it
 
 Keep request schemas synchronized with official documentation rather than copying API details into multiple guides.
 
-| Extension | API reference | Configuration |
-| --- | --- | --- |
-| `codesearch.ts` | [grep.app MCP](https://mcp.grep.app) | No key required |
-| `context7/` | [Context7 OpenAPI](https://context7.com/docs/openapi.json) | `CONTEXT7_API_KEY`, optional `CONTEXT7_ENDPOINT_URL` |
-| `provider/` | Protocol defined in `extensions/provider/index.ts` | `PROVIDER_API_KEY` |
-| `voice-input/` | [ElevenLabs realtime transcription](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime) | `ELEVENLABS_API_KEY`; optional settings in the extension header |
-| `websearch/` | [Exa Search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents.md) | `EXA_API_KEY`, optional `EXA_ENDPOINT_URL` |
+| Extension       | API reference                                                                                                            | Configuration                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `codesearch.ts` | [grep.app MCP](https://mcp.grep.app)                                                                                     | No key required                                                 |
+| `context7/`     | [Context7 OpenAPI](https://context7.com/docs/openapi.json)                                                               | `CONTEXT7_API_KEY`, optional `CONTEXT7_ENDPOINT_URL`            |
+| `provider/`     | Protocol defined in `extensions/provider/index.ts`                                                                       | `PROVIDER_API_KEY`                                              |
+| `voice-input/`  | [ElevenLabs realtime transcription](https://elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime) | `ELEVENLABS_API_KEY`; optional settings in the extension header |
+| `websearch/`    | [Exa Search API](https://exa.ai/docs/reference/search-api-guide-for-coding-agents.md)                                    | `EXA_API_KEY`, optional `EXA_ENDPOINT_URL`                      |
 
 - Exa uses direct REST, not `exa-js`. Verify current search types, category restrictions, and contents/freshness fields before changing schemas.
 - Context7 supports text and JSON responses; preserve the documented library ID and response formats.
@@ -104,7 +104,6 @@ Keep request schemas synchronized with official documentation rather than copyin
 - Forward `AbortSignal` to every supported API/SDK call. Bound model-visible output as well as rendered output.
 - Store structured result details; do not reconstruct them by parsing rendered text.
 - Re-read upstream documentation when changing request shapes or dependencies.
-
 
 ## Display-only messages
 
@@ -125,7 +124,7 @@ If another `context` hook also transforms messages, call `filterDisplayOnlyMessa
 ## Checklist for new tools
 
 - `renderCall` uses `renderToolCall()` and handles `args ?? {}`.
-- Tools returning structured failures use `registerTool()` from `register-tool.ts`.
+- Tools with a custom `renderResult` use `registerTool()` so streaming calls still render before details arrive.
 - `execute` returns `toolText()` / `toolError()` / `toolLoading()`.
 - `renderResult` uses `renderError`, `renderMuted`, `renderLines`, and semantic colors.
 - Compact output is short; expanded output contains long bodies/diffs/docs.

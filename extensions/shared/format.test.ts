@@ -12,9 +12,9 @@ import {
 
 describe('formatBytes', () => {
   test('formats byte counts for human metadata', () => {
-    expect(formatBytes(6)).toBe('6 B')
-    expect(formatBytes(1536)).toBe('1.5 KB')
-    expect(formatBytes(2 * 1024 * 1024)).toBe('2.0 MB')
+    expect(formatBytes(6)).toBe('6B')
+    expect(formatBytes(1536)).toBe('1.5KB')
+    expect(formatBytes(2 * 1024 * 1024)).toBe('2.0MB')
   })
 })
 

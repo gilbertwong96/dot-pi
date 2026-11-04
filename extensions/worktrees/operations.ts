@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { commandFailure, commandOutput } from '../shared/process'
+import { commandFailure, commandOutput, throwIfTruncated } from '../shared/process'
 import {
   isDirtyWorktreeRemovalError,
   parseWorktreePorcelain,
@@ -32,6 +32,7 @@ function findWorktree(worktrees: WorktreeEntry[], name: string): WorktreeEntry |
 export function createOperations(pi: ExtensionAPI): Operations {
   const list: Operations['list'] = async (cwd, signal) => {
     const result = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd, signal })
+    throwIfTruncated(result, 'Failed to list worktrees')
     if (result.code !== 0) throw new Error(commandFailure(result, 'Failed to list worktrees'))
     return parseWorktreePorcelain(result.stdout)
   }
@@ -44,6 +45,7 @@ export function createOperations(pi: ExtensionAPI): Operations {
       const path = worktreePathFor(cwd, name)
       if (existsSync(path)) throw new Error(`Worktree "${name}" already exists at ${path}`)
       const ignored = await pi.exec('git', ['check-ignore', '-q', '.worktrees/'], { cwd, signal })
+      throwIfTruncated(ignored, 'Failed to check worktree ignore rules')
       if (ignored.code !== 0) {
         throw new Error(
           '.worktrees/ must be ignored before creating a worktree; add it to .gitignore explicitly'
@@ -52,6 +54,7 @@ export function createOperations(pi: ExtensionAPI): Operations {
       const args = ['worktree', 'add', path, '-b', name]
       if (baseBranch) args.push(baseBranch)
       const result = await pi.exec('git', args, { cwd, signal })
+      throwIfTruncated(result, 'Failed to create worktree')
       if (result.code !== 0) throw new Error(commandFailure(result, 'Failed to create worktree'))
       const created = findWorktree(await list(cwd, signal), name)
       if (!created)
@@ -64,6 +67,7 @@ export function createOperations(pi: ExtensionAPI): Operations {
       const args = ['worktree', 'remove', worktree.path]
       if (force) args.push('--force')
       const result = await pi.exec('git', args, { cwd, signal })
+      throwIfTruncated(result, 'Failed to remove worktree')
       if (result.code !== 0) {
         const error = commandOutput(result)
         if (isDirtyWorktreeRemovalError(error))
@@ -81,6 +85,8 @@ export function createOperations(pi: ExtensionAPI): Operations {
         pi.exec('git', ['status', '--short'], { cwd: worktree.path, signal }),
         pi.exec('git', ['diff', '--stat'], { cwd: worktree.path, signal })
       ])
+      throwIfTruncated(status, 'Failed to read worktree status')
+      throwIfTruncated(diff, 'Failed to read worktree diff')
       if (status.code !== 0)
         throw new Error(commandFailure(status, 'Failed to read worktree status'))
       if (diff.code !== 0) throw new Error(commandFailure(diff, 'Failed to read worktree diff'))

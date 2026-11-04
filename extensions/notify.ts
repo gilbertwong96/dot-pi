@@ -20,6 +20,7 @@ export default function (pi: ExtensionAPI) {
   let lastStop: StopInfo = {}
 
   pi.on('before_agent_start', (event) => {
+    if (event.messageType !== 'user') return
     currentPrompt = summarize(event.prompt)
   })
 

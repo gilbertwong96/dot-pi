@@ -19,7 +19,7 @@ import {
   expandHint,
   firstText,
   renderError,
-  renderLines,
+  reuseLines,
   renderToolCall,
   toolText
 } from '../shared/render'
@@ -966,7 +966,7 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded }, theme) {
+    renderResult(result, { expanded }, theme, context) {
       const details = result.details as LspToolDetails | undefined
       const text = firstText(result)
 
@@ -986,18 +986,23 @@ export default function (pi: ExtensionAPI) {
         })
       }
 
-      const lines = formatOutput(text).split('\n')
-      const PREVIEW_LINES = 8
-      const shown = expanded ? lines : lines.slice(0, PREVIEW_LINES)
-      const hiddenCount = expanded ? 0 : lines.length - shown.length
-
-      return renderLines([
-        theme.fg('muted', details.action),
-        ...shown,
-        ...(hiddenCount > 0
-          ? [theme.fg('dim', `… ${hiddenCount} more lines`), expandHint(theme)]
-          : [])
-      ])
+      return reuseLines(
+        context.lastComponent,
+        `${expanded}\0${details.file ?? ''}\0${text}`,
+        () => {
+          const lines = formatOutput(text).split('\n')
+          const PREVIEW_LINES = 8
+          const shown = expanded ? lines : lines.slice(0, PREVIEW_LINES)
+          const hiddenCount = expanded ? 0 : lines.length - shown.length
+          return [
+            theme.fg('muted', details.action),
+            ...shown,
+            ...(hiddenCount > 0
+              ? [theme.fg('dim', `… ${hiddenCount} more lines`), expandHint(theme, context)]
+              : [])
+          ]
+        }
+      )
     }
   })
 

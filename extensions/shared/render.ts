@@ -1,11 +1,17 @@
-import { keyHint, type AgentToolResult, type Theme } from '@earendil-works/pi-coding-agent'
+import {
+  getMarkdownTheme,
+  truncateToVisualLines,
+  type AgentToolResult,
+  type KeybindingHints,
+  type Theme
+} from '@earendil-works/pi-coding-agent'
 import { compactText as compactTextValue } from './format'
 import {
   Markdown,
   truncateToWidth,
+  wrapTextWithAnsi,
   visibleWidth,
-  type Component,
-  type MarkdownTheme
+  type Component
 } from '@earendil-works/pi-tui'
 
 export function resultText(result: AgentToolResult<unknown>): string {
@@ -53,6 +59,51 @@ export function toolLoading<T>(details: T): AgentToolResult<T> {
  * - Metadata is muted, primary content is toolOutput, titles may be bold/accent.
  * - Expand hints are standalone footers: insert a blank line before expandHint().
  */
+class CachedLines implements Component {
+  private signature = ''
+  private build: () => string[] = () => []
+  private lines?: string[]
+  private cachedWidth?: number
+  private cached?: string[]
+
+  update(signature: string, build: () => string[]): void {
+    this.build = build
+    if (signature === this.signature && this.lines) return
+    this.signature = signature
+    this.lines = build()
+    this.cachedWidth = undefined
+    this.cached = undefined
+  }
+
+  render(width: number): string[] {
+    if (!this.lines) this.lines = this.build()
+    if (this.cached && this.cachedWidth === width) return this.cached
+    this.cachedWidth = width
+    this.cached = renderLines(this.lines).render(width)
+    return this.cached
+  }
+
+  invalidate(): void {
+    this.cachedWidth = undefined
+    this.cached = undefined
+    this.lines = undefined
+  }
+}
+
+export function reuseLines(
+  previous: Component | undefined,
+  signature: string,
+  build: () => string[]
+): Component {
+  if (previous instanceof CachedLines) {
+    previous.update(signature, build)
+    return previous
+  }
+  const component = new CachedLines()
+  component.update(signature, build)
+  return component
+}
+
 export function renderEmpty(): Component {
   return {
     render: () => [],
@@ -165,28 +216,8 @@ export function title(text: string, theme: Theme): string {
   return theme.fg('toolOutput', theme.bold(text))
 }
 
-export function nativeMarkdownTheme(theme: Theme): MarkdownTheme {
-  return {
-    heading: (text) => title(text, theme),
-    link: (text) => primary(text, theme),
-    linkUrl: (text) => meta(text, theme),
-    code: (text) => theme.fg('accent', text),
-    codeBlock: (text) => primary(text, theme),
-    codeBlockBorder: (text) => meta(text, theme),
-    quote: (text) => primary(text, theme),
-    quoteBorder: (text) => meta(text, theme),
-    hr: (text) => meta(text, theme),
-    listBullet: (text) => meta(text, theme),
-    bold: (text) => theme.bold(text),
-    italic: (text) => text,
-    strikethrough: (text) => text,
-    underline: (text) => theme.underline(text),
-    codeBlockIndent: ''
-  }
-}
-
-export function renderExpandFooter(theme: Theme): string[] {
-  return ['', expandHint(theme)]
+export function renderExpandFooter(theme: Theme, hints?: KeybindingHints): string[] {
+  return ['', expandHint(theme, hints)]
 }
 
 export interface ResultEntryBlock {
@@ -260,6 +291,8 @@ interface MarkdownPreviewOptions {
   metadata?: string[]
   preview?: (markdown: string) => { lines: string[]; hidden: number }
   styleLine?: (line: string, theme: Theme) => string
+  hints?: KeybindingHints
+  previous?: Component
 }
 
 function defaultMarkdownPreview(
@@ -280,6 +313,7 @@ interface TextLinesPreviewOptions {
   inlineHidden?: boolean
   styleLine?: (line: string, theme: Theme) => string
   truncationMarker?: string
+  hints?: KeybindingHints
 }
 
 export function renderTextLinesPreview(
@@ -296,24 +330,53 @@ export function renderTextLinesPreview(
   const hiddenText = hiddenLine(hidden, theme, options.hiddenUnit ?? 'more lines')
   const inlineHidden =
     !options.expanded && options.inlineHidden && hiddenText && visibleLines.length > 0
-  const renderedLines = [
-    ...(options.header ?? []),
-    ...visibleLines.map((line, index) => {
-      const styledLine = styleLine(line, theme)
-      if (!inlineHidden || index !== visibleLines.length - 1) return styledLine
-      return appendWidthAwareSuffix(
-        styledLine,
-        ` ${hiddenText} ${expandHint(theme)}`,
-        options.truncationMarker
-      )
-    })
-  ]
 
-  if (!options.expanded && hiddenText && !inlineHidden) {
-    renderedLines.push('', hiddenText, ...renderExpandFooter(theme))
+  if (options.expanded || inlineHidden || options.truncationMarker) {
+    const renderedLines = [
+      ...(options.header ?? []),
+      ...visibleLines.map((line, index) => {
+        const styledLine = styleLine(line, theme)
+        if (!inlineHidden || index !== visibleLines.length - 1) return styledLine
+        return appendWidthAwareSuffix(
+          styledLine,
+          ` ${hiddenText} ${expandHint(theme, options.hints)}`,
+          options.truncationMarker
+        )
+      })
+    ]
+    if (!options.expanded && hiddenText && !inlineHidden) {
+      renderedLines.push('', hiddenText, ...renderExpandFooter(theme, options.hints))
+    }
+    return renderLinesWithMarker(renderedLines, options.truncationMarker ?? '…')
   }
 
-  return renderLinesWithMarker(renderedLines, options.truncationMarker ?? '…')
+  return {
+    render(width) {
+      const styled = visibleLines.map((line) => styleLine(line, theme)).join('\n')
+      const preview = truncateToVisualLines(
+        styled,
+        limit ?? Number.MAX_SAFE_INTEGER,
+        width,
+        0,
+        mode === 'tail' ? 'end' : 'start'
+      )
+      const rendered = [
+        ...(options.header ?? []),
+        ...preview.visualLines.map((line) => line.trimEnd())
+      ]
+      if (!options.expanded && hiddenText) {
+        rendered.push('', hiddenText, ...renderExpandFooter(theme, options.hints))
+      } else if (!options.expanded && preview.skippedCount > 0) {
+        rendered.push(
+          '',
+          meta(`… ${preview.skippedCount} more lines`, theme),
+          ...renderExpandFooter(theme, options.hints)
+        )
+      }
+      return renderLines(rendered).render(width)
+    },
+    invalidate() {}
+  }
 }
 
 function appendWidthAwareSuffix(
@@ -328,30 +391,59 @@ function appendWidthAwareSuffix(
   }
 }
 
+class ExpandedMarkdownPreview implements Component {
+  private markdown: Markdown
+  private metadata: string[]
+  private markdownText: string
+
+  constructor(markdown: string, metadata: string[], expandedY: number, theme: Theme) {
+    this.metadata = metadata
+    this.markdownText = markdown.trim()
+    this.markdown = new Markdown(this.markdownText, 0, expandedY, getMarkdownTheme(), {
+      color: (text) => theme.fg('toolOutput', text)
+    })
+  }
+
+  update(markdown: string, metadata: string[]): void {
+    this.metadata = metadata
+    const next = markdown.trim()
+    if (next === this.markdownText) return
+    this.markdownText = next
+    this.markdown.setText(next)
+  }
+
+  render(width: number): string[] {
+    return clampRenderedLines({
+      render: (innerWidth) => [
+        '',
+        ...this.metadata,
+        ...(this.metadata.length ? [''] : []),
+        ...this.markdown.render(innerWidth)
+      ],
+      invalidate: () => this.markdown.invalidate()
+    }).render(width)
+  }
+
+  invalidate(): void {
+    this.markdown.invalidate()
+  }
+}
+
 export function renderMarkdownPreview(
   markdown: string,
   theme: Theme,
   options: MarkdownPreviewOptions
 ): Component {
   if (options.expanded) {
-    const rendered = new Markdown(
-      markdown.trim(),
-      0,
-      options.expandedY ?? 1,
-      nativeMarkdownTheme(theme),
-      {
-        color: (text) => theme.fg('toolOutput', text)
-      }
-    )
-    return clampRenderedLines({
-      render: (width) => [
-        '',
-        ...(options.metadata ?? []),
-        ...(options.metadata?.length ? [''] : []),
-        ...rendered.render(width)
-      ],
-      invalidate: () => rendered.invalidate()
-    })
+    const metadata = options.metadata ?? []
+    const previous = options.previous
+    if (previous instanceof ExpandedMarkdownPreview) {
+      previous.update(markdown, metadata)
+      return previous
+    }
+    const preview = new ExpandedMarkdownPreview(markdown, metadata, options.expandedY ?? 1, theme)
+    preview.update(markdown, metadata)
+    return preview
   }
 
   const preview =
@@ -363,14 +455,23 @@ export function renderMarkdownPreview(
   ]
 
   if (preview.hidden > 0) {
-    lines.push(meta(`… ${preview.hidden} more lines`, theme), ...renderExpandFooter(theme))
+    lines.push(
+      meta(`… ${preview.hidden} more lines`, theme),
+      ...renderExpandFooter(theme, options.hints)
+    )
   }
 
   return renderLines(lines)
 }
 
 export function renderError(text: string, theme: Theme): Component {
-  return renderLines([theme.fg('error', text || 'Error')])
+  return {
+    render: (width) => [
+      '',
+      ...wrapTextWithAnsi(theme.fg('error', text || 'Error'), Math.max(1, width))
+    ],
+    invalidate() {}
+  }
 }
 
 export function renderErrorOrPartial(
@@ -443,17 +544,19 @@ export function renderToolCall(
     text += theme.fg('dim', ` (${String(options.suffix)})`)
   }
 
-  return renderSingleLine(text)
+  return {
+    render: (width) => wrapTextWithAnsi(text.replace(/\r\n|\r|\n/gu, ' '), Math.max(1, width)),
+    invalidate() {}
+  }
 }
 
-export function expandHint(theme: Theme): string {
-  try {
-    return (
-      theme.fg('muted', '(') + keyHint('app.tools.expand', 'to expand') + theme.fg('muted', ')')
-    )
-  } catch {
-    return theme.fg('muted', '(ctrl+o to expand)')
-  }
+export function expandHint(theme: Theme, hints?: KeybindingHints): string {
+  const hint =
+    typeof hints?.keyHint === 'function'
+      ? hints.keyHint('app.tools.expand', 'to expand')
+      : undefined
+  if (hint) return theme.fg('muted', '(') + hint + theme.fg('muted', ')')
+  return theme.fg('muted', '(ctrl+o to expand)')
 }
 
 export function hiddenLine(count: number, theme: Theme, unit = 'more'): string | undefined {

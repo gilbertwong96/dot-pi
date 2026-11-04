@@ -7,11 +7,14 @@
 
 import {
   type ExtensionAPI,
+  type ExecResult,
+  type Theme,
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
+  generateDiffString,
+  renderDiff,
   truncateTail
 } from '@earendil-works/pi-coding-agent'
-import { diffLines } from 'diff'
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import pathModule from 'path'
@@ -50,92 +53,24 @@ Examples:
 
 Use dryRun:true to preview changes without applying.`
 
-function generateDiffString(oldContent: string, newContent: string, contextLines = 4) {
-  const parts = diffLines(oldContent, newContent)
-  const output: string[] = []
-  const oldLines = oldContent.split('\n')
-  const newLines = newContent.split('\n')
-  const maxLineNum = Math.max(oldLines.length, newLines.length)
-  const lineNumWidth = String(maxLineNum).length
-  let oldLineNum = 1
-  let newLineNum = 1
-  let lastWasChange = false
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-    if (!part) continue
-    const raw = part.value.split('\n')
-    if (raw[raw.length - 1] === '') raw.pop()
-
-    if (part.added || part.removed) {
-      for (const line of raw) {
-        if (part.added) {
-          output.push(`+${String(newLineNum).padStart(lineNumWidth, ' ')} ${line}`)
-          newLineNum++
-        } else {
-          output.push(`-${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
-          oldLineNum++
-        }
-      }
-      lastWasChange = true
-      continue
-    }
-
-    const nextPart = parts[i + 1]
-    const nextPartIsChange = Boolean(nextPart?.added || nextPart?.removed)
-    const hasLeadingChange = lastWasChange
-    const hasTrailingChange = nextPartIsChange
-
-    if (hasLeadingChange && hasTrailingChange) {
-      const shown =
-        raw.length <= contextLines * 2
-          ? raw
-          : [...raw.slice(0, contextLines), '...', ...raw.slice(-contextLines)]
-      const skipped = raw.length - shown.filter((line) => line !== '...').length
-      for (const line of shown) {
-        if (line === '...') {
-          output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
-          oldLineNum += skipped
-          newLineNum += skipped
-        } else {
-          output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
-          oldLineNum++
-          newLineNum++
-        }
-      }
-    } else if (hasLeadingChange) {
-      const shown = raw.slice(0, contextLines)
-      for (const line of shown) {
-        output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
-        oldLineNum++
-        newLineNum++
-      }
-      const skipped = raw.length - shown.length
-      if (skipped > 0) {
-        output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
-        oldLineNum += skipped
-        newLineNum += skipped
-      }
-    } else if (hasTrailingChange) {
-      const skipped = Math.max(0, raw.length - contextLines)
-      if (skipped > 0) {
-        output.push(` ${''.padStart(lineNumWidth, ' ')} ...`)
-        oldLineNum += skipped
-        newLineNum += skipped
-      }
-      for (const line of raw.slice(skipped)) {
-        output.push(` ${String(oldLineNum).padStart(lineNumWidth, ' ')} ${line}`)
-        oldLineNum++
-        newLineNum++
-      }
-    } else {
-      oldLineNum += raw.length
-      newLineNum += raw.length
-    }
-    lastWasChange = false
+function colorDiff(text: string, theme: Theme): string[] {
+  try {
+    return renderDiff(text).split('\n')
+  } catch {
+    return text.split('\n').map((line) => {
+      if (line.startsWith('+')) return theme.fg('success', line)
+      if (line.startsWith('-')) return theme.fg('error', line)
+      return theme.fg('toolOutput', line)
+    })
   }
+}
 
-  return output.join('\n')
+function execFailure(result: ExecResult, action: string): string | undefined {
+  if (result.truncated) return `${action}: output exceeded the limit and was truncated`
+  if (result.killed) return `${action} cancelled`
+  if (result.code !== 0 && result.code !== 1) {
+    return result.stderr || result.stdout || `ast-grep exited with code ${result.code}`
+  }
 }
 
 async function dryRunFileRewrite(
@@ -157,13 +92,12 @@ async function dryRunFileRewrite(
     const tempArgs = args.slice(0, -1).concat('-U', tempFile)
     const result = await pi.exec('sg', tempArgs, { cwd, signal })
     if (result.killed) return { cancelled: true }
-    if (result.code !== 0 && result.code !== 1) {
-      throw new Error(result.stderr || result.stdout || `ast-grep exited with code ${result.code}`)
-    }
+    const failure = execFailure(result, 'Rewrite')
+    if (failure) throw new Error(failure)
 
     const newContent = await readFile(tempFile, 'utf8')
     if (oldContent === newContent) return {}
-    return { diff: generateDiffString(oldContent, newContent) }
+    return { diff: generateDiffString(oldContent, newContent).diff }
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }
@@ -192,13 +126,8 @@ export default function (pi: ExtensionAPI) {
       args.push(path || '.')
 
       const result = await pi.exec('sg', args, { cwd: ctx.cwd, signal })
-
-      if (result.killed) throw new Error('Search cancelled')
-      if (result.code !== 0 && result.code !== 1) {
-        throw new Error(
-          result.stderr || result.stdout || `ast-grep exited with code ${result.code}`
-        )
-      }
+      const failure = execFailure(result, 'Search')
+      if (failure) throw new Error(failure)
 
       const output = result.stdout || result.stderr
       if (!output.trim()) {
@@ -248,11 +177,15 @@ export default function (pi: ExtensionAPI) {
             return `${theme.fg('muted', `${file}:${line}:`)} ${theme.fg('toolOutput', source.trim())}`
           }),
           theme,
-          { expanded, compactLimit: 5, styleLine: (line) => line }
+          { expanded, compactLimit: 5, styleLine: (line) => line, hints: context }
         )
       }
 
-      return renderTextLinesPreview(text.split('\n'), theme, { expanded, compactLimit: 5 })
+      return renderTextLinesPreview(text.split('\n'), theme, {
+        expanded,
+        compactLimit: 5,
+        hints: context
+      })
     }
   })
 
@@ -303,13 +236,8 @@ export default function (pi: ExtensionAPI) {
       }
 
       const result = await pi.exec('sg', args, { cwd: ctx.cwd, signal })
-
-      if (result.killed) throw new Error('Rewrite cancelled')
-      if (result.code !== 0 && result.code !== 1) {
-        throw new Error(
-          result.stderr || result.stdout || `ast-grep exited with code ${result.code}`
-        )
-      }
+      const failure = execFailure(result, 'Rewrite')
+      if (failure) throw new Error(failure)
 
       const output = result.stdout || result.stderr
       if (!output.trim()) {
@@ -353,24 +281,15 @@ export default function (pi: ExtensionAPI) {
       if (context.isError) return renderError(firstText(result), theme)
       if (isPartial) return renderEmpty()
       const text = firstText(result).trimEnd()
-      const renderDiffLine = (line: string) => {
-        if (line.startsWith('+')) return theme.fg('success', line)
-        if (line.startsWith('-')) return theme.fg('error', line)
-        return theme.fg('toolOutput', line)
-      }
-
       const diffLines = text.split('\n')
-      if (!expanded && /^[-+]\d+ /m.test(text)) {
-        const shown = diffLines.slice(0, 8)
-        const hidden = diffLines.length - shown.length
-        return renderLines([
-          ...shown.map(renderDiffLine),
-          ...(hidden > 0
-            ? [theme.fg('muted', `… ${hidden} more lines`), '', expandHint(theme)]
-            : [])
-        ])
-      }
-      return renderLines(diffLines.map(renderDiffLine))
+      const shown = !expanded && /^[-+]\d+ /m.test(text) ? diffLines.slice(0, 8) : diffLines
+      const hidden = diffLines.length - shown.length
+      return renderLines([
+        ...colorDiff(shown.join('\n'), theme),
+        ...(hidden > 0
+          ? [theme.fg('muted', `… ${hidden} more lines`), '', expandHint(theme, context)]
+          : [])
+      ])
     }
   })
 }

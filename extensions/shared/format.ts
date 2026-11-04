@@ -1,8 +1,7 @@
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+import { formatSize } from '@earendil-works/pi-coding-agent'
+import { stripTerminalSequences } from '@earendil-works/pi-tui'
+
+export { formatSize as formatBytes, stripTerminalSequences as stripAnsi }
 
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -14,11 +13,6 @@ export function formatDuration(ms: number): string {
 export function compactText(text: string, maxChars: number): string {
   const compact = text.replace(/\s+/gu, ' ').trim()
   return compact.length > maxChars ? `${compact.slice(0, Math.max(0, maxChars - 1))}…` : compact
-}
-
-export function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
 }
 
 export function stripCarriageReturnProgress(text: string): string {
@@ -33,7 +27,7 @@ export function stripCarriageReturnProgress(text: string): string {
 }
 
 export function normalizeTerminalOutput(text: string): string {
-  return stripCarriageReturnProgress(stripAnsi(text))
+  return stripCarriageReturnProgress(stripTerminalSequences(text))
 }
 
 export function compactLines(

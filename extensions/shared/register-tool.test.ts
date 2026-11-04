@@ -6,11 +6,9 @@ import { toolError, toolText } from './render'
 import type { RegisteredTool } from './test-utils'
 
 describe('native tool error channel', () => {
-  test('marks only the matching failed call and retains structured details', async () => {
-    const hooks = new Map<string, (event: unknown) => unknown>()
+  test('returns structured failures with isError for Pi to report', async () => {
     let tool!: RegisteredTool
     const pi = {
-      on: (name: string, handler: (event: unknown) => unknown) => hooks.set(name, handler),
       registerTool: (value: RegisteredTool) => {
         tool = value
       }
@@ -25,15 +23,15 @@ describe('native tool error channel', () => {
       }
     })
     const failed = await tool.execute('failed', { fail: true }, undefined, undefined, {} as never)
-    await tool.execute('success', { fail: false }, undefined, undefined, {} as never)
-    const result = hooks.get('tool_result')!
-    expect(result({ toolName: 'other', toolCallId: 'failed' })).toBeUndefined()
-    expect(result({ toolName: 'example', toolCallId: 'success' })).toBeUndefined()
-    expect(result({ toolName: 'example', toolCallId: 'failed' })).toEqual({ isError: true })
+    const succeeded = await tool.execute(
+      'success',
+      { fail: false },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(failed.isError).toBe(true)
     expect(failed.details).toEqual({ reason: 'structured' })
-    expect(result({ toolName: 'example', toolCallId: 'failed' })).toBeUndefined()
-    await tool.execute('pending', { fail: true }, undefined, undefined, {} as never)
-    hooks.get('session_shutdown')!({})
-    expect(result({ toolName: 'example', toolCallId: 'pending' })).toBeUndefined()
+    expect(succeeded.isError).toBeUndefined()
   })
 })

@@ -8,6 +8,7 @@ import { registerTool } from '../shared/register-tool'
  */
 
 import { type ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { Component } from '@earendil-works/pi-tui'
 import { errorMessage } from '../shared/errors'
 import type { ToolStatusDetails, TruncatedOutputDetails } from '../shared/tool-details'
 import { buildExaSearchRequest } from '../web/backends/exa-search'
@@ -363,12 +364,18 @@ function renderSearchEntries(
 function renderSynthesizedOutput(
   output: string,
   expanded: boolean,
-  theme: Parameters<typeof title>[1]
+  theme: Parameters<typeof title>[1],
+  previous?: Component
 ) {
   const parsed = parseSynthesizedOutput(output)
   if (parsed.kind === 'entries') return renderSearchEntries(parsed.entries, expanded, theme)
   if (parsed.kind === 'text') {
-    return renderMarkdownPreview(parsed.text, theme, { expanded, compactLines: 4, expandedY: 0 })
+    return renderMarkdownPreview(parsed.text, theme, {
+      expanded,
+      compactLines: 4,
+      expandedY: 0,
+      previous
+    })
   }
   return renderTextLinesPreview(
     parsed.fields.map(
@@ -466,7 +473,7 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded, isPartial }, theme) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       const details = result.details as WebSearchDetails | undefined
 
       const guarded = renderErrorOrPartial(result, details, { isPartial }, theme)
@@ -477,7 +484,7 @@ export default function (pi: ExtensionAPI) {
       if (results.length === 0) {
         if (!details?.output) return renderMuted('No results found.', theme)
         if (isPartial) return renderEmpty()
-        return renderSynthesizedOutput(details.output, expanded, theme)
+        return renderSynthesizedOutput(details.output, expanded, theme, context.lastComponent)
       }
 
       return renderSearchEntries(results, expanded, theme)

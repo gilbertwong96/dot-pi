@@ -455,7 +455,7 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded, isPartial }, theme) {
+    renderResult(result, { expanded, isPartial }, theme, context) {
       const details = result.details as FetchDetails | undefined
 
       const guarded = renderErrorOrPartial(result, details, { isPartial }, theme)
@@ -477,6 +477,8 @@ export default function (pi: ExtensionAPI) {
       return renderMarkdownPreview(fullText, theme, {
         expanded,
         expandedY: 0,
+        previous: context.lastComponent,
+        hints: context,
         metadata: meta ? [renderMeta(meta, theme)] : [],
         preview: (markdown) => {
           const lines = markdown.split('\n').filter(Boolean)

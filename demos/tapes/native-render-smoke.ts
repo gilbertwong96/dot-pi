@@ -3,7 +3,6 @@ import { TuiMainScreen, ProcessTerminal, Text, visibleWidth } from '@earendil-wo
 import { ToolExecutionComponent } from '../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/tool-execution.js'
 import { initTheme } from '../../node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js'
 import computer from '../../extensions/computer'
-import { setKeybindings as setHostKeybindings } from '../../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/keybindings.js'
 import { setKeybindings } from '@earendil-works/pi-tui'
 import { KeybindingsManager } from '../../node_modules/@earendil-works/pi-coding-agent/dist/core/keybindings.js'
 import background from '../../extensions/background'
@@ -12,7 +11,6 @@ import { registeredTool } from '../../extensions/shared/test-utils'
 // Deterministic native-shell smoke: no model, network, or real background process.
 initTheme('dark')
 setKeybindings(new KeybindingsManager())
-setHostKeybindings(new KeybindingsManager())
 const terminal = new ProcessTerminal()
 const ui = new TuiMainScreen(terminal)
 const imagePath = process.argv.find((arg) => arg.startsWith('--image='))?.slice(8)

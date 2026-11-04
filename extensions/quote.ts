@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { platform } from 'node:os'
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
+import { getNativeClipboard } from '@earendil-works/pi-tui'
 
 const require = createRequire(import.meta.url)
 
@@ -21,7 +22,17 @@ type SelectionHookInstance = {
 
 type SelectionHookConstructor = new () => SelectionHookInstance
 
-function readClipboard(): string {
+async function readClipboard(): Promise<string> {
+  const native = getNativeClipboard()
+  if (native) {
+    try {
+      const text = await native.getText()
+      if (text !== undefined) return text ?? ''
+    } catch {
+      // Fall back to platform clipboard commands.
+    }
+  }
+
   const commands: Array<[string, string[]]> = [
     ['pbpaste', []],
     ['wl-paste', ['--no-newline']],
@@ -41,7 +52,17 @@ function readClipboard(): string {
   return ''
 }
 
-function writeClipboard(text: string): boolean {
+async function writeClipboard(text: string): Promise<boolean> {
+  const native = getNativeClipboard()
+  if (native?.setText) {
+    try {
+      await native.setText(text)
+      return true
+    } catch {
+      // Fall back to platform clipboard commands.
+    }
+  }
+
   const commands: Array<[string, string[]]> = [
     ['pbcopy', []],
     ['wl-copy', []],
@@ -132,26 +153,26 @@ function copySelectionIntoClipboard(): boolean {
   return false
 }
 
-function readClipboardPreservingCopyFallback(): QuoteResult | undefined {
-  const before = readClipboard()
+async function readClipboardPreservingCopyFallback(): Promise<QuoteResult | undefined> {
+  const before = await readClipboard()
   if (!copySelectionIntoClipboard()) return
 
   sleep(100)
-  const selected = readClipboard().trim()
-  if (selected !== before) writeClipboard(before)
+  const selected = (await readClipboard()).trim()
+  if (selected !== before) await writeClipboard(before)
 
   return selected ? { text: selected, source: 'copy-fallback' } : undefined
 }
 
-function readSelection(): QuoteResult | undefined {
-  return readSelectionHook() ?? readClipboardPreservingCopyFallback()
+async function readSelection(): Promise<QuoteResult | undefined> {
+  return readSelectionHook() ?? (await readClipboardPreservingCopyFallback())
 }
 
-function readSelectionOrClipboard(): QuoteResult | undefined {
-  const result = readSelection()
+async function readSelectionOrClipboard(): Promise<QuoteResult | undefined> {
+  const result = await readSelection()
   if (result) return result
 
-  const text = readClipboard().trim()
+  const text = (await readClipboard()).trim()
   return text ? { text, source: 'clipboard' } : undefined
 }
 
@@ -189,15 +210,15 @@ export default function quoteExtension(pi: ExtensionAPI) {
     description: 'Insert selected/copied text as email-style quote',
     async handler(args, ctx) {
       const text = args.trim()
-      insertQuote(ctx, text ? { text, source: 'argument' } : readSelectionOrClipboard())
+      insertQuote(ctx, text ? { text, source: 'argument' } : await readSelectionOrClipboard())
     }
   })
 
   pi.registerShortcut('ctrl+/', {
     description: 'Quote current selection into editor',
-    handler(ctx) {
+    async handler(ctx) {
       if (!ctx.hasUI) return
-      insertQuote(ctx, readSelection())
+      insertQuote(ctx, await readSelection())
     }
   })
 }

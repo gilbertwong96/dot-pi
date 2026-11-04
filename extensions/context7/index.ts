@@ -311,7 +311,7 @@ export default function (pi: ExtensionAPI) {
       })
     },
 
-    renderResult(result, { expanded }, theme) {
+    renderResult(result, { expanded }, theme, context) {
       const details = result.details as DocsDetails | undefined
       if (details?.error) return renderError(firstText(result, 'Error'), theme)
       if (details?.empty) return renderMuted('No docs found', theme)
@@ -319,6 +319,8 @@ export default function (pi: ExtensionAPI) {
       const docs = text?.type === 'text' ? text.text : ''
       return renderMarkdownPreview(docs, theme, {
         expanded,
+        previous: context.lastComponent,
+        hints: context,
         preview: compactDocsPreview,
         styleLine: (line, theme) =>
           line.startsWith('Source: ') ? renderMeta(line, theme) : primary(line, theme)

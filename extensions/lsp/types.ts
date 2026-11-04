@@ -2,7 +2,6 @@
  * LSP Tool Types
  */
 
-import { StringEnum } from '@earendil-works/pi-ai'
 import { type Static, Type } from 'typebox'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
@@ -46,28 +45,26 @@ import type { Diagnostic } from 'vscode-languageserver-types'
 // =============================================================================
 
 export const lspSchema = Type.Object({
-  action: StringEnum(
+  action: Type.Union(
     [
-      // Standard LSP operations
-      'diagnostics',
-      'workspace_diagnostics',
-      'references',
-      'definition',
-      'hover',
-      'symbols',
-      'workspace_symbols',
-      'rename',
-      'actions',
-      'incoming_calls',
-      'outgoing_calls',
-      'status',
-      // Rust-analyzer specific operations
-      'flycheck',
-      'expand_macro',
-      'ssr',
-      'runnables',
-      'related_tests',
-      'reload_workspace'
+      Type.Literal('diagnostics'),
+      Type.Literal('workspace_diagnostics'),
+      Type.Literal('references'),
+      Type.Literal('definition'),
+      Type.Literal('hover'),
+      Type.Literal('symbols'),
+      Type.Literal('workspace_symbols'),
+      Type.Literal('rename'),
+      Type.Literal('actions'),
+      Type.Literal('incoming_calls'),
+      Type.Literal('outgoing_calls'),
+      Type.Literal('status'),
+      Type.Literal('flycheck'),
+      Type.Literal('expand_macro'),
+      Type.Literal('ssr'),
+      Type.Literal('runnables'),
+      Type.Literal('related_tests'),
+      Type.Literal('reload_workspace')
     ],
     { description: 'LSP action to perform' }
   ),
