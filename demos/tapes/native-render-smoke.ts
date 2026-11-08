@@ -40,17 +40,17 @@ const phases = image
       () => row.setShowImages(true)
     ]
   : [
-        () => row.updateArgs({ name: 'renderer-smoke' }),
-        () => row.markExecutionStarted(),
-        () => row.updateResult({ content: [], isError: false }, true),
-        () =>
-          row.updateResult({
-            content: [{ type: 'text', text }],
-            details: { name: 'renderer-smoke', logs: text },
-            isError: false
-          }),
-        () => row.setExpanded(true),
-        () => row.setExpanded(false),
+      () => row.updateArgs({ name: 'renderer-smoke' }),
+      () => row.markExecutionStarted(),
+      () => row.updateResult({ content: [], isError: false }, true),
+      () =>
+        row.updateResult({
+          content: [{ type: 'text', text }],
+          details: { name: 'renderer-smoke', logs: text },
+          isError: false
+        }),
+      () => row.setExpanded(true),
+      () => row.setExpanded(false),
       () => row.updateResult({ content: [{ type: 'text', text }], isError: true }),
       () => row.setExpanded(true)
     ]

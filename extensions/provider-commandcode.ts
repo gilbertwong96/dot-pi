@@ -36,12 +36,15 @@
  * gateway's rejection as the overflow phrase pi recovers from.
  */
 
-import type { RefreshModelsContext } from '@earendil-works/pi-ai'
+import { isModelType, type RefreshModelsContext } from '@earendil-works/pi-ai'
 import type { ExtensionAPI, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 import { fetchText } from './shared/http'
 import { fetchOpenAIModels, type NormalizedOpenAIModel } from './shared/openai-models'
+
+/** Pi 1.5 declares provider models as a chat/image/classifier union; Command Code serves chat. */
+export type CommandCodeModelConfig = Extract<ProviderModelConfig, { type?: 'chat' }>
 
 const COMMANDCODE_BASE_URL = 'https://api.commandcode.ai/provider/v1'
 /** pi's Anthropic client appends /v1/messages to the base URL. */
@@ -52,7 +55,7 @@ const COMMANDCODE_ANTHROPIC_BASE_URL = 'https://api.commandcode.ai/provider'
  * `minimal`, so `off` and `minimal` have no representable value and stay
  * hidden in the level picker.
  */
-const THINKING_LEVELS: ProviderModelConfig['thinkingLevelMap'] = {
+const THINKING_LEVELS: CommandCodeModelConfig['thinkingLevelMap'] = {
   off: null,
   minimal: null,
   low: 'low',
@@ -146,7 +149,7 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
  * an internal MaaS error, and Kimi K2.7 Code HighSpeed rejects `medium` with
  * "invalid moonshotai provider options".
  */
-const THINKING_LEVEL_EXCEPTIONS: Record<string, ProviderModelConfig['thinkingLevelMap']> = {
+const THINKING_LEVEL_EXCEPTIONS: Record<string, CommandCodeModelConfig['thinkingLevelMap']> = {
   'Qwen/Qwen3.6-Plus': { max: null },
   'Qwen/Qwen3.7-Max': { max: null },
   'Qwen/Qwen3.7-Plus': { max: null },
@@ -240,7 +243,7 @@ const CLAUDE_MODELS: Record<string, CommandCodeClaudeSpec> = {
 
 interface CommandCodeClaudeSpec {
   maxTokens: number
-  thinkingLevelMap?: ProviderModelConfig['thinkingLevelMap']
+  thinkingLevelMap?: CommandCodeModelConfig['thinkingLevelMap']
   forceAdaptiveThinking?: boolean
 }
 
@@ -374,8 +377,8 @@ interface CommandCodeBuildModel {
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number }
   contextWindow: number
   maxTokens: number
-  thinkingLevelMap?: ProviderModelConfig['thinkingLevelMap']
-  compat?: ProviderModelConfig['compat']
+  thinkingLevelMap?: CommandCodeModelConfig['thinkingLevelMap']
+  compat?: CommandCodeModelConfig['compat']
 }
 
 /**
@@ -673,9 +676,11 @@ async function findExcludedModelIds(
  */
 export async function refreshCommandCodeCatalog(
   context: RefreshModelsContext
-): Promise<ProviderModelConfig[]> {
-  const fallback = context.stored?.models.length
-    ? [...context.stored.models]
+): Promise<CommandCodeModelConfig[]> {
+  const stored = context.stored?.models
+  // The store holds pi-ai's catalog union; Command Code only ever persists chat models.
+  const fallback = stored?.length
+    ? stored.filter((model) => isModelType(model, 'chat'))
     : knownCommandCodeModels().map(buildCommandCodeModel)
 
   if (!context.allowNetwork || context.signal.aborted) return fallback

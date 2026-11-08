@@ -5,15 +5,15 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   MessageEndEvent,
-  ProviderConfig,
-  ProviderModelConfig
+  ProviderConfig
 } from '@earendil-works/pi-coding-agent'
 
 import commandcode, {
   asBudgetOverflow,
   buildCommandCodeModel,
   clampCompletionBudget,
-  knownCommandCodeModels
+  knownCommandCodeModels,
+  type CommandCodeModelConfig
 } from './provider-commandcode'
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
@@ -158,7 +158,7 @@ function makeContext(overrides: Partial<RefreshModelsContext> = {}): {
   return { context, persisted }
 }
 
-function seedModels(): ProviderModelConfig[] {
+function seedModels(): CommandCodeModelConfig[] {
   return knownCommandCodeModels().map(buildCommandCodeModel)
 }
 
