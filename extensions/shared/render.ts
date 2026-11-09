@@ -544,10 +544,7 @@ export function renderToolCall(
     text += theme.fg('dim', ` (${String(options.suffix)})`)
   }
 
-  return {
-    render: (width) => wrapTextWithAnsi(text.replace(/\r\n|\r|\n/gu, ' '), Math.max(1, width)),
-    invalidate() {}
-  }
+  return renderSingleLine(text)
 }
 
 export function expandHint(theme: Theme, hints?: KeybindingHints): string {
