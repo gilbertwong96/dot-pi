@@ -290,7 +290,7 @@ describe('buildCommandCodeModel', () => {
       contextWindow: 1_000_000,
       maxTokens: 393_216,
       thinkingLevelMap: {
-        off: null,
+        off: 'off',
         minimal: null,
         low: 'low',
         medium: 'medium',
@@ -318,7 +318,7 @@ describe('buildCommandCodeModel', () => {
       contextWindow: 1_000_000,
       maxTokens: 393_216,
       thinkingLevelMap: {
-        off: null,
+        off: 'off',
         minimal: null,
         low: 'low',
         medium: null,
@@ -442,10 +442,36 @@ describe('reasoning capability metadata', () => {
     'deepseek/deepseek-v4.1-flash',
     'deepseek/deepseek-v4.1-flash-fast',
     'deepseek/deepseek-v4.1-flash-ultrafast'
-  ])('exposes only the levels %s distinguishes', (id) => {
+  ])('exposes off plus the levels %s distinguishes', (id) => {
     const result = seedBuiltModel(id)!
 
-    expect(getSupportedThinkingLevels(result)).toEqual(['low', 'high', 'max'])
+    expect(getSupportedThinkingLevels(result)).toEqual(['off', 'low', 'high', 'max'])
+  })
+
+  test.each([
+    'deepseek/deepseek-v4-flash',
+    'deepseek/deepseek-v4-flash-vision-exp',
+    'deepseek/deepseek-v4-pro'
+  ])('widens %s with an off level without narrowing its efforts', (id) => {
+    const result = seedBuiltModel(id)!
+
+    expect(getSupportedThinkingLevels(result)).toEqual([
+      'off',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max'
+    ])
+  })
+
+  test.each([
+    'deepseek/deepseek-v4-flash-fast',
+    'moonshotai/Kimi-K3',
+    'Qwen/Qwen3.7-Max',
+    'zai-org/GLM-5.3'
+  ])('leaves %s without an off level, which the gateway rejects', (id) => {
+    expect(getSupportedThinkingLevels(seedBuiltModel(id)!)).not.toContain('off')
   })
 
   test.each(['google/gemini-4-carbon', 'gpt-6.1-terra', 'meta/muse-ember'])(
@@ -673,7 +699,7 @@ describe('refreshModels fallback', () => {
       maxTokens: 393_216,
       contextWindow: 999_000
     })
-    expect(getSupportedThinkingLevels(model)).toEqual(['low', 'high', 'max'])
+    expect(getSupportedThinkingLevels(model)).toEqual(['off', 'low', 'high', 'max'])
   })
 })
 

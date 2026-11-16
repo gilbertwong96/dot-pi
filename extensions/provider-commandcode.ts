@@ -52,8 +52,9 @@ const COMMANDCODE_ANTHROPIC_BASE_URL = 'https://api.commandcode.ai/provider'
 
 /**
  * pi thinking level to `reasoning_effort`. The gateway rejects `none` and
- * `minimal`, so `off` and `minimal` have no representable value and stay
- * hidden in the level picker.
+ * `minimal` outright, so neither has a representable value. `off` is only
+ * representable for the models that can turn thinking off, which the gateway
+ * names in its own rejection (see THINKING_LEVEL_EXCEPTIONS).
  */
 const THINKING_LEVELS: CommandCodeModelConfig['thinkingLevelMap'] = {
   off: null,
@@ -151,8 +152,8 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Models that expose fewer levels than the gateway accepts. The gateway validates
- * `reasoning_effort` against its own enum
+ * Models that expose a different level set than the gateway accepts. The gateway
+ * validates `reasoning_effort` against its own enum
  * (`off|low|medium|high|xhigh|max`), so it answers 200 for a level the upstream
  * does not distinguish — probing acceptance alone cannot find these, only
  * comparing generated reasoning does. The Qwen 3.6/3.7 and Kimi K2.7 upstreams
@@ -160,18 +161,27 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
  * error, and Kimi K2.7 Code HighSpeed rejects `medium` with "invalid moonshotai
  * provider options".
  *
- * DeepSeek V4.1 Flash is the accepted-but-ignored case: pi's catalog gives it
- * `low`, `high` and `max` on every provider that serves it, and measurements
- * put `medium` in the `low`/`high` noise band while `xhigh` only inflated the
- * completion.
+ * `off` is the one level the gateway gates per model: it answers 400 "Only
+ * models that can turn thinking off accept it", which is how the DeepSeek ids
+ * below were picked out. `deepseek-v4-flash-fast` is the family's exception — it
+ * rejects `off` — and no non-DeepSeek model accepts it.
+ *
+ * DeepSeek V4.1 Flash accepts `low`, `medium` and `high` but does not separate
+ * them: 8 probes per level on `deepseek-v4.1-flash-ultrafast` gave medians of
+ * 870, 1082 and 867 reasoning tokens over ranges that all overlap 466-1942,
+ * while `xhigh` and `max` sit an order of magnitude higher and keep hitting the
+ * completion cap. `medium` and `xhigh` therefore stay hidden.
  */
 const THINKING_LEVEL_EXCEPTIONS: Record<string, CommandCodeModelConfig['thinkingLevelMap']> = {
   'Qwen/Qwen3.6-Plus': { max: null },
   'Qwen/Qwen3.7-Max': { max: null },
   'Qwen/Qwen3.7-Plus': { max: null },
-  'deepseek/deepseek-v4.1-flash': { medium: null, xhigh: null },
-  'deepseek/deepseek-v4.1-flash-fast': { medium: null, xhigh: null },
-  'deepseek/deepseek-v4.1-flash-ultrafast': { medium: null, xhigh: null },
+  'deepseek/deepseek-v4-flash': { off: 'off' },
+  'deepseek/deepseek-v4-flash-vision-exp': { off: 'off' },
+  'deepseek/deepseek-v4-pro': { off: 'off' },
+  'deepseek/deepseek-v4.1-flash': { off: 'off', medium: null, xhigh: null },
+  'deepseek/deepseek-v4.1-flash-fast': { off: 'off', medium: null, xhigh: null },
+  'deepseek/deepseek-v4.1-flash-ultrafast': { off: 'off', medium: null, xhigh: null },
   'moonshotai/Kimi-K2.7-Code': { max: null },
   'moonshotai/Kimi-K2.7-Code-Highspeed': { medium: null },
   'tencent/hy4-preview': { max: null }
