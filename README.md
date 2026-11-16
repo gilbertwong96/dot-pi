@@ -420,7 +420,7 @@ The catalog script snapshots upstream `/v1/models` into
 `extensions/provider-commandcode-catalog.generated.ts`, the seed the provider reports before a
 refresh. Refresh a live session's persisted catalog with `pi update --models`.
 
-API-backed extension guide: `docs/api-backed-extensions.md`.
+API-backed extension guide: `extensions/shared/README.md` (`API references and maintenance`).
 
 Component READMEs document only component-specific behavior. Keep temporary plans and test-run logs in issues, review summaries, or commit history rather than adding task-specific documentation files.
 
