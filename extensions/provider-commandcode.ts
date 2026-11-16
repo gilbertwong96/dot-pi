@@ -456,6 +456,23 @@ export function buildCommandCodeModel(entry: NormalizedOpenAIModel): CommandCode
 }
 
 /**
+ * A persisted entry carries the identity fields and the context window the
+ * upstream advertised; everything else about it was baked in by the build that
+ * fetched it. Rebuilding through the current tables keeps a session from
+ * serving levels, output limits or image support that an older build recorded —
+ * a catalog persisted before a model was measured stays level-less for the rest
+ * of the refresh cooldown, because that window short-circuits the fetch that
+ * would rebuild it.
+ */
+function rebuildStoredModel(model: CommandCodeModelConfig): CommandCodeModelConfig {
+  return buildCommandCodeModel({
+    id: model.id,
+    name: model.name,
+    context_length: model.contextWindow
+  })
+}
+
+/**
  * The catalog this provider ships, so a registry that enumerates the provider
  * at start-up sees it — `refreshModels` only fills the list once a refresh
  * runs, which leaves a provider with `models: []` (and therefore no resolvable
@@ -695,7 +712,7 @@ export async function refreshCommandCodeCatalog(
   const stored = context.stored?.models
   // The store holds pi-ai's catalog union; Command Code only ever persists chat models.
   const fallback = stored?.length
-    ? stored.filter((model) => isModelType(model, 'chat'))
+    ? stored.filter((model) => isModelType(model, 'chat')).map(rebuildStoredModel)
     : knownCommandCodeModels().map(buildCommandCodeModel)
 
   if (!context.allowNetwork || context.signal.aborted) return fallback

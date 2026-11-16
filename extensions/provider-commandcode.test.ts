@@ -639,7 +639,33 @@ describe('refreshModels fallback', () => {
 
     const models = await refreshModels(context)
 
-    expect(models).toEqual(stored.models)
+    expect(models).toEqual([
+      buildCommandCodeModel({
+        id: 'stored/from-disc',
+        name: 'stored/from-disc',
+        context_length: 999_000
+      })
+    ])
+  })
+
+  test('rebuilds persisted capability metadata instead of trusting what an older build wrote', async () => {
+    stubFetchFailure()
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['deepseek/deepseek-v4.1-flash-ultrafast'], Date.now())
+    const { context } = makeContext({
+      allowNetwork: false,
+      credential: apiKeyCredential(),
+      stored
+    })
+
+    const [model] = await refreshModels(context)
+
+    expect(model).toMatchObject({
+      reasoning: true,
+      maxTokens: 393_216,
+      contextWindow: 999_000,
+      thinkingLevelMap: FULL_THINKING_LEVELS
+    })
   })
 })
 
@@ -707,6 +733,21 @@ describe('refreshModels network', () => {
     const models = await refreshModels(context)
 
     expect(models.map((model) => model.id)).toEqual(['stored/fresh'])
+  })
+
+  test('rebuilds a fresh persisted catalog through the current tables too', async () => {
+    stubFetchFailure()
+    const { refreshModels } = captureProviderConfig()
+    const stored = storedCatalog(['claude-fable-5-2'], Date.now())
+    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+
+    const [model] = await refreshModels(context)
+
+    expect(model).toMatchObject({
+      api: 'anthropic-messages',
+      reasoning: true,
+      thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' }
+    })
   })
 
   test('refetches a stale persisted catalog', async () => {
