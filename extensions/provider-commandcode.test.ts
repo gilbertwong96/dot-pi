@@ -19,6 +19,17 @@ import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
 const originalFetch = globalThis.fetch
 
+/** What every probed reasoning model on the gateway exposes: no `off`, no `minimal`. */
+const FULL_THINKING_LEVELS = {
+  off: null,
+  minimal: null,
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'xhigh',
+  max: 'max'
+} as const
+
 afterEach(() => {
   globalThis.fetch = originalFetch
 })
@@ -414,24 +425,33 @@ describe('reasoning capability metadata', () => {
     expect(result.compat).toEqual({ supportsReasoningEffort: true })
   })
 
-  test('marks the v4.1 flash-fast deepseek variant as supporting thinking levels', () => {
-    const result = buildCommandCodeModel({
-      id: 'deepseek/deepseek-v4.1-flash-fast',
-      name: 'DeepSeek V4.1 Flash Fast',
-      context_length: 393_216
-    })
+  test.each([
+    'deepseek/deepseek-v4.1-flash-fast',
+    'deepseek/deepseek-v4.1-flash-ultrafast',
+    'inclusionai/ling-3.1-flash-1019',
+    'minimax/minimax-m3.1-flash',
+    'moonshotai/Kimi-K3.1-Pro',
+    'thinkingmachines/inkling-2-small:free'
+  ])('marks %s as supporting thinking levels', (id) => {
+    const result = seedBuiltModel(id)!
 
     expect(result.reasoning).toBe(true)
-    expect(result.thinkingLevelMap).toEqual({
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max'
-    })
+    expect(result.thinkingLevelMap).toEqual(FULL_THINKING_LEVELS)
     expect(result.compat).toEqual({ supportsReasoningEffort: true })
+  })
+
+  test.each(['google/gemini-4-carbon', 'gpt-6.1-terra', 'meta/muse-ember'])(
+    'infers reasoning for the unmeasurable %s from its model family',
+    (id) => {
+      expect(seedBuiltModel(id)?.reasoning).toBe(true)
+    }
+  )
+
+  test('leaves out a model that accepts every effort without reasoning', () => {
+    const result = seedBuiltModel('ornith/ornith-1.5-122b')!
+
+    expect(result.reasoning).toBe(false)
+    expect(Object.prototype.hasOwnProperty.call(result, 'thinkingLevelMap')).toBe(false)
   })
 
   test('hides the max level for models whose upstream rejects effort=max', () => {
@@ -503,6 +523,18 @@ describe('Claude routing', () => {
       .filter((id) => seedBuiltModel(id)?.api !== 'anthropic-messages')
 
     expect(unrouted).toEqual([])
+  })
+
+  test('inherits level metadata for the Fable model pi`s catalog predates', () => {
+    const result = seedBuiltModel('claude-fable-5-2')!
+
+    expect(result).toMatchObject({
+      api: 'anthropic-messages',
+      maxTokens: 128_000,
+      reasoning: true,
+      thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+      compat: { forceAdaptiveThinking: true, supportsTemperature: false }
+    })
   })
 
   test('routes a Claude model the baked catalog predates', () => {

@@ -66,9 +66,11 @@ const THINKING_LEVELS: CommandCodeModelConfig['thinkingLevelMap'] = {
 }
 
 /**
- * Models that answered with `reasoning_tokens` in the 2026-09-13 probe. The
- * last thirteen were not callable on the probe's plan, so they are inferred
- * from their model family.
+ * Models that answered with `reasoning_tokens` in the 2026-11-16 probe. The
+ * three this account cannot call — gemini-4-carbon and gpt-6.1-terra are gated by
+ * its plan, muse-ember is refused by region — are inferred from their model
+ * family. `ornith/ornith-1.5-122b` accepts every effort but reports no reasoning
+ * tokens, so it stays out.
  */
 const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
   'MiniMaxAI/MiniMax-M2.5',
@@ -90,12 +92,14 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4.1-flash',
   'deepseek/deepseek-v4.1-flash-fast',
+  'deepseek/deepseek-v4.1-flash-ultrafast',
   'google/gemini-3.1-flash-lite',
   'google/gemini-3.5-flash',
   'google/gemini-3.5-flash-lite',
   'google/gemini-3.6-flash',
   'google/gemini-3.7-flash',
   'google/gemini-3.8-flash',
+  'google/gemini-4-carbon',
   'gpt-5.3-codex',
   'gpt-5.4',
   'gpt-5.4-mini',
@@ -106,19 +110,23 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
   'gpt-6-astra',
   'gpt-6-luna',
   'gpt-6-sol',
+  'gpt-6.1-terra',
   'inclusionai/ling-3.0-flash-sante:free',
+  'inclusionai/ling-3.1-flash-1019',
   'meituan/LongCat-2.0',
+  'meta/muse-ember',
   'meta/muse-spark-1.1',
   'meta/muse-spark-1.2',
   'meta/muse-spark-1.2-contributor',
   'meta/muse-spark-1.3',
   'meta/muse-spark-1.3-contributor',
+  'minimax/minimax-m3.1-flash',
   'moonshotai/Kimi-K2.6',
   'moonshotai/Kimi-K2.7-Code',
   'moonshotai/Kimi-K2.7-Code-Highspeed',
   'moonshotai/Kimi-K3',
+  'moonshotai/Kimi-K3.1-Pro',
   'nvidia/nemotron-3-ultra-550b-a55b',
-  'poolside/laguna-s-2.1-free',
   'sakana/fugu-ultra',
   'stepfun/Step-3.5-Flash',
   'stepfun/Step-3.7-Flash',
@@ -126,12 +134,11 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
   'tencent/hy3-paid',
   'tencent/hy4-preview',
   'thinkingmachines/inkling',
+  'thinkingmachines/inkling-2-small:free',
   'thinkingmachines/inkling-small',
   'xai/grok-4.5',
   'xai/grok-4.6',
   'xai/grok-4.7',
-  'xiaomi/mimo-v2.5',
-  'xiaomi/mimo-v2.5-pro',
   'xiaomi/mimo-v2.6-flash',
   'xiaomi/mimo-v2.6-pro',
   'xiaomi/mimo-v2.6-pro-ultraspeed',
@@ -161,7 +168,9 @@ const THINKING_LEVEL_EXCEPTIONS: Record<string, CommandCodeModelConfig['thinking
 /**
  * Claude is only reachable through the Anthropic Messages shape; calling
  * /chat/completions answers `must be called via /provider/v1/messages`. Level
- * metadata mirrors pi's built-in catalog for the same upstream models.
+ * metadata mirrors pi's built-in catalog for the same upstream models, and the
+ * Fable models are all off this account's plan, so they cannot be re-probed:
+ * claude-fable-5-2, which pi's catalog predates, inherits from claude-fable-5.
  */
 const CLAUDE_MODELS: Record<string, CommandCodeClaudeSpec> = {
   'claude-fable-5': {
@@ -170,6 +179,11 @@ const CLAUDE_MODELS: Record<string, CommandCodeClaudeSpec> = {
     forceAdaptiveThinking: true
   },
   'claude-fable-5-1': {
+    maxTokens: 128_000,
+    thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+    forceAdaptiveThinking: true
+  },
+  'claude-fable-5-2': {
     maxTokens: 128_000,
     thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
     forceAdaptiveThinking: true
@@ -266,9 +280,9 @@ export interface CommandCodeModelSpec {
  * family accepts 393_216 (probed 2026-10), matching what Ollama Cloud ships for the
  * same model.
  *
- * The `-fast` and vision deepseek variants take their output limit from here too,
- * but their cost stays unset: the upstream exposes no pricing and there is nothing
- * measured to fill in.
+ * The `-fast`, `-ultrafast` and vision deepseek variants take their output limit
+ * from here too, but their cost stays unset: the upstream exposes no pricing and
+ * there is nothing measured to fill in.
  */
 export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
   'deepseek/deepseek-v4-pro': {
@@ -289,6 +303,7 @@ export const COMMANDCODE_OVERRIDES: Record<string, CommandCodeModelSpec> = {
     maxTokens: 393_216
   },
   'deepseek/deepseek-v4.1-flash-fast': { maxTokens: 393_216 },
+  'deepseek/deepseek-v4.1-flash-ultrafast': { maxTokens: 393_216 },
   'moonshotai/Kimi-K3': {
     input: ['text', 'image'],
     cost: { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 0 },
