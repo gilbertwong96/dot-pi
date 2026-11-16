@@ -151,15 +151,27 @@ const REASONING_MODEL_IDS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Models whose upstream rejects an individual level. The Qwen 3.6/3.7 and
- * Kimi K2.7 upstreams stop at `xhigh`, `tencent/hy4-preview` rejects `max` with
- * an internal MaaS error, and Kimi K2.7 Code HighSpeed rejects `medium` with
- * "invalid moonshotai provider options".
+ * Models that expose fewer levels than the gateway accepts. The gateway validates
+ * `reasoning_effort` against its own enum
+ * (`off|low|medium|high|xhigh|max`), so it answers 200 for a level the upstream
+ * does not distinguish — probing acceptance alone cannot find these, only
+ * comparing generated reasoning does. The Qwen 3.6/3.7 and Kimi K2.7 upstreams
+ * stop at `xhigh`, `tencent/hy4-preview` rejects `max` with an internal MaaS
+ * error, and Kimi K2.7 Code HighSpeed rejects `medium` with "invalid moonshotai
+ * provider options".
+ *
+ * DeepSeek V4.1 Flash is the accepted-but-ignored case: pi's catalog gives it
+ * `low`, `high` and `max` on every provider that serves it, and measurements
+ * put `medium` in the `low`/`high` noise band while `xhigh` only inflated the
+ * completion.
  */
 const THINKING_LEVEL_EXCEPTIONS: Record<string, CommandCodeModelConfig['thinkingLevelMap']> = {
   'Qwen/Qwen3.6-Plus': { max: null },
   'Qwen/Qwen3.7-Max': { max: null },
   'Qwen/Qwen3.7-Plus': { max: null },
+  'deepseek/deepseek-v4.1-flash': { medium: null, xhigh: null },
+  'deepseek/deepseek-v4.1-flash-fast': { medium: null, xhigh: null },
+  'deepseek/deepseek-v4.1-flash-ultrafast': { medium: null, xhigh: null },
   'moonshotai/Kimi-K2.7-Code': { max: null },
   'moonshotai/Kimi-K2.7-Code-Highspeed': { medium: null },
   'tencent/hy4-preview': { max: null }

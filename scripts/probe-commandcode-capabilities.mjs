@@ -12,6 +12,14 @@
  * The API key falls back to the `commandcode` entry in ~/.pi/agent/auth.json.
  * Rejected values (HTTP 400) cost nothing; accepted probes generate a few
  * tokens each.
+ *
+ * This script can prove a level is *rejected*, never that it *works*. The
+ * gateway validates `reasoning_effort` against its own enum
+ * (`off|low|medium|high|xhigh|max`), so it answers 200 for a level the upstream
+ * silently ignores: DeepSeek V4.1 Flash accepts `medium` and `xhigh` that pi's
+ * catalog does not give it on any provider. Before pinning a level, compare
+ * generated `reasoning_tokens` across levels — a level that lands in another
+ * level's noise band is not a real level.
  */
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'

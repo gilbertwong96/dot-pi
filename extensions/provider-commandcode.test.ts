@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import type { RefreshModelsContext } from '@earendil-works/pi-ai'
+import { getSupportedThinkingLevels, type RefreshModelsContext } from '@earendil-works/pi-ai'
 import type {
   BeforeProviderRequestEvent,
   ExtensionAPI,
@@ -19,7 +19,7 @@ import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
 const originalFetch = globalThis.fetch
 
-/** What every probed reasoning model on the gateway exposes: no `off`, no `minimal`. */
+/** What most probed reasoning models expose on this gateway: no `off`, no `minimal`. */
 const FULL_THINKING_LEVELS = {
   off: null,
   minimal: null,
@@ -321,9 +321,9 @@ describe('buildCommandCodeModel', () => {
         off: null,
         minimal: null,
         low: 'low',
-        medium: 'medium',
+        medium: null,
         high: 'high',
-        xhigh: 'xhigh',
+        xhigh: null,
         max: 'max'
       },
       compat: { supportsReasoningEffort: true }
@@ -426,8 +426,6 @@ describe('reasoning capability metadata', () => {
   })
 
   test.each([
-    'deepseek/deepseek-v4.1-flash-fast',
-    'deepseek/deepseek-v4.1-flash-ultrafast',
     'inclusionai/ling-3.1-flash-1019',
     'minimax/minimax-m3.1-flash',
     'moonshotai/Kimi-K3.1-Pro',
@@ -438,6 +436,16 @@ describe('reasoning capability metadata', () => {
     expect(result.reasoning).toBe(true)
     expect(result.thinkingLevelMap).toEqual(FULL_THINKING_LEVELS)
     expect(result.compat).toEqual({ supportsReasoningEffort: true })
+  })
+
+  test.each([
+    'deepseek/deepseek-v4.1-flash',
+    'deepseek/deepseek-v4.1-flash-fast',
+    'deepseek/deepseek-v4.1-flash-ultrafast'
+  ])('exposes only the levels %s distinguishes', (id) => {
+    const result = seedBuiltModel(id)!
+
+    expect(getSupportedThinkingLevels(result)).toEqual(['low', 'high', 'max'])
   })
 
   test.each(['google/gemini-4-carbon', 'gpt-6.1-terra', 'meta/muse-ember'])(
@@ -663,9 +671,9 @@ describe('refreshModels fallback', () => {
     expect(model).toMatchObject({
       reasoning: true,
       maxTokens: 393_216,
-      contextWindow: 999_000,
-      thinkingLevelMap: FULL_THINKING_LEVELS
+      contextWindow: 999_000
     })
+    expect(getSupportedThinkingLevels(model)).toEqual(['low', 'high', 'max'])
   })
 })
 
