@@ -30,6 +30,8 @@
  */
 
 import {
+  appendAssistantMessageDiagnostic,
+  createAssistantMessageDiagnostic,
   createAssistantMessageEventStream,
   isModelType,
   getCurrentSystemPrompt,
@@ -366,6 +368,12 @@ export const COMMANDCODE_GO_BASE_URL = 'https://api.commandcode.ai'
 const GENERATE_PATH = '/alpha/generate'
 /** The CLI's own default when a caller does not size the completion. */
 const DEFAULT_MAX_TOKENS = 64_000
+/** Chars per token assumed when sizing a prompt; three over-estimates prose on purpose. */
+const PAYLOAD_CHARS_PER_TOKEN = 3
+/** Room left for the tokenizer's own margin over the estimate. */
+const BUDGET_SAFETY_TOKENS = 1_024
+/** A completion shorter than this cannot carry a tool call worth sending. */
+const MIN_COMPLETION_TOKENS = 1_024
 const MID_STREAM_FAILURE = 'Command Code stream interrupted after content started'
 
 function zeroUsage(): Usage {
@@ -517,13 +525,28 @@ export function streamCommandCodeGo(
       provider: model.provider,
       model: model.id,
       usage: zeroUsage(),
-      stopReason: 'stop',
+      stopReason: 'pending',
       timestamp: Date.now()
     }
 
     const fail = (error: unknown) => {
       output.stopReason = options?.signal?.aborted ? 'aborted' : 'error'
-      output.errorMessage = error instanceof Error ? error.message : String(error)
+      const raw = error instanceof Error ? error.message : String(error)
+      // pi retries any error message that reads like a transient transport or
+      // rate-limit failure. Re-sending a stream that already produced content
+      // bills those tokens twice, so once a block exists the message is the
+      // neutral one; the raw text survives on the diagnostics channel.
+      if (output.content.length > 0) {
+        if (raw !== MID_STREAM_FAILURE) {
+          appendAssistantMessageDiagnostic(
+            output,
+            createAssistantMessageDiagnostic('stream-failure', error)
+          )
+        }
+        output.errorMessage = MID_STREAM_FAILURE
+      } else {
+        output.errorMessage = raw
+      }
       stream.push({
         type: 'error',
         reason: output.stopReason === 'aborted' ? 'aborted' : 'error',
@@ -560,6 +583,26 @@ export function streamCommandCodeGo(
         structure: []
       })
 
+      // The gateway spends one `context_length` budget on prompt and completion
+      // together, so the completion is sized to the room this prompt leaves — the
+      // same rule the Provider API provider enforces, and the reason the CLI caps
+      // its own requests at its default instead of the model's advertised maximum.
+      const requestedMaxTokens = Math.min(
+        options?.maxTokens ?? DEFAULT_MAX_TOKENS,
+        model.maxTokens > 0 ? model.maxTokens : DEFAULT_MAX_TOKENS
+      )
+      const promptChars = JSON.stringify({
+        system: body.params.system,
+        messages: body.params.messages,
+        tools: body.params.tools
+      }).length
+      const promptTokens = Math.ceil(promptChars / PAYLOAD_CHARS_PER_TOKEN)
+      const room = Math.max(
+        model.contextWindow - promptTokens - BUDGET_SAFETY_TOKENS,
+        MIN_COMPLETION_TOKENS
+      )
+      body.params.max_tokens = Math.min(requestedMaxTokens, room)
+
       const payload = (await options?.onPayload?.(body, model)) ?? body
       const response = await fetch(`${COMMANDCODE_GO_BASE_URL}${GENERATE_PATH}`, {
         method: 'POST',
@@ -589,9 +632,11 @@ export function streamCommandCodeGo(
             const parsed: unknown = JSON.parse(raw)
             if (parsed && typeof parsed === 'object') {
               block.arguments = parsed as JsonObject
+            } else {
+              block.argumentsError = `Model sent non-object tool arguments: ${raw.slice(0, 200)}`
             }
           } catch {
-            // Keep whatever partial object the deltas produced.
+            block.argumentsError = `Model sent invalid JSON tool arguments: ${raw.slice(0, 200)}`
           }
         }
         endedToolCalls.add(id)
@@ -762,6 +807,7 @@ export function streamCommandCodeGo(
           endToolCall(index, id)
         } else if (type === 'finish') {
           sawFinish = true
+          for (const [id, index] of toolIndexById) endToolCall(index, id)
           closeBlocks()
           output.usage = usageFromFinish(event)
           const raw = String(event.rawFinishReason ?? event.finishReason ?? '').toLowerCase()
@@ -886,6 +932,7 @@ export default function commandcodeGo(pi: ExtensionAPI): void {
     baseUrl: COMMANDCODE_GO_BASE_URL,
     apiKey: '$COMMANDCODE_API_KEY',
     api: 'commandcode-alpha',
+    streamSimple: streamCommandCodeGo,
     models: knownGoModels(),
     refreshModels: refreshCommandCodeGoCatalog
   })

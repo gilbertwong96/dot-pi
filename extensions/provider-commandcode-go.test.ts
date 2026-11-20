@@ -4,7 +4,6 @@ import {
   type Api,
   type Message,
   type Model,
-  type RefreshModelsContext,
   type Tool,
   type TranscriptContext,
   type Usage
@@ -736,6 +735,7 @@ describe('commandcode-go registration', () => {
       knownGoModels().map((model) => model.id)
     )
     expect(config.models?.every((model) => model.api === undefined)).toBe(true)
+    expect(config.streamSimple).toBe(streamCommandCodeGo)
   })
 })
 
@@ -797,5 +797,87 @@ describe('refreshCommandCodeGoCatalog', () => {
 
     expect(await refreshCommandCodeGoCatalog(context)).toEqual(knownGoModels())
     expect(called).toBe(false)
+  })
+})
+
+describe('review fixes', () => {
+  test('a transport failure after content started is never worded as retryable', async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"type":"text-delta","text":"partial"}\n'))
+            setTimeout(() => controller.error(new TypeError('terminated')), 0)
+          }
+        })
+      )) as typeof fetch
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.stopReason).toBe('error')
+    expect(message.errorMessage).toMatch(/interrupted after content started/i)
+    expect(message.errorMessage).not.toMatch(
+      /429|500|502|503|504|rate.?limit|server.?error|terminated/i
+    )
+  })
+
+  test('caps max_tokens at the CLI default and at the room the prompt leaves', async () => {
+    const seen: number[] = []
+    const capture = () =>
+      stubGenerate(['{"type":"finish","finishReason":"end_turn"}'], {
+        onRequest: (init) => {
+          seen.push((JSON.parse(init.body) as GoRequestBody).params.max_tokens)
+        }
+      })
+
+    capture()
+    await streamCommandCodeGo(
+      testModel({ contextWindow: 1_000_000, maxTokens: 393_216 }),
+      transcript('hi'),
+      {
+        apiKey: 'user_test'
+      }
+    ).result()
+
+    capture()
+    await streamCommandCodeGo(
+      testModel({ contextWindow: 1_000_000, maxTokens: 8_192 }),
+      transcript('hi'),
+      {
+        apiKey: 'user_test'
+      }
+    ).result()
+
+    capture()
+    await streamCommandCodeGo(
+      testModel({ contextWindow: 4_000, maxTokens: 4_000 }),
+      normalizeContext({
+        systemPrompt: 'rules',
+        tools: [],
+        messages: [userText('a'.repeat(12_000))]
+      }),
+      { apiKey: 'user_test' }
+    ).result()
+
+    expect(seen).toEqual([64_000, 8_192, 1_024])
+  })
+
+  test('ends a tool call the stream left open and flags unparsable arguments', async () => {
+    stubGenerate([
+      '{"type":"tool-input-start","id":"call_x","toolName":"read"}',
+      '{"type":"tool-input-delta","id":"call_x","delta":"{broken"}',
+      '{"type":"finish","finishReason":"tool_calls"}'
+    ])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    const [call] = message.content
+    expect(call?.type).toBe('toolCall')
+    expect((call as { argumentsError?: string }).argumentsError).toBeTruthy()
+    expect(message.stopReason).toBe('toolUse')
   })
 })

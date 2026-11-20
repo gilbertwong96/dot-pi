@@ -418,8 +418,10 @@ node scripts/generate-commandcode-catalog.mjs && npm run format
 ```
 
 The catalog script snapshots upstream `/v1/models` into
-`extensions/provider-commandcode-catalog.generated.ts`, the seed the provider reports before a
-refresh. Refresh a live session's persisted catalog with `pi update --models`.
+`extensions/provider-commandcode-catalog.generated.ts` and the CLI's `?view=client` view into
+`extensions/provider-commandcode-go-catalog.generated.ts` (Go-plan models only, so it needs a
+Go-plan key), the seeds each provider reports before a refresh. Refresh a live session's
+persisted catalog with `pi update --models`.
 
 API-backed extension guide: `extensions/shared/README.md` (`API references and maintenance`).
 
