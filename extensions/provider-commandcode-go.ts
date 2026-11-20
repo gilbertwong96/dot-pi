@@ -37,7 +37,9 @@ import {
   type AssistantMessage,
   type AssistantMessageEventStream,
   type Message,
+  type JsonObject,
   type Model,
+  type ProviderResponse,
   type SimpleStreamOptions,
   type Tool,
   type TranscriptContext,
@@ -554,12 +556,14 @@ export function streamCommandCodeGo(
         structure: []
       })
 
+      const payload = (await options?.onPayload?.(body, model)) ?? body
       const response = await fetch(`${COMMANDCODE_GO_BASE_URL}${GENERATE_PATH}`, {
         method: 'POST',
         headers: goHeaders(apiKey, options?.sessionId ?? crypto.randomUUID()),
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
         signal: options?.signal
       })
+      await options?.onResponse?.(response as unknown as ProviderResponse, model)
 
       if (!response.ok || !response.body) throw await describeHttpFailure(response)
 
@@ -569,6 +573,36 @@ export function streamCommandCodeGo(
       let thinkingIndex: number | undefined
       let sawFinish = false
       let sawAbort = false
+      const toolIndexById = new Map<string, number>()
+      const toolJsonById = new Map<string, string>()
+      const endedToolCalls = new Set<string>()
+      const endToolCall = (index: number, id: string) => {
+        const block = output.content[index]
+        if (block?.type !== 'toolCall' || endedToolCalls.has(id)) return
+        const raw = toolJsonById.get(id)
+        if (raw) {
+          try {
+            const parsed: unknown = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object') {
+              block.arguments = parsed as JsonObject
+            }
+          } catch {
+            // Keep whatever partial object the deltas produced.
+          }
+        }
+        endedToolCalls.add(id)
+        stream.push({
+          type: 'toolcall_end',
+          contentIndex: index,
+          toolCall: {
+            type: 'toolCall',
+            id: block.id,
+            name: block.name,
+            arguments: block.arguments
+          },
+          partial: output
+        })
+      }
 
       const closeBlocks = () => {
         if (thinkingIndex !== undefined) {
@@ -598,6 +632,7 @@ export function streamCommandCodeGo(
       }
 
       for await (const event of readNdjson(response.body)) {
+        await options?.onProviderStreamEvent?.(event, model)
         const type = typeof event.type === 'string' ? event.type : ''
         if (type === 'text-delta') {
           if (textIndex === undefined) {
@@ -664,6 +699,63 @@ export function streamCommandCodeGo(
             }
             thinkingIndex = undefined
           }
+        } else if (type === 'tool-input-start') {
+          const id = String(event.id ?? event.toolCallId ?? '')
+          if (!id || toolIndexById.has(id)) continue
+          output.content.push({
+            type: 'toolCall',
+            id,
+            name: String(event.toolName ?? event.name ?? ''),
+            arguments: {}
+          })
+          const index = output.content.length - 1
+          toolIndexById.set(id, index)
+          toolJsonById.set(id, '')
+          stream.push({ type: 'toolcall_start', contentIndex: index, partial: output })
+        } else if (type === 'tool-input-delta') {
+          const id = String(event.id ?? event.toolCallId ?? '')
+          const index = toolIndexById.get(id)
+          if (index === undefined) continue
+          const block = output.content[index]
+          if (block?.type !== 'toolCall') continue
+          const delta = typeof event.delta === 'string' ? event.delta : ''
+          const accumulated = `${toolJsonById.get(id) ?? ''}${delta}`
+          toolJsonById.set(id, accumulated)
+          try {
+            const parsed: unknown = JSON.parse(accumulated)
+            if (parsed && typeof parsed === 'object') {
+              block.arguments = parsed as JsonObject
+            }
+          } catch {
+            // JSON still streaming.
+          }
+          stream.push({ type: 'toolcall_delta', contentIndex: index, delta, partial: output })
+        } else if (type === 'tool-input-end') {
+          const id = String(event.id ?? event.toolCallId ?? '')
+          const index = toolIndexById.get(id)
+          if (index !== undefined) endToolCall(index, id)
+        } else if (type === 'tool-call') {
+          const id = String(event.toolCallId ?? event.id ?? '')
+          if (!id) continue
+          const complete = event.input ?? event.args
+          let index = toolIndexById.get(id)
+          if (index === undefined) {
+            output.content.push({
+              type: 'toolCall',
+              id,
+              name: String(event.toolName ?? event.name ?? ''),
+              arguments: {}
+            })
+            index = output.content.length - 1
+            toolIndexById.set(id, index)
+            stream.push({ type: 'toolcall_start', contentIndex: index, partial: output })
+          }
+          const block = output.content[index]
+          if (block?.type !== 'toolCall') continue
+          if (complete && typeof complete === 'object') {
+            block.arguments = complete as JsonObject
+          }
+          endToolCall(index, id)
         } else if (type === 'finish') {
           sawFinish = true
           closeBlocks()

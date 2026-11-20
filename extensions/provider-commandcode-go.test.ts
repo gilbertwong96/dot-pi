@@ -532,3 +532,166 @@ describe('streamCommandCodeGo text and usage', () => {
     expect(message.errorMessage).not.toMatch(/429|500|502|503|504|rate.?limit|server.?error/i)
   })
 })
+
+describe('streamCommandCodeGo tool calls and plumbing', () => {
+  test('emits one toolcall block per call from both the tool-call and the tool-input-* shapes', async () => {
+    stubGenerate([
+      '{"type":"tool-input-start","id":"call_a","toolName":"read"}',
+      '{"type":"tool-input-delta","id":"call_a","delta":"{\\"path\\":"}',
+      '{"type":"tool-input-delta","id":"call_a","delta":"\\"a.ts\\"}"}',
+      '{"type":"tool-input-end","id":"call_a"}',
+      '{"type":"tool-call","toolCallId":"call_b","toolName":"bash","input":{"command":"ls"}}',
+      '{"type":"finish","finishReason":"tool_calls"}'
+    ])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('go'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.content).toEqual([
+      { type: 'toolCall', id: 'call_a', name: 'read', arguments: { path: 'a.ts' } },
+      { type: 'toolCall', id: 'call_b', name: 'bash', arguments: { command: 'ls' } }
+    ])
+    expect(message.stopReason).toBe('toolUse')
+  })
+
+  test('routes the system prompt and the tool declarations found in the transcript', async () => {
+    let body: GoRequestBody | undefined
+    stubGenerate(['{"type":"finish","finishReason":"end_turn"}'], {
+      onRequest: (init) => {
+        body = JSON.parse(init.body) as GoRequestBody
+      }
+    })
+
+    await streamCommandCodeGo(testModel(), transcript('rules\nmore', [readTool()]), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(body?.params.system).toEqual([
+      { type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: 'more' }
+    ])
+    expect(body?.params.tools).toEqual([
+      { name: 'read', description: 'read a file', input_schema: { type: 'object' } }
+    ])
+  })
+
+  test('sends the CLI headers and honours onPayload, onResponse and onProviderStreamEvent', async () => {
+    let headers: Record<string, string> | undefined
+    let body: unknown
+    let responseSeen = false
+    const streamEvents: unknown[] = []
+    stubGenerate(
+      ['{"type":"text-delta","text":"x"}', '{"type":"finish","finishReason":"end_turn"}'],
+      {
+        onRequest: (init) => {
+          headers = init.headers
+          body = JSON.parse(init.body)
+        }
+      }
+    )
+
+    await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test',
+      sessionId: '9d1b8f2e-5f1a-4f1e-9f2a-2f1f4b1f0a11',
+      onPayload: () => ({ replaced: true }),
+      onResponse: () => {
+        responseSeen = true
+      },
+      onProviderStreamEvent: (event) => {
+        streamEvents.push(event)
+      }
+    }).result()
+
+    expect(headers).toMatchObject({
+      authorization: 'Bearer user_test',
+      'x-command-code-version': '1.91.1',
+      'x-cli-environment': 'production',
+      'x-cli-surface': 'cli',
+      accept: 'application/x-ndjson',
+      'x-session-id': '9d1b8f2e-5f1a-4f1e-9f2a-2f1f4b1f0a11'
+    })
+    expect(body).toEqual({ replaced: true })
+    expect(responseSeen).toBe(true)
+    expect(streamEvents).toHaveLength(2)
+  })
+
+  test('maps the requested thinking level through thinkingLevelMap and skips unmapped levels', async () => {
+    const seen: (string | undefined)[] = []
+    const model = testModel({
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: null,
+        medium: null,
+        high: 'high',
+        xhigh: null,
+        max: 'max'
+      }
+    })
+    const capture = () =>
+      stubGenerate(['{"type":"finish","finishReason":"end_turn"}'], {
+        onRequest: (init) => {
+          seen.push((JSON.parse(init.body) as GoRequestBody).params.reasoning_effort)
+        }
+      })
+
+    capture()
+    await streamCommandCodeGo(model, transcript('hi'), { apiKey: 'k', reasoning: 'high' }).result()
+    capture()
+    await streamCommandCodeGo(model, transcript('hi'), { apiKey: 'k', reasoning: 'off' }).result()
+    capture()
+    await streamCommandCodeGo(model, transcript('hi'), {
+      apiKey: 'k',
+      reasoning: 'medium'
+    }).result()
+
+    expect(seen).toEqual(['high', undefined, undefined])
+  })
+
+  test('a 403 that names the CLI version says so', async () => {
+    stubStatus(403, {
+      error: {
+        code: 'upgrade_required',
+        message: 'Your Command Code CLI is out of date. Run `cmd update`. minVersion 0.18.10'
+      }
+    })
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.stopReason).toBe('error')
+    expect(message.errorMessage).toContain('client version rejected')
+    expect(message.errorMessage).toContain('COMMANDCODE_GO_VERSION')
+  })
+
+  test('a wire abort event stops the stream as aborted', async () => {
+    stubGenerate(['{"type":"text-delta","text":"half"}', '{"type":"abort"}'])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.stopReason).toBe('aborted')
+    expect(message.content).toEqual([{ type: 'text', text: 'half' }])
+  })
+
+  test('an already-aborted signal never reaches the network', async () => {
+    let called = false
+    globalThis.fetch = (async () => {
+      called = true
+      return new Response('')
+    }) as typeof fetch
+    const controller = new AbortController()
+    controller.abort()
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test',
+      signal: controller.signal
+    }).result()
+
+    expect(called).toBe(false)
+    expect(message.stopReason).toBe('aborted')
+  })
+})
