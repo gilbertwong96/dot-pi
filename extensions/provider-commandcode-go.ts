@@ -29,7 +29,20 @@
  * do not map onto per-token prices, so every model reports a zero cost.
  */
 
-import type { Message, Tool } from '@earendil-works/pi-ai'
+import {
+  createAssistantMessageEventStream,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  type Api,
+  type AssistantMessage,
+  type AssistantMessageEventStream,
+  type Message,
+  type Model,
+  type SimpleStreamOptions,
+  type Tool,
+  type TranscriptContext,
+  type Usage
+} from '@earendil-works/pi-ai'
 
 import {
   buildCommandCodeModel,
@@ -337,4 +350,371 @@ export function buildGoRequest(input: GoRequestInput): GoRequestBody {
       ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {})
     }
   }
+}
+
+// ---- Streaming -----------------------------------------------------------
+
+/** The CLI release this transport was written against; the gateway gates on it. */
+export const COMMANDCODE_GO_VERSION = '1.91.1'
+export const COMMANDCODE_GO_BASE_URL = 'https://api.commandcode.ai'
+const GENERATE_PATH = '/alpha/generate'
+/** The CLI's own default when a caller does not size the completion. */
+const DEFAULT_MAX_TOKENS = 64_000
+const MID_STREAM_FAILURE = 'Command Code stream interrupted after content started'
+
+function zeroUsage(): Usage {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+  }
+}
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/**
+ * The gateway reports usage the way the Vercel AI SDK does: `inputTokens` is the
+ * whole prompt, cached prefix included. pi charges `input` and `cacheRead`
+ * separately, so the cached part is subtracted here instead of being billed
+ * twice.
+ */
+function usageFromFinish(event: Record<string, unknown>): Usage {
+  const total = (event.totalUsage ?? {}) as Record<string, unknown>
+  const details = (total.inputTokenDetails ?? {}) as Record<string, unknown>
+  const cacheRead = count(details.cacheReadTokens)
+  const cacheWrite = count(details.cacheWriteTokens)
+  const input = Math.max(0, count(total.inputTokens) - cacheRead)
+  const output = count(total.outputTokens)
+  const usage = zeroUsage()
+  usage.input = input
+  usage.output = output
+  usage.cacheRead = cacheRead
+  usage.cacheWrite = cacheWrite
+  usage.totalTokens = input + output + cacheRead + cacheWrite
+  return usage
+}
+
+/**
+ * NDJSON, not SSE. A line the gateway does not expect us to understand must not
+ * fail the turn, so unparsable lines are skipped the way the CLI skips them.
+ */
+export async function* readNdjson(
+  body: ReadableStream<Uint8Array>
+): AsyncGenerator<Record<string, unknown>> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const parse = (line: string): Record<string, unknown> | undefined => {
+    const trimmed = line.trim()
+    if (!trimmed) return undefined
+    try {
+      const parsed: unknown = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : undefined
+    } catch {
+      return undefined
+    }
+  }
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let newline = buffer.indexOf('\n')
+    while (newline >= 0) {
+      const event = parse(buffer.slice(0, newline))
+      buffer = buffer.slice(newline + 1)
+      if (event) yield event
+      newline = buffer.indexOf('\n')
+    }
+  }
+  buffer += decoder.decode()
+  const last = parse(buffer)
+  if (last) yield last
+}
+
+function goHeaders(apiKey: string, sessionId: string): Record<string, string> {
+  return {
+    authorization: `Bearer ${apiKey}`,
+    'content-type': 'application/json',
+    accept: 'application/x-ndjson',
+    'user-agent': 'cli',
+    'x-cli-environment': 'production',
+    'x-cli-surface': 'cli',
+    'x-command-code-version': COMMANDCODE_GO_VERSION,
+    'x-session-id': sessionId,
+    ...(process.env.CMD_ZDR === '1' ? { 'x-cmd-zdr': '1' } : {})
+  }
+}
+
+function reasoningEffort(
+  model: Model<Api>,
+  options: SimpleStreamOptions | undefined
+): string | undefined {
+  const level = options?.reasoning
+  if (!level) return undefined
+  const mapped = model.thinkingLevelMap?.[level]
+  return typeof mapped === 'string' && mapped ? mapped : undefined
+}
+
+function stopReasonFromFinish(event: Record<string, unknown>, sawToolCall: boolean): string {
+  const raw = String(event.rawFinishReason ?? event.finishReason ?? '').toLowerCase()
+  if (raw === 'tool_calls' || raw === 'tool-calls' || raw === 'tool_use') return 'toolUse'
+  if (raw === 'length' || raw === 'max_tokens') return 'length'
+  if (sawToolCall) return 'toolUse'
+  return 'stop'
+}
+
+/** What pi shows when the gateway refuses the request before generating a token. */
+async function describeHttpFailure(response: Response): Promise<Error> {
+  let raw = ''
+  try {
+    raw = await response.text()
+  } catch {
+    // The status alone has to carry the message.
+  }
+  let detail = raw
+  try {
+    const parsed = JSON.parse(raw) as {
+      error?: { code?: string; message?: string }
+      message?: string
+    }
+    const code = parsed.error?.code
+    const message = parsed.error?.message ?? parsed.message
+    if (code === 'upgrade_required' && message && /cli|version/i.test(message)) {
+      return new Error(
+        `Command Code client version rejected (${COMMANDCODE_GO_VERSION}); bump COMMANDCODE_GO_VERSION: ${message}`
+      )
+    }
+    if (message) detail = message
+  } catch {
+    // Keep the raw body.
+  }
+  return new Error(`Command Code ${response.status}: ${detail || response.statusText}`)
+}
+
+export function streamCommandCodeGo(
+  model: Model<Api>,
+  context: TranscriptContext,
+  options?: SimpleStreamOptions
+): AssistantMessageEventStream {
+  const stream = createAssistantMessageEventStream()
+
+  void (async () => {
+    const output: AssistantMessage = {
+      role: 'assistant',
+      content: [],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: zeroUsage(),
+      stopReason: 'stop',
+      timestamp: Date.now()
+    }
+
+    const fail = (error: unknown) => {
+      output.stopReason = options?.signal?.aborted ? 'aborted' : 'error'
+      output.errorMessage = error instanceof Error ? error.message : String(error)
+      stream.push({
+        type: 'error',
+        reason: output.stopReason === 'aborted' ? 'aborted' : 'error',
+        error: output
+      })
+      stream.end()
+    }
+
+    if (options?.signal?.aborted) {
+      fail(new Error('Command Code request aborted before it started'))
+      return
+    }
+
+    try {
+      const apiKey = options?.apiKey
+      if (!apiKey) {
+        throw new Error(
+          'No Command Code API key. Run /login for commandcode-go or set COMMANDCODE_API_KEY=user_...'
+        )
+      }
+
+      const body = buildGoRequest({
+        model: model.id,
+        system: getCurrentSystemPrompt(context.messages),
+        messages: context.messages,
+        tools: getCurrentTools(context.messages),
+        maxTokens: options?.maxTokens ?? model.maxTokens ?? DEFAULT_MAX_TOKENS,
+        ...(options?.temperature === undefined ? {} : { temperature: options.temperature }),
+        reasoningEffort: reasoningEffort(model, options),
+        threadId: options?.sessionId,
+        workingDir: process.cwd(),
+        date: new Date().toISOString().slice(0, 10),
+        platform: process.platform,
+        structure: []
+      })
+
+      const response = await fetch(`${COMMANDCODE_GO_BASE_URL}${GENERATE_PATH}`, {
+        method: 'POST',
+        headers: goHeaders(apiKey, options?.sessionId ?? crypto.randomUUID()),
+        body: JSON.stringify(body),
+        signal: options?.signal
+      })
+
+      if (!response.ok || !response.body) throw await describeHttpFailure(response)
+
+      stream.push({ type: 'start', partial: output })
+
+      let textIndex: number | undefined
+      let thinkingIndex: number | undefined
+      let sawFinish = false
+      let sawAbort = false
+
+      const closeBlocks = () => {
+        if (thinkingIndex !== undefined) {
+          const block = output.content[thinkingIndex]
+          if (block?.type === 'thinking') {
+            stream.push({
+              type: 'thinking_end',
+              contentIndex: thinkingIndex,
+              content: block.thinking,
+              partial: output
+            })
+          }
+          thinkingIndex = undefined
+        }
+        if (textIndex !== undefined) {
+          const block = output.content[textIndex]
+          if (block?.type === 'text') {
+            stream.push({
+              type: 'text_end',
+              contentIndex: textIndex,
+              content: block.text,
+              partial: output
+            })
+          }
+          textIndex = undefined
+        }
+      }
+
+      for await (const event of readNdjson(response.body)) {
+        const type = typeof event.type === 'string' ? event.type : ''
+        if (type === 'text-delta') {
+          if (textIndex === undefined) {
+            output.content.push({ type: 'text', text: '' })
+            textIndex = output.content.length - 1
+            stream.push({ type: 'text_start', contentIndex: textIndex, partial: output })
+          }
+          const block = output.content[textIndex]
+          if (block?.type !== 'text') continue
+          const delta = typeof event.text === 'string' ? event.text : ''
+          block.text += delta
+          stream.push({ type: 'text_delta', contentIndex: textIndex, delta, partial: output })
+        } else if (type === 'text-start') {
+          if (textIndex === undefined) {
+            output.content.push({ type: 'text', text: '' })
+            textIndex = output.content.length - 1
+            stream.push({ type: 'text_start', contentIndex: textIndex, partial: output })
+          }
+        } else if (type === 'text-end') {
+          if (textIndex !== undefined) {
+            const block = output.content[textIndex]
+            if (block?.type === 'text') {
+              stream.push({
+                type: 'text_end',
+                contentIndex: textIndex,
+                content: block.text,
+                partial: output
+              })
+            }
+            textIndex = undefined
+          }
+        } else if (type === 'reasoning-delta') {
+          if (thinkingIndex === undefined) {
+            output.content.push({ type: 'thinking', thinking: '' })
+            thinkingIndex = output.content.length - 1
+            stream.push({ type: 'thinking_start', contentIndex: thinkingIndex, partial: output })
+          }
+          const block = output.content[thinkingIndex]
+          if (block?.type !== 'thinking') continue
+          const delta = typeof event.text === 'string' ? event.text : ''
+          block.thinking += delta
+          stream.push({
+            type: 'thinking_delta',
+            contentIndex: thinkingIndex,
+            delta,
+            partial: output
+          })
+        } else if (type === 'reasoning-start') {
+          if (thinkingIndex === undefined) {
+            output.content.push({ type: 'thinking', thinking: '' })
+            thinkingIndex = output.content.length - 1
+            stream.push({ type: 'thinking_start', contentIndex: thinkingIndex, partial: output })
+          }
+        } else if (type === 'reasoning-end') {
+          if (thinkingIndex !== undefined) {
+            const block = output.content[thinkingIndex]
+            if (block?.type === 'thinking') {
+              stream.push({
+                type: 'thinking_end',
+                contentIndex: thinkingIndex,
+                content: block.thinking,
+                partial: output
+              })
+            }
+            thinkingIndex = undefined
+          }
+        } else if (type === 'finish') {
+          sawFinish = true
+          closeBlocks()
+          output.usage = usageFromFinish(event)
+          const raw = String(event.rawFinishReason ?? event.finishReason ?? '').toLowerCase()
+          if (raw === 'refusal') {
+            output.stopReason = 'error'
+            output.errorMessage = 'Command Code refused the request (refusal)'
+          } else {
+            const sawToolCall = output.content.some((block) => block.type === 'toolCall')
+            output.stopReason = stopReasonFromFinish(
+              event,
+              sawToolCall
+            ) as AssistantMessage['stopReason']
+          }
+        } else if (type === 'abort') {
+          sawAbort = true
+          closeBlocks()
+          output.stopReason = 'aborted'
+        } else if (type === 'error') {
+          const detail =
+            typeof event.error === 'string'
+              ? event.error
+              : JSON.stringify(event.error ?? event.message ?? 'Command Code stream error')
+          throw new Error(output.content.length > 0 ? MID_STREAM_FAILURE : detail)
+        }
+      }
+
+      if (!sawFinish && !sawAbort) throw new Error(MID_STREAM_FAILURE)
+
+      if (output.stopReason === 'aborted') {
+        stream.push({ type: 'error', reason: 'aborted', error: output })
+        stream.end()
+        return
+      }
+      if (output.stopReason === 'error') {
+        stream.push({ type: 'error', reason: 'error', error: output })
+        stream.end()
+        return
+      }
+
+      stream.push({
+        type: 'done',
+        reason: output.stopReason as 'stop' | 'length' | 'toolUse',
+        message: output
+      })
+      stream.end()
+    } catch (error) {
+      fail(error)
+    }
+  })()
+
+  return stream
 }

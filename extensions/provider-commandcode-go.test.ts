@@ -1,11 +1,27 @@
-import { describe, expect, test } from 'vitest'
-import type { Message, Tool, Usage } from '@earendil-works/pi-ai'
+import { afterEach, describe, expect, test } from 'vitest'
+
+const originalFetch = globalThis.fetch
+
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
+import {
+  normalizeContext,
+  type Api,
+  type Message,
+  type Model,
+  type Tool,
+  type TranscriptContext,
+  type Usage
+} from '@earendil-works/pi-ai'
 
 import {
   buildGoRequest,
   goThinkingLevelMap,
   knownGoModels,
   parseGoCatalog,
+  readNdjson,
+  streamCommandCodeGo,
   toWireMessages,
   toWireSystem,
   toWireTools,
@@ -340,5 +356,179 @@ describe('wire conversion', () => {
 
   test('omits a threadId that is not a UUID', () => {
     expect(buildGoRequest(baseInput({ threadId: 'not-a-uuid' })).threadId).toBeUndefined()
+  })
+})
+
+// ---- stream fixtures ------------------------------------------------------
+
+function streamFrom(text: string, chunkSize = Number.MAX_SAFE_INTEGER): ReadableStream<Uint8Array> {
+  const bytes = new TextEncoder().encode(text)
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        controller.enqueue(bytes.slice(index, index + chunkSize))
+      }
+      controller.close()
+    }
+  })
+}
+
+function ndjson(lines: string[]): string {
+  return `${lines.join('\n')}\n`
+}
+
+function testModel(over: Partial<Model<Api>> = {}): Model<Api> {
+  return {
+    id: 'deepseek/deepseek-v4.1-flash',
+    name: 'DeepSeek V4.1 Flash',
+    api: 'commandcode-alpha',
+    provider: 'commandcode-go',
+    baseUrl: 'https://api.commandcode.ai',
+    input: ['text'],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 1_000_000,
+    maxTokens: 393_216,
+    reasoning: true,
+    ...over
+  } as Model<Api>
+}
+
+function transcript(prompt: string, tools: Tool[] = []): TranscriptContext {
+  return normalizeContext({ systemPrompt: prompt, tools, messages: [userText('hi')] })
+}
+
+interface StubOptions {
+  onRequest?: (init: { headers: Record<string, string>; body: string }) => void
+}
+
+function stubGenerate(lines: string[], options: StubOptions = {}): void {
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    options.onRequest?.({
+      headers: init?.headers as Record<string, string>,
+      body: String(init?.body ?? '{}')
+    })
+    return new Response(ndjson(lines), {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' }
+    })
+  }) as typeof fetch
+}
+
+function stubStatus(status: number, body: unknown): void {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' }
+    })) as typeof fetch
+}
+
+describe('readNdjson', () => {
+  test('skips junk and blank lines and flushes a final line without a newline', async () => {
+    const events: unknown[] = []
+    for await (const event of readNdjson(streamFrom('{"a":1}\r\nnot json\n\n{"a":2}'))) {
+      events.push(event)
+    }
+    expect(events).toEqual([{ a: 1 }, { a: 2 }])
+  })
+
+  test('reassembles a JSON line split across chunks and keeps multibyte text intact', async () => {
+    const events: unknown[] = []
+    const text = ndjson(['{"type":"text-delta","text":"你好，世界"}'])
+    for await (const event of readNdjson(streamFrom(text, 3))) events.push(event)
+    expect(events).toEqual([{ type: 'text-delta', text: '你好，世界' }])
+  })
+})
+
+describe('streamCommandCodeGo text and usage', () => {
+  test('streams reasoning and text without requiring start events', async () => {
+    stubGenerate([
+      '{"type":"reasoning-delta","text":"thinking"}',
+      '{"type":"text-delta","text":"hel"}',
+      '{"type":"text-delta","text":"lo"}',
+      '{"type":"finish","finishReason":"end_turn","totalUsage":{"inputTokens":120,"outputTokens":7,"inputTokenDetails":{"cacheReadTokens":100,"cacheWriteTokens":5}}}'
+    ])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.content).toEqual([
+      { type: 'thinking', thinking: 'thinking' },
+      { type: 'text', text: 'hello' }
+    ])
+    expect(message.usage).toMatchObject({
+      input: 20,
+      output: 7,
+      cacheRead: 100,
+      cacheWrite: 5,
+      totalTokens: 132
+    })
+    expect(message.usage.cost).toEqual({
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0
+    })
+    expect(message.stopReason).toBe('stop')
+  })
+
+  test('ignores unknown events and tolerates explicit start/end events', async () => {
+    stubGenerate([
+      '{"type":"start"}',
+      '{"type":"start-step"}',
+      '{"type":"text-start","id":"txt-0"}',
+      '{"type":"text-delta","id":"txt-0","text":"ok"}',
+      '{"type":"text-end","id":"txt-0"}',
+      '{"type":"provider-metadata","x":1}',
+      '{"type":"finish","finishReason":"end_turn"}'
+    ])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.content).toEqual([{ type: 'text', text: 'ok' }])
+    expect(message.usage).toMatchObject({ input: 0, output: 0, totalTokens: 0 })
+  })
+
+  test('maps the gateway finish reasons onto pi stop reasons', async () => {
+    const stop = async (finishReason: string) => {
+      stubGenerate([`{"type":"finish","finishReason":"${finishReason}"}`])
+      return (
+        await streamCommandCodeGo(testModel(), transcript('hi'), { apiKey: 'user_test' }).result()
+      ).stopReason
+    }
+
+    expect(await stop('end_turn')).toBe('stop')
+    expect(await stop('max_tokens')).toBe('length')
+    expect(await stop('length')).toBe('length')
+    expect(await stop('tool_calls')).toBe('toolUse')
+  })
+
+  test('surfaces a refusal as an error instead of a silent stop', async () => {
+    stubGenerate([
+      '{"type":"text-delta","text":"I cannot"}',
+      '{"type":"finish","finishReason":"refusal"}'
+    ])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.stopReason).toBe('error')
+    expect(message.errorMessage).toMatch(/refus/i)
+  })
+
+  test('fails a stream that ends before finish, with wording pi will not retry', async () => {
+    stubGenerate(['{"type":"text-delta","text":"partial"}'])
+
+    const message = await streamCommandCodeGo(testModel(), transcript('hi'), {
+      apiKey: 'user_test'
+    }).result()
+
+    expect(message.stopReason).toBe('error')
+    expect(message.errorMessage).toMatch(/stream interrupted after content started/i)
+    expect(message.errorMessage).not.toMatch(/429|500|502|503|504|rate.?limit|server.?error/i)
   })
 })
