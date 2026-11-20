@@ -8,13 +8,12 @@ import type {
   ProviderConfig
 } from '@earendil-works/pi-coding-agent'
 
-import commandcode, {
-  asBudgetOverflow,
+import commandcode, { asBudgetOverflow, clampCompletionBudget } from './provider-commandcode'
+import {
   buildCommandCodeModel,
-  clampCompletionBudget,
   knownCommandCodeModels,
   type CommandCodeModelConfig
-} from './provider-commandcode'
+} from './shared/commandcode-models'
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
 
 const originalFetch = globalThis.fetch
