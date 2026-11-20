@@ -316,19 +316,20 @@ Enable them by replacing the package entry in `~/.pi/agent/settings.json` with a
 pi -e /path/to/dot-pi/extensions/coach.ts
 ```
 
-| Extension                 | Why optional                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `bash-completion/`        | Advanced terminal completion; can be noisy while editing prompts                  |
-| `coach.ts`                | Recommended for newcomers copying this setup; explains habits and first workflows |
-| `critic/`                 | Experimental shadow-review loop                                                   |
-| `decision-guidance.ts`    | Experimental trajectory guidance                                                  |
-| `ghost-tutor.ts`          | Quiet model-generated workflow nudge after the agent stops                        |
-| `plan-mode/`              | Experimental read-only planning mode                                              |
-| `provider-commandcode.ts` | Command Code provider (`COMMANDCODE_API_KEY`); baked catalog and probed reasoning |
-| `provider/`               | Experimental dynamic provider registration                                        |
-| `rules.ts`                | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                  |
-| `tutor.ts`                | In-place Dan-style workflow hints for the current session                         |
-| `voice-input/`            | Requires ElevenLabs key and audio setup                                           |
+| Extension                    | Why optional                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `bash-completion/`           | Advanced terminal completion; can be noisy while editing prompts                                                    |
+| `coach.ts`                   | Recommended for newcomers copying this setup; explains habits and first workflows                                   |
+| `critic/`                    | Experimental shadow-review loop                                                                                     |
+| `decision-guidance.ts`       | Experimental trajectory guidance                                                                                    |
+| `ghost-tutor.ts`             | Quiet model-generated workflow nudge after the agent stops                                                          |
+| `plan-mode/`                 | Experimental read-only planning mode                                                                                |
+| `provider-commandcode-go.ts` | Command Code Go-plan provider over the CLI's `/alpha/generate` transport; undocumented endpoint, pinned CLI version |
+| `provider-commandcode.ts`    | Command Code provider (`COMMANDCODE_API_KEY`); baked catalog and probed reasoning                                   |
+| `provider/`                  | Experimental dynamic provider registration                                                                          |
+| `rules.ts`                   | Personal rule loader for symlinked files in `~/.pi/agent/rules/`                                                    |
+| `tutor.ts`                   | In-place Dan-style workflow hints for the current session                                                           |
+| `voice-input/`               | Requires ElevenLabs key and audio setup                                                                             |
 
 `voice-input/` uses `ELEVENLABS_API_KEY` and `rec` from sox. Optional environment variables: `ELEVENLABS_LANGUAGE`, `ELEVENLABS_KEYTERMS` (comma/newline-separated), `ELEVENLABS_COMMIT_STRATEGY` (`manual` or `vad`), `ELEVENLABS_VAD_SILENCE_THRESHOLD_SECS`, `ELEVENLABS_VAD_THRESHOLD`, `ELEVENLABS_MIN_SPEECH_DURATION_MS`, and `ELEVENLABS_MIN_SILENCE_DURATION_MS`.
 
@@ -379,18 +380,18 @@ mkdir -p ~/.pi/agent/rules
 ln -s /path/to/dot-pi/rules/typescript.md ~/.pi/agent/rules/
 ```
 
-| Rule                        | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `backward-compatibility.md` | Avoid unnecessary compatibility shims          |
-| `comments.md`               | Avoid redundant comments                       |
-| `commit-messages.md`        | Follow existing repo commit style              |
-| `delete-files.md`           | Use `rm -f` to delete files                    |
-| `git-hosting.md`            | Use `gh`/`glab` CLI instead of fetching URLs   |
+| Rule                        | Description                                     |
+| --------------------------- | ----------------------------------------------- |
+| `backward-compatibility.md` | Avoid unnecessary compatibility shims           |
+| `comments.md`               | Avoid redundant comments                        |
+| `commit-messages.md`        | Follow existing repo commit style               |
+| `delete-files.md`           | Use `rm -f` to delete files                     |
+| `git-hosting.md`            | Use `gh`/`glab` CLI instead of fetching URLs    |
 | `git-identity.md`           | Never override or invent git committer identity |
-| `pull-requests.md`          | Short PR drafting and review safety defaults   |
-| `ripgrep.md`                | Prefer `rg` over `grep`                        |
-| `skills-cli.md`             | Run skill commands from skill directory        |
-| `typescript.md`             | TypeScript naming, type safety, imports, async |
+| `pull-requests.md`          | Short PR drafting and review safety defaults    |
+| `ripgrep.md`                | Prefer `rg` over `grep`                         |
+| `skills-cli.md`             | Run skill commands from skill directory         |
+| `typescript.md`             | TypeScript naming, type safety, imports, async  |
 
 ## Development
 

@@ -1,32 +1,38 @@
 import { afterEach, describe, expect, test } from 'vitest'
+import {
+  normalizeContext,
+  type Api,
+  type Message,
+  type Model,
+  type RefreshModelsContext,
+  type Tool,
+  type TranscriptContext,
+  type Usage
+} from '@earendil-works/pi-ai'
+import type { ExtensionAPI, ProviderConfig } from '@earendil-works/pi-coding-agent'
+
+import { makeRefreshContext } from './shared/refresh-models-harness'
+
+import commandcodeGo, {
+  buildGoRequest,
+  goThinkingLevelMap,
+  knownGoModels,
+  parseGoCatalog,
+  readNdjson,
+  refreshCommandCodeGoCatalog,
+  streamCommandCodeGo,
+  toWireMessages,
+  toWireSystem,
+  toWireTools,
+  type GoRequestInput,
+  type GoRequestBody
+} from './provider-commandcode-go'
 
 const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
 })
-import {
-  normalizeContext,
-  type Api,
-  type Message,
-  type Model,
-  type Tool,
-  type TranscriptContext,
-  type Usage
-} from '@earendil-works/pi-ai'
-
-import {
-  buildGoRequest,
-  goThinkingLevelMap,
-  knownGoModels,
-  parseGoCatalog,
-  readNdjson,
-  streamCommandCodeGo,
-  toWireMessages,
-  toWireSystem,
-  toWireTools,
-  type GoRequestInput
-} from './provider-commandcode-go'
 
 /** A `/provider/v1/models?view=client` row, the shape pi never sees directly. */
 function goRow(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -693,5 +699,103 @@ describe('streamCommandCodeGo tool calls and plumbing', () => {
 
     expect(called).toBe(false)
     expect(message.stopReason).toBe('aborted')
+  })
+})
+
+// ---- registration and catalog refresh -------------------------------------
+
+function captureProviderConfig(): ProviderConfig {
+  let captured: ProviderConfig | undefined
+  const pi = {
+    registerProvider: (_id: string, config: ProviderConfig) => {
+      captured = config
+    },
+    on: () => () => undefined
+  } as unknown as ExtensionAPI
+  commandcodeGo(pi)
+  if (!captured) throw new Error('commandcode-go did not register a provider')
+  return captured
+}
+
+function stubClientCatalog(rows: Record<string, unknown>[]): void {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ data: rows }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    })) as typeof fetch
+}
+
+describe('commandcode-go registration', () => {
+  test('registers the custom api, the pinned key env var and the baked models', () => {
+    const config = captureProviderConfig()
+
+    expect(config.api).toBe('commandcode-alpha')
+    expect(config.apiKey).toBe('$COMMANDCODE_API_KEY')
+    expect(config.baseUrl).toBe('https://api.commandcode.ai')
+    expect(config.models?.map((model) => model.id)).toEqual(
+      knownGoModels().map((model) => model.id)
+    )
+    expect(config.models?.every((model) => model.api === undefined)).toBe(true)
+  })
+})
+
+describe('refreshCommandCodeGoCatalog', () => {
+  test('keeps the baked catalog inside the refresh cooldown', async () => {
+    const { context, persisted } = makeRefreshContext({
+      stored: { checkedAt: Date.now(), models: [] }
+    })
+
+    expect(await refreshCommandCodeGoCatalog(context)).toEqual(knownGoModels())
+    expect(persisted).toEqual([])
+  })
+
+  test('publishes a fresh catalog filtered to the Go plan', async () => {
+    stubClientCatalog([
+      goRow(),
+      goRow({ id: 'claude-fable-5-2', minimumPlan: 'individual-provider' })
+    ])
+    const { context, persisted } = makeRefreshContext({ credential: { type: 'api_key', key: 'k' } })
+
+    const models = await refreshCommandCodeGoCatalog(context)
+
+    expect(models.map((model) => model.id)).toEqual(['deepseek/deepseek-v4.1-flash'])
+    expect(persisted[0].models[0]).toMatchObject({
+      provider: 'commandcode-go',
+      api: 'commandcode-alpha',
+      baseUrl: 'https://api.commandcode.ai'
+    })
+  })
+
+  test('keeps the baked catalog when the account can run none of the Go models', async () => {
+    stubClientCatalog([goRow({ minimumPlan: 'individual-pro' })])
+    const { context, persisted } = makeRefreshContext({ credential: { type: 'api_key', key: 'k' } })
+
+    expect(await refreshCommandCodeGoCatalog(context)).toEqual(knownGoModels())
+    expect(persisted).toEqual([])
+  })
+
+  test('keeps the baked catalog when the fetch fails', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('offline')
+    }) as typeof fetch
+    const { context, persisted } = makeRefreshContext({ credential: { type: 'api_key', key: 'k' } })
+
+    expect(await refreshCommandCodeGoCatalog(context)).toEqual(knownGoModels())
+    expect(persisted).toEqual([])
+  })
+
+  test('refreshes without a network in the cache-only phase', async () => {
+    let called = false
+    globalThis.fetch = (async () => {
+      called = true
+      return new Response('{}')
+    }) as typeof fetch
+    const { context } = makeRefreshContext({
+      allowNetwork: false,
+      credential: { type: 'api_key', key: 'k' }
+    })
+
+    expect(await refreshCommandCodeGoCatalog(context)).toEqual(knownGoModels())
+    expect(called).toBe(false)
   })
 })

@@ -15,6 +15,7 @@ import {
   type CommandCodeModelConfig
 } from './shared/commandcode-models'
 import { COMMANDCODE_CATALOG } from './provider-commandcode-catalog.generated'
+import { makeRefreshContext } from './shared/refresh-models-harness'
 
 const originalFetch = globalThis.fetch
 
@@ -149,23 +150,6 @@ function promptPayload(
     model: 'test/model',
     messages: [{ role: 'user', content: 'a'.repeat(chars) }]
   }
-}
-
-function makeContext(overrides: Partial<RefreshModelsContext> = {}): {
-  context: RefreshModelsContext
-  persisted: NonNullable<Parameters<RefreshModelsContext['publish']>[0]['persist']>[]
-} {
-  const persisted: NonNullable<Parameters<RefreshModelsContext['publish']>[0]['persist']>[] = []
-  const context: RefreshModelsContext = {
-    allowNetwork: true,
-    signal: new AbortController().signal,
-    publish: async (publication) => {
-      if (publication.persist) persisted.push(publication.persist)
-      return true
-    },
-    ...overrides
-  }
-  return { context, persisted }
 }
 
 function seedModels(): CommandCodeModelConfig[] {
@@ -643,7 +627,7 @@ describe('refreshModels fallback', () => {
   test('returns the seed catalog instead of an empty list when no credential resolves', async () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext()
+    const { context } = makeRefreshContext()
 
     const models = await refreshModels(context)
 
@@ -653,7 +637,7 @@ describe('refreshModels fallback', () => {
   test('returns the seed catalog without touching the network in the cache-only phase', async () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext({ allowNetwork: false, credential: apiKeyCredential() })
+    const { context } = makeRefreshContext({ allowNetwork: false, credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -664,7 +648,7 @@ describe('refreshModels fallback', () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['stored/from-disc'], Date.now())
-    const { context } = makeContext({
+    const { context } = makeRefreshContext({
       allowNetwork: false,
       credential: apiKeyCredential(),
       stored
@@ -685,7 +669,7 @@ describe('refreshModels fallback', () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['deepseek/deepseek-v4.1-flash-ultrafast'], Date.now())
-    const { context } = makeContext({
+    const { context } = makeRefreshContext({
       allowNetwork: false,
       credential: apiKeyCredential(),
       stored
@@ -706,7 +690,7 @@ describe('refreshModels network', () => {
   test('fetches the upstream models and applies overrides', async () => {
     stubCatalog(['deepseek/deepseek-v4-flash', 'moonshotai/Kimi-K3', 'fresh/upstream-only'])
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext({ credential: apiKeyCredential() })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -736,7 +720,7 @@ describe('refreshModels network', () => {
   test('persists the fetched catalog so the next session starts from it', async () => {
     stubCatalog(['deepseek/deepseek-v4.1-flash', 'claude-sonnet-5-5'])
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+    const { context, persisted } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -761,7 +745,7 @@ describe('refreshModels network', () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['stored/fresh'], Date.now())
-    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential(), stored })
 
     const models = await refreshModels(context)
 
@@ -772,7 +756,7 @@ describe('refreshModels network', () => {
     stubFetchFailure()
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['claude-fable-5-2'], Date.now())
-    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential(), stored })
 
     const [model] = await refreshModels(context)
 
@@ -787,7 +771,7 @@ describe('refreshModels network', () => {
     stubCatalog(['fresh/upstream'])
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['stored/stale'], Date.now() - 5 * 60 * 60 * 1000)
-    const { context } = makeContext({ credential: apiKeyCredential(), stored })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential(), stored })
 
     const models = await refreshModels(context)
 
@@ -798,7 +782,7 @@ describe('refreshModels network', () => {
     stubCatalog(['fresh/upstream'])
     const { refreshModels } = captureProviderConfig()
     const stored = storedCatalog(['stored/fresh'], Date.now())
-    const { context } = makeContext({ credential: apiKeyCredential(), stored, force: true })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential(), stored, force: true })
 
     const models = await refreshModels(context)
 
@@ -808,7 +792,7 @@ describe('refreshModels network', () => {
   test('keeps the fallback when the upstream reports no models', async () => {
     stubCatalog([])
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+    const { context, persisted } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -826,7 +810,7 @@ describe('refreshModels network', () => {
       { preconnect: originalFetch.preconnect }
     ) as typeof fetch
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({
+    const { context, persisted } = makeRefreshContext({
       credential: apiKeyCredential(),
       signal: controller.signal
     })
@@ -847,7 +831,7 @@ describe('plan entitlement', () => {
       model === 'gpt-5.4' ? planDenial(OPENAI_PROBE, modelNotInPlan(model)) : undefined
     )
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+    const { context, persisted } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -864,7 +848,7 @@ describe('plan entitlement', () => {
         model === 'claude-sonnet-5' ? planDenial(MESSAGES_PROBE, modelNotInPlan(model)) : undefined
     )
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext({ credential: apiKeyCredential() })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -887,7 +871,7 @@ describe('plan entitlement', () => {
           : undefined
     )
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext({ credential: apiKeyCredential() })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -905,7 +889,7 @@ describe('plan entitlement', () => {
     }
     stubProbedCatalog(Object.keys(inconclusive), (model) => inconclusive[model])
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext({ credential: apiKeyCredential() })
+    const { context } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -922,7 +906,7 @@ describe('plan entitlement', () => {
       planDenial(model.startsWith('claude-') ? MESSAGES_PROBE : OPENAI_PROBE, modelNotInPlan(model))
     )
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({ credential: apiKeyCredential() })
+    const { context, persisted } = makeRefreshContext({ credential: apiKeyCredential() })
 
     const models = await refreshModels(context)
 
@@ -935,7 +919,7 @@ describe('plan entitlement', () => {
       planDenial(OPENAI_PROBE, modelNotInPlan(model))
     )
     const { refreshModels } = captureProviderConfig()
-    const { context, persisted } = makeContext({
+    const { context, persisted } = makeRefreshContext({
       credential: apiKeyCredential(),
       stored: storedCatalog(['snapshot/only-model'], Date.now() - 5 * 60 * 60 * 1000)
     })
@@ -952,7 +936,7 @@ describe('plan entitlement', () => {
   test('keeps the fallback when the catalog is refreshed without a credential', async () => {
     const { calls } = stubProbedCatalog(['deepseek/deepseek-v4.1-flash'])
     const { refreshModels } = captureProviderConfig()
-    const { context } = makeContext()
+    const { context } = makeRefreshContext()
 
     const models = await refreshModels(context)
 

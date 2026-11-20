@@ -31,6 +31,7 @@
 
 import {
   createAssistantMessageEventStream,
+  isModelType,
   getCurrentSystemPrompt,
   getCurrentTools,
   type Api,
@@ -40,15 +41,18 @@ import {
   type JsonObject,
   type Model,
   type ProviderResponse,
+  type RefreshModelsContext,
   type SimpleStreamOptions,
   type Tool,
   type TranscriptContext,
   type Usage
 } from '@earendil-works/pi-ai'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 import {
   buildCommandCodeModel,
   MIN_INPUT_WINDOW,
+  REFRESH_COOLDOWN_MS,
   type CommandCodeBuildModel,
   type CommandCodeModelConfig
 } from './shared/commandcode-models'
@@ -809,4 +813,80 @@ export function streamCommandCodeGo(
   })()
 
   return stream
+}
+
+// ---- Catalog refresh and registration ------------------------------------
+
+async function fetchGoCatalog(
+  apiKey: string,
+  signal: AbortSignal
+): Promise<CommandCodeModelConfig[]> {
+  const response = await fetch(`${COMMANDCODE_GO_BASE_URL}/provider/v1/models?view=client`, {
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'x-command-code-version': COMMANDCODE_GO_VERSION
+    },
+    signal
+  })
+  if (!response.ok) throw new Error(`Command Code models ${response.status}`)
+  return parseGoCatalog(await response.json())
+}
+
+/**
+ * The `refreshModels` callback pi invokes for "commandcode-go". The stored
+ * catalog is already filtered to this plan and rebuilt by this build, so it is
+ * the fallback in the cache-only phase; a live fetch replaces it behind the same
+ * cooldown the other provider uses. A fetch failure, an empty Go list or an
+ * abort all keep what pi already had — publishing nothing is always better than
+ * publishing an empty provider.
+ */
+export async function refreshCommandCodeGoCatalog(
+  context: RefreshModelsContext
+): Promise<CommandCodeModelConfig[]> {
+  const stored = context.stored?.models
+  const fallback = stored?.length
+    ? stored.filter((model) => isModelType(model, 'chat'))
+    : knownGoModels()
+
+  if (!context.allowNetwork || context.signal.aborted) return fallback
+
+  const checkedAt = context.stored?.checkedAt
+  if (!context.force && checkedAt !== undefined && Date.now() - checkedAt < REFRESH_COOLDOWN_MS) {
+    return fallback
+  }
+
+  const credential = context.credential
+  if (credential?.type !== 'api_key' || !credential.key) return fallback
+
+  let models: CommandCodeModelConfig[]
+  try {
+    models = await fetchGoCatalog(credential.key, context.signal)
+  } catch {
+    return fallback
+  }
+  if (context.signal.aborted || models.length === 0) return fallback
+
+  const persisted = models.map((model) => ({
+    ...model,
+    provider: 'commandcode-go',
+    api: 'commandcode-alpha',
+    baseUrl: COMMANDCODE_GO_BASE_URL
+  }))
+  try {
+    await context.publish({ persist: { models: persisted, checkedAt: Date.now() } })
+  } catch {
+    // Persisting is best effort; the returned list already updates this session.
+  }
+  return persisted
+}
+
+export default function commandcodeGo(pi: ExtensionAPI): void {
+  pi.registerProvider('commandcode-go', {
+    name: 'Command Code (Go plan)',
+    baseUrl: COMMANDCODE_GO_BASE_URL,
+    apiKey: '$COMMANDCODE_API_KEY',
+    api: 'commandcode-alpha',
+    models: knownGoModels(),
+    refreshModels: refreshCommandCodeGoCatalog
+  })
 }
