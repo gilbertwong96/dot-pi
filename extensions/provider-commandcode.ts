@@ -771,8 +771,16 @@ export async function refreshCommandCodeCatalog(
 
   const models = built.filter((model) => !excluded.has(model.id))
   // A plan that excludes everything (or a gate that misfires) must not empty the
-  // provider, so keep the unfiltered catalog rather than publish nothing.
-  if (models.length === 0) return fallback
+  // provider, so serve the catalog this build ships. The stored fallback is the
+  // snapshot a previous refresh already filtered, so falling back to it would keep
+  // hiding models upstream still lists — and it can never self-heal, because the
+  // all-excluded result short-circuits the persist below.
+  if (models.length === 0) {
+    console.warn(
+      '[commandcode] The account plan excludes every model upstream lists; serving the shipped catalog.'
+    )
+    return knownCommandCodeModels().map(buildCommandCodeModel)
+  }
 
   // The store is typed to pi-ai's internal Model shape, so rehydrate the
   // provider identity fields that the composer otherwise fills in.

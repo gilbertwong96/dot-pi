@@ -931,6 +931,25 @@ describe('plan entitlement', () => {
     expect(persisted).toEqual([])
   })
 
+  test('serves the fetched catalog when the plan excludes every model and a snapshot exists', async () => {
+    stubProbedCatalog(['deepseek/deepseek-v4.1-flash', 'gpt-5.4'], (model) =>
+      planDenial(OPENAI_PROBE, modelNotInPlan(model))
+    )
+    const { refreshModels } = captureProviderConfig()
+    const { context, persisted } = makeContext({
+      credential: apiKeyCredential(),
+      stored: storedCatalog(['snapshot/only-model'], Date.now() - 5 * 60 * 60 * 1000)
+    })
+
+    const models = await refreshModels(context)
+
+    // An earlier refresh already filtered the snapshot, so falling back to it would
+    // hide models upstream still lists.
+    expect(models.map((model) => model.id)).toEqual(seedModels().map((model) => model.id))
+    expect(models.some((model) => model.id.startsWith('deepseek/'))).toBe(true)
+    expect(persisted).toEqual([])
+  })
+
   test('keeps the fallback when the catalog is refreshed without a credential', async () => {
     const { calls } = stubProbedCatalog(['deepseek/deepseek-v4.1-flash'])
     const { refreshModels } = captureProviderConfig()
